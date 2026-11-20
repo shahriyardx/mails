@@ -110,7 +110,6 @@ func (s *Service) Ingest(ctx context.Context, p *Payload, files []Attachment) (R
 
 	var res Result
 	var delivered []string
-	var received []Received
 	for _, to := range dedupe(recipients) {
 		box, err := s.resolveMailbox(ctx, to)
 		if err != nil {
@@ -125,19 +124,18 @@ func (s *Service) Ingest(ctx context.Context, p *Payload, files []Attachment) (R
 			return res, err
 		}
 		res.Stored = append(res.Stored, r.MessageID)
+		// Announce right after this mailbox's commit: if a later recipient
+		// fails and the worker retries, this one is a duplicate then and
+		// would never be announced.
 		if !dup {
-			received = append(received, r)
+			s.Hub.Publish(realtime.Event{Type: "mail.received", Data: map[string]string{
+				"thread_id": r.ThreadID, "mailbox_id": r.MailboxID, "message_id": r.MessageID,
+			}})
+			for _, hook := range s.OnReceived {
+				hook(ctx, r)
+			}
+			s.emitReceived(ctx, r, p, len(files) > 0)
 		}
-	}
-
-	for _, r := range received {
-		s.Hub.Publish(realtime.Event{Type: "mail.received", Data: map[string]string{
-			"thread_id": r.ThreadID, "mailbox_id": r.MailboxID, "message_id": r.MessageID,
-		}})
-		for _, hook := range s.OnReceived {
-			hook(ctx, r)
-		}
-		s.emitReceived(ctx, r, p, len(files) > 0)
 	}
 
 	// Forwarding is answered even for duplicates: the worker forwards once

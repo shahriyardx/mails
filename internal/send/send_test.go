@@ -331,3 +331,43 @@ func TestBackoff(t *testing.T) {
 		}
 	}
 }
+
+func TestDraftSentOnceUnderRace(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	d, _ := e.s.SaveDraft(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Text: "once"})
+	errs := make(chan error, 2)
+	for range 2 {
+		go func() {
+			_, err := e.s.Send(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Text: "once", DraftID: d.ID})
+			errs <- err
+		}()
+	}
+	var failed int
+	for range 2 {
+		if err := <-errs; err != nil {
+			if code(err) != 409 {
+				t.Fatalf("unexpected: %v", err)
+			}
+			failed++
+		}
+	}
+	if failed != 1 || e.ses.SentCount() != 1 {
+		t.Fatalf("failed=%d sent=%d", failed, e.ses.SentCount())
+	}
+}
+
+func TestRefusedDraftStaysADraft(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	d, _ := e.s.SaveDraft(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Text: "x"})
+	e.ses.SendErr = &types.MessageRejected{Message: new(string)}
+	if _, err := e.s.Send(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Text: "x", DraftID: d.ID}); code(err) != 422 {
+		t.Fatalf("refused: %v", err)
+	}
+	var isDraft bool
+	_ = e.pool.QueryRow(ctx, `SELECT is_draft FROM message WHERE id = $1`, d.ID).Scan(&isDraft)
+	if !isDraft {
+		t.Fatal("refused send left the draft claimed")
+	}
+}

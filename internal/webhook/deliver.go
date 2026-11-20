@@ -39,6 +39,7 @@ const (
 	disableAfter     = 20
 	attemptTimeout   = 10 * time.Second
 	maxResponseBytes = 2048
+	staleClaim       = 5 * time.Minute
 )
 
 // retryDelays is the wait before attempts 2, 3 and 4.
@@ -142,9 +143,15 @@ type pending struct {
 
 // DeliverOne claims and sends one due attempt. It reports whether there was one.
 func (s *Service) DeliverOne(ctx context.Context) (bool, error) {
+	// An attempt takes at most attemptTimeout; a claim much older than that
+	// belongs to a worker that died, so the attempt goes back in the queue.
+	if _, err := s.DB.Exec(ctx, `UPDATE webhook_delivery SET next_retry_at = $1, locked_at = NULL
+		WHERE locked_at < $2 AND status_code IS NULL AND error IS NULL`, s.Now(), s.Now().Add(-staleClaim)); err != nil {
+		return false, fmt.Errorf("release stale deliveries: %w", err)
+	}
 	var p pending
 	err := s.DB.QueryRow(ctx, `WITH d AS (
-			UPDATE webhook_delivery SET next_retry_at = NULL WHERE id = (
+			UPDATE webhook_delivery SET next_retry_at = NULL, locked_at = $1 WHERE id = (
 				SELECT id FROM webhook_delivery WHERE next_retry_at <= $1 ORDER BY next_retry_at FOR UPDATE SKIP LOCKED LIMIT 1)
 			RETURNING id, event_id, webhook_id, event, payload, attempt)
 		SELECT d.id, d.event_id, d.webhook_id, d.event, w.url, w.secret, d.payload, d.attempt, w.enabled,
@@ -158,10 +165,12 @@ func (s *Service) DeliverOne(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("claim delivery: %w", err)
 	}
 	if !p.Enabled {
-		_, err := s.DB.Exec(ctx, `UPDATE webhook_delivery SET error = 'The endpoint is turned off' WHERE id = $1`, p.ID)
+		_, err := s.DB.Exec(ctx, `UPDATE webhook_delivery SET error = 'The endpoint is turned off', locked_at = NULL WHERE id = $1`, p.ID)
 		return true, err
 	}
 	r := s.attempt(ctx, &p)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
 	if err := s.record(ctx, &p, r); err != nil {
 		return true, err
 	}
@@ -245,8 +254,8 @@ func (s *Service) attempt(ctx context.Context, p *pending) Result {
 // record writes an attempt's outcome on its row and on the endpoint.
 func (s *Service) record(ctx context.Context, p *pending, r Result) error {
 	return pgx.BeginFunc(ctx, s.DB, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `UPDATE webhook_delivery SET status_code = $2, response_body = $3, error = $4, duration_ms = $5, succeeded = $6
-			WHERE id = $1`, p.ID, r.StatusCode, r.ResponseBody, r.Error, r.DurationMS, r.Succeeded); err != nil {
+		if _, err := tx.Exec(ctx, `UPDATE webhook_delivery SET status_code = $2, response_body = $3, error = $4, duration_ms = $5, succeeded = $6,
+			locked_at = NULL WHERE id = $1`, p.ID, r.StatusCode, r.ResponseBody, r.Error, r.DurationMS, r.Succeeded); err != nil {
 			return fmt.Errorf("record delivery: %w", err)
 		}
 		var err error

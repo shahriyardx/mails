@@ -243,7 +243,10 @@ func (a *API) getLabel(_ http.ResponseWriter, r *http.Request, _ *caller) (int, 
 	return 200, l, err
 }
 
-func (a *API) createLabel(_ http.ResponseWriter, r *http.Request, _ *caller) (int, any, error) {
+func (a *API) createLabel(_ http.ResponseWriter, r *http.Request, c *caller) (int, any, error) {
+	if err := unrestricted(c, "create a label: labels are shared by the whole account"); err != nil {
+		return 0, nil, err
+	}
 	var in mail.LabelInput
 	if err := httpx.Decode(r, &in); err != nil {
 		return 0, nil, err
@@ -252,7 +255,10 @@ func (a *API) createLabel(_ http.ResponseWriter, r *http.Request, _ *caller) (in
 	return 201, l, err
 }
 
-func (a *API) patchLabel(_ http.ResponseWriter, r *http.Request, _ *caller) (int, any, error) {
+func (a *API) patchLabel(_ http.ResponseWriter, r *http.Request, c *caller) (int, any, error) {
+	if err := unrestricted(c, "change a label: labels are shared by the whole account"); err != nil {
+		return 0, nil, err
+	}
 	var in mail.LabelInput
 	if err := httpx.Decode(r, &in); err != nil {
 		return 0, nil, err
@@ -261,7 +267,10 @@ func (a *API) patchLabel(_ http.ResponseWriter, r *http.Request, _ *caller) (int
 	return 200, l, err
 }
 
-func (a *API) deleteLabel(_ http.ResponseWriter, r *http.Request, _ *caller) (int, any, error) {
+func (a *API) deleteLabel(_ http.ResponseWriter, r *http.Request, c *caller) (int, any, error) {
+	if err := unrestricted(c, "delete a label: labels are shared by the whole account"); err != nil {
+		return 0, nil, err
+	}
 	l, err := a.Mail.DeleteLabel(r.Context(), chi.URLParam(r, "id"))
 	if err != nil {
 		return 0, nil, err
@@ -338,10 +347,14 @@ func (a *API) deleteSuppression(_ http.ResponseWriter, r *http.Request, c *calle
 
 // ---- Webhooks ---------------------------------------------------------------
 
-// visibleHooks is the mailbox filter for webhooks: a restricted key sees
-// only endpoints on mailboxes it reaches.
-func (a *API) visibleHooks(r *http.Request, c *caller) ([]string, error) {
-	return a.reach(r.Context(), c)
+// visibleHooks is what endpoints a key sees: those on a mailbox it reaches
+// or on a domain it holds. nil (unrestricted) sees all.
+func (a *API) visibleHooks(r *http.Request, c *caller) (*webhook.Scope, error) {
+	allowed, err := a.reach(r.Context(), c)
+	if err != nil || allowed == nil {
+		return nil, err
+	}
+	return &webhook.Scope{MailboxIDs: allowed, DomainIDs: c.key.Reach.DomainIDs}, nil
 }
 
 // mayWatch enforces reach on a webhook's scope: an unscoped or domain-wide

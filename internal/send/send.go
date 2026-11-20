@@ -149,18 +149,33 @@ func (s *Service) Send(ctx context.Context, in Input) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Everything that can fail goes before SES, so a message SES accepted
+	// is always recorded: file copies are stored and a draft is claimed (two
+	// sends of one draft cannot both go out).
+	if err := s.storeCopies(ctx, p.copies); err != nil {
+		return nil, err
+	}
+	if err := s.claimDraft(ctx, p.in.DraftID, true); err != nil {
+		s.dropCopies(p.copies)
+		return nil, err
+	}
 	status, sesID, reason := "sent", "", ""
 	sendCtx, cancel := context.WithTimeout(ctx, sesTimeout)
 	sesID, err = s.SES.SendRaw(sendCtx, ses.RawEmail{From: p.box.Address, To: p.envelop, Raw: p.raw, ConfigurationSet: s.ConfigSet})
 	cancel()
 	if err != nil {
 		if ses.Permanent(err) {
+			s.dropCopies(p.copies)
+			_ = s.claimDraft(context.WithoutCancel(ctx), p.in.DraftID, false)
 			return nil, &httpx.Error{Status: 422, Code: "invalid_request", Message: "SES refused this message: " + err.Error()}
 		}
 		status, reason = "queued", err.Error()
 		slog.Warn("send queued after SES error", "err", err)
 	}
-	res, err := s.record(ctx, p, status, sesID, reason)
+	// SES has decided; the caller going away must not stop the record.
+	recCtx, cancelRec := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancelRec()
+	res, err := s.record(recCtx, p, status, sesID, reason)
 	if err != nil {
 		// SES has it but the row did not commit. Say so loudly: the mail is
 		// out and a retry by the caller would send it twice.
@@ -172,9 +187,37 @@ func (s *Service) Send(ctx context.Context, in Input) (*Result, error) {
 	if status == "queued" {
 		s.Wake()
 	} else {
-		s.emitEmail(ctx, "email.sent", res.ID)
+		s.emitEmail(recCtx, "email.sent", res.ID)
 	}
 	return res, nil
+}
+
+func (s *Service) storeCopies(ctx context.Context, copies []storedCopy) error {
+	for i, c := range copies {
+		if err := s.Store.Put(ctx, c.key, bytes.NewReader(c.file.Data), nonEmpty(c.file.ContentType, "application/octet-stream")); err != nil {
+			s.dropCopies(copies[:i])
+			return err
+		}
+	}
+	return nil
+}
+
+// claimDraft takes a draft out of circulation before it is sent (on) or
+// puts it back when SES refused it (off). A draft already claimed is a 409.
+func (s *Service) claimDraft(ctx context.Context, draftID string, on bool) error {
+	if draftID == "" {
+		return nil
+	}
+	// While claimed, the row is folder 'drafts' with is_draft false: no
+	// longer a draft anyone can send, not yet sent.
+	tag, err := s.DB.Exec(ctx, `UPDATE message SET is_draft = NOT $2 WHERE id = $1 AND is_draft = $2 AND folder = 'drafts'`, draftID, on)
+	if err != nil {
+		return fmt.Errorf("claim draft: %w", err)
+	}
+	if tag.RowsAffected() == 0 && on {
+		return httpx.Conflict("This draft is already being sent")
+	}
+	return nil
 }
 
 // prepare checks everything and builds the MIME bytes, before any write.
@@ -223,12 +266,21 @@ func (s *Service) prepare(ctx context.Context, in *Input, draft bool) (*prepared
 	}
 	if in.DraftID != "" {
 		var draftMailbox string
-		err := s.DB.QueryRow(ctx, `SELECT thread_id, mailbox_id FROM message WHERE id = $1 AND is_draft`, in.DraftID).Scan(&p.draftThread, &draftMailbox)
+		var isDraft bool
+		var folder string
+		err := s.DB.QueryRow(ctx, `SELECT thread_id, mailbox_id, is_draft, folder::text FROM message WHERE id = $1 AND is_outbound`, in.DraftID).
+			Scan(&p.draftThread, &draftMailbox, &isDraft, &folder)
 		if errors.Is(err, pgx.ErrNoRows) || (err == nil && in.Allowed != nil && !contains(in.Allowed, draftMailbox)) {
 			return nil, httpx.NotFound("No such draft")
 		}
 		if err != nil {
 			return nil, fmt.Errorf("load draft: %w", err)
+		}
+		if folder != "drafts" {
+			return nil, httpx.Conflict("This draft was already sent")
+		}
+		if !isDraft && !draft {
+			return nil, httpx.Conflict("This draft is already being sent")
 		}
 	}
 	threadID := in.ThreadID
@@ -379,12 +431,6 @@ func (s *Service) loadFiles(ctx context.Context, p *prepared) error {
 
 // record writes the sent (or queued) message, its thread, files and job.
 func (s *Service) record(ctx context.Context, p *prepared, status, sesID, reason string) (*Result, error) {
-	for i, c := range p.copies {
-		if err := s.Store.Put(ctx, c.key, bytes.NewReader(c.file.Data), nonEmpty(c.file.ContentType, "application/octet-stream")); err != nil {
-			s.dropCopies(p.copies[:i])
-			return nil, err
-		}
-	}
 	now := s.Now()
 	msgID := p.in.DraftID
 	if msgID == "" {
@@ -420,7 +466,7 @@ func (s *Service) record(ctx context.Context, p *prepared, status, sesID, reason
 				subject = $13, snippet = $14, text_body = $15, html_body = $16, ses_message_id = $17, delivery_status = $18,
 				delivery_error = $19, api_key_id = $20, size_bytes = $21, sent_at = $22, received_at = $23,
 				folder = 'sent', is_draft = false, is_outbound = true, is_read = true
-				WHERE id = $1 AND is_draft`, args...)
+				WHERE id = $1 AND folder = 'drafts' AND NOT is_draft`, args...)
 			if err != nil {
 				return fmt.Errorf("send draft: %w", err)
 			}

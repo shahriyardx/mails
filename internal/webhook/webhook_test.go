@@ -177,7 +177,7 @@ func TestPingReplayAndValidation(t *testing.T) {
 	if err != nil || !r.Succeeded || *r.StatusCode != 200 || *r.ResponseBody != `{"ok":true}` {
 		t.Fatalf("ping = %+v %v", r, err)
 	}
-	if _, err := e.s.Ping(ctx, []string{"mbx_a"}, hook.ID); err == nil {
+	if _, err := e.s.Ping(ctx, &webhook.Scope{MailboxIDs: []string{"mbx_a"}}, hook.ID); err == nil {
 		t.Fatal("restricted caller pinged an unscoped hook")
 	}
 	again, err := e.s.Replay(ctx, nil, r.DeliveryID)

@@ -252,3 +252,24 @@ func TestRateLimitAndSuppressions(t *testing.T) {
 		t.Fatalf("third call: %d %s", r.code, r.raw)
 	}
 }
+
+func TestDomainKeySeesItsDomainWebhook(t *testing.T) {
+	e := setup(t)
+	dom := e.key(t, apikey.Input{Scopes: []string{"webhooks:write"}, Reach: apikey.Reach{DomainIDs: []string{"dom_a"}}})
+	_, _ = e.pool.Exec(context.Background(), `INSERT INTO webhook (id, url, secret, domain_id) VALUES ('whk_d', 'https://example.com/h', 's', 'dom_a'),
+		('whk_other', 'https://example.com/h', 's', 'dom_b')`)
+	r := e.call(t, dom, "GET", "/webhooks", nil)
+	data := r.body["data"].([]any)
+	if len(data) != 1 || data[0].(map[string]any)["id"] != "whk_d" {
+		t.Fatalf("list: %s", r.raw)
+	}
+	if r := e.call(t, dom, "DELETE", "/webhooks/whk_other", nil); r.code != 404 {
+		t.Fatalf("other domain hook: %d", r.code)
+	}
+	if r := e.call(t, dom, "DELETE", "/webhooks/whk_d", nil); r.code != 200 {
+		t.Fatalf("own domain hook: %d %s", r.code, r.raw)
+	}
+	if r := e.call(t, dom, "POST", "/labels", map[string]string{"name": "x"}); r.code != 403 {
+		t.Fatalf("label write by restricted key: %d", r.code)
+	}
+}

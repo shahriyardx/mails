@@ -101,6 +101,10 @@ func (s *Service) ProcessOne(ctx context.Context) (bool, error) {
 	sendCtx, cancel := context.WithTimeout(ctx, sesTimeout)
 	sesID, sendErr := s.SES.SendRaw(sendCtx, ses.RawEmail{From: j.From, To: j.Recipients, Raw: j.Raw, ConfigurationSet: s.ConfigSet})
 	cancel()
+	// SES has answered: record it even if shutdown began meanwhile, or a
+	// restart would send the job again.
+	ctx, cancelFin := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancelFin()
 
 	var event string
 	switch {

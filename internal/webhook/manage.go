@@ -45,24 +45,43 @@ func scanHook(r pgx.CollectableRow) (*Webhook, error) {
 		&w.LastDeliveredAt, &w.LastErrorAt, &w.LastError, &w.ConsecutiveFailures, &w.CreatedAt)
 }
 
-// visibleClause limits to webhooks on mailboxes in visible (nil = all).
-func visibleClause(visible []string) (string, []any) {
-	if visible == nil {
+// Scope limits which endpoints a caller sees: those on one of its
+// mailboxes or one of its domains. A nil *Scope sees every endpoint.
+type Scope struct {
+	MailboxIDs []string
+	DomainIDs  []string
+}
+
+func (sc *Scope) has(mailboxID, domainID *string) bool {
+	return sc == nil || (mailboxID != nil && contains(sc.MailboxIDs, *mailboxID)) ||
+		(domainID != nil && contains(sc.DomainIDs, *domainID))
+}
+
+// visibleClause is sc as SQL over webhook columns prefixed by col.
+func visibleClause(sc *Scope, col string) (string, []any) {
+	if sc == nil {
 		return "true", nil
 	}
-	return "mailbox_id = ANY($1)", []any{visible}
+	return "(" + col + "mailbox_id = ANY($1) OR " + col + "domain_id = ANY($2))", []any{nonNil(sc.MailboxIDs), nonNil(sc.DomainIDs)}
+}
+
+func nonNil(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
 }
 
 // List returns endpoints. visible narrows to those scoped to one of those
 // mailboxes (a restricted key); nil lists every endpoint.
-func (s *Service) List(ctx context.Context, visible []string) ([]*Webhook, error) {
-	cond, args := visibleClause(visible)
+func (s *Service) List(ctx context.Context, visible *Scope) ([]*Webhook, error) {
+	cond, args := visibleClause(visible, "")
 	rows, _ := s.DB.Query(ctx, `SELECT `+hookColumns+` FROM webhook WHERE `+cond+` ORDER BY created_at`, args...)
 	return pgx.CollectRows(rows, scanHook)
 }
 
-func (s *Service) Get(ctx context.Context, visible []string, hookID string) (*Webhook, error) {
-	cond, args := visibleClause(visible)
+func (s *Service) Get(ctx context.Context, visible *Scope, hookID string) (*Webhook, error) {
+	cond, args := visibleClause(visible, "")
 	args = append(args, hookID)
 	rows, _ := s.DB.Query(ctx, fmt.Sprintf(`SELECT `+hookColumns+` FROM webhook WHERE %s AND id = $%d`, cond, len(args)), args...)
 	w, err := pgx.CollectExactlyOneRow(rows, scanHook)
@@ -135,7 +154,7 @@ type Patch struct {
 	DomainID     httpx.Opt[string] `json:"domain_id"`
 }
 
-func (s *Service) Update(ctx context.Context, visible []string, hookID string, p Patch) (*Webhook, error) {
+func (s *Service) Update(ctx context.Context, visible *Scope, hookID string, p Patch) (*Webhook, error) {
 	w, err := s.Get(ctx, visible, hookID)
 	if err != nil {
 		return nil, err
@@ -189,7 +208,7 @@ func (s *Service) Update(ctx context.Context, visible []string, hookID string, p
 }
 
 // Delete removes an endpoint and its deliveries, or only turns it off.
-func (s *Service) Delete(ctx context.Context, visible []string, hookID string, disableOnly bool) error {
+func (s *Service) Delete(ctx context.Context, visible *Scope, hookID string, disableOnly bool) error {
 	w, err := s.Get(ctx, visible, hookID)
 	if err != nil {
 		return err
@@ -203,7 +222,7 @@ func (s *Service) Delete(ctx context.Context, visible []string, hookID string, d
 }
 
 // Ping sends a webhook.test event and waits for the answer.
-func (s *Service) Ping(ctx context.Context, visible []string, hookID string) (*Result, error) {
+func (s *Service) Ping(ctx context.Context, visible *Scope, hookID string) (*Result, error) {
 	w, err := s.Get(ctx, visible, hookID)
 	if err != nil {
 		return nil, err
@@ -232,7 +251,7 @@ type Delivery struct {
 
 // DeliveryFilter narrows the delivery list.
 type DeliveryFilter struct {
-	Visible   []string
+	Visible   *Scope
 	WebhookID string
 	Event     string
 	Succeeded *bool
@@ -247,7 +266,8 @@ func (s *Service) Deliveries(ctx context.Context, f DeliveryFilter) (page.List[*
 		conds = append(conds, strings.ReplaceAll(cond, "?", fmt.Sprintf("$%d", len(args))))
 	}
 	if f.Visible != nil {
-		add("w.mailbox_id = ANY(?)", f.Visible)
+		args = append(args, nonNil(f.Visible.MailboxIDs), nonNil(f.Visible.DomainIDs))
+		conds = append(conds, fmt.Sprintf("(w.mailbox_id = ANY($%d) OR w.domain_id = ANY($%d))", len(args)-1, len(args)))
 	}
 	if f.WebhookID != "" {
 		add("d.webhook_id = ?", f.WebhookID)
@@ -280,16 +300,16 @@ func (s *Service) Deliveries(ctx context.Context, f DeliveryFilter) (page.List[*
 
 // Replay sends a stored delivery's payload again, under the same event id,
 // and waits for the answer.
-func (s *Service) Replay(ctx context.Context, visible []string, deliveryID string) (*Result, error) {
+func (s *Service) Replay(ctx context.Context, visible *Scope, deliveryID string) (*Result, error) {
 	var hookID, event, eventID string
 	var payload json.RawMessage
 	var attempt int
-	var mailboxID *string
-	err := s.DB.QueryRow(ctx, `SELECT d.webhook_id, d.event, d.event_id, d.payload, w.mailbox_id,
+	var mailboxID, domainID *string
+	err := s.DB.QueryRow(ctx, `SELECT d.webhook_id, d.event, d.event_id, d.payload, w.mailbox_id, w.domain_id,
 		(SELECT max(attempt) FROM webhook_delivery x WHERE x.event_id = d.event_id)
 		FROM webhook_delivery d JOIN webhook w ON w.id = d.webhook_id WHERE d.id = $1`, deliveryID).
-		Scan(&hookID, &event, &eventID, &payload, &mailboxID, &attempt)
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && visible != nil && (mailboxID == nil || !contains(visible, *mailboxID))) {
+		Scan(&hookID, &event, &eventID, &payload, &mailboxID, &domainID, &attempt)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && !visible.has(mailboxID, domainID)) {
 		return nil, httpx.NotFound("No such delivery")
 	}
 	if err != nil {

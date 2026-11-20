@@ -31,8 +31,17 @@ func (s *Service) SaveDraft(ctx context.Context, in Input) (*Result, error) {
 			if err != nil {
 				return fmt.Errorf("load draft: %w", err)
 			}
+			// Keep the draft's thread unless From moved it to another
+			// mailbox: a thread's messages all share its mailbox, which every
+			// reach check relies on.
 			if threadID == "" {
-				threadID = current
+				var sameBox bool
+				if err := tx.QueryRow(ctx, `SELECT mailbox_id = $2 FROM thread WHERE id = $1`, current, p.box.ID).Scan(&sameBox); err != nil {
+					return fmt.Errorf("load draft thread: %w", err)
+				}
+				if sameBox {
+					threadID = current
+				}
 			}
 		}
 		if threadID == "" {

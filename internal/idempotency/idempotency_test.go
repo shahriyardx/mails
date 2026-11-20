@@ -6,6 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/shahriyardx/mails/internal/db/dbtest"
 	"github.com/shahriyardx/mails/internal/httpx"
@@ -16,14 +17,22 @@ func TestDoRunsOnce(t *testing.T) {
 	s := &idempotency.Store{DB: dbtest.New(t)}
 	ctx := context.Background()
 	var runs atomic.Int32
-	fn := func() (int, any, error) { runs.Add(1); return 202, map[string]string{"id": "msg_1"}, nil }
+	fn := func() (int, any, error) {
+		runs.Add(1)
+		time.Sleep(50 * time.Millisecond)
+		return 202, map[string]string{"id": "msg_1"}, nil
+	}
 
+	// Concurrent repeats: one runs, the others replay or are told it is in
+	// progress. Never two runs.
 	var wg sync.WaitGroup
-	for range 4 {
+	for range 8 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if _, err := s.Do(ctx, "key_1", "k", "/emails", []byte(`{"a":1}`), fn); err != nil {
+			_, err := s.Do(ctx, "key_1", "k", "/emails", []byte(`{"a":1}`), fn)
+			var e *httpx.Error
+			if err != nil && !(errors.As(err, &e) && e.Status == 409) {
 				t.Error(err)
 			}
 		}()
