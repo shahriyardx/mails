@@ -225,7 +225,6 @@ function ListHeader({
   listQuery: URLSearchParams;
 }) {
   const labels = useLabels();
-  const mailboxes = useMailboxes();
   const title = q
     ? "Search"
     : label
@@ -233,7 +232,6 @@ function ListHeader({
       : FOLDER_META[folder].label;
   // Nothing in Sent or Drafts is unread, so there is nothing to filter by.
   const canUnread = Boolean(label) || (folder !== "sent" && folder !== "drafts");
-  const boxChips = (mailboxes.data?.length ?? 0) > 1;
 
   const chipHref = (target: Scope | string, keepUnread: boolean) => {
     const next = new URLSearchParams(listQuery);
@@ -272,34 +270,22 @@ function ListHeader({
         <SearchBox key={q} value={q} onCommit={onSearch} onClose={() => onSearching(false)} />
       )}
 
-      {(canUnread || boxChips) && (
-        <div className="-mx-4 mt-3 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:-mx-5.5 md:px-5.5">
-          <Chip to={chipHref("all", false)} active={scope.kind === "all" && !unread}>
+      {/* Which mailbox is picked in the sidebar; here only All or Unread. */}
+      {canUnread && (
+        <div className="mt-3 flex gap-1.5">
+          <Chip to={chipHref(scope, false)} active={!unread}>
             All
           </Chip>
-          {canUnread && (
-            <Chip
-              to={chipHref(scope, true)}
-              active={unread}
-              onClick={(event) => {
-                event.preventDefault();
-                onUnread(!unread);
-              }}
-            >
-              Unread
-            </Chip>
-          )}
-          {boxChips &&
-            mailboxes.data!.map((box) => (
-              <Chip
-                key={box.id}
-                to={chipHref(box.id, true)}
-                active={scope.kind === "mailbox" && scope.id === box.id}
-                title={box.address}
-              >
-                {box.address.split("@")[0]}@
-              </Chip>
-            ))}
+          <Chip
+            to={chipHref(scope, true)}
+            active={unread}
+            onClick={(event) => {
+              event.preventDefault();
+              onUnread(!unread);
+            }}
+          >
+            Unread
+          </Chip>
         </div>
       )}
     </div>

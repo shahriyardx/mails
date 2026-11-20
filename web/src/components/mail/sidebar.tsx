@@ -6,7 +6,12 @@ import { Button, Count, Icon, IconButton, Logo, Tooltip, Wordmark } from "@/comp
 import { useCounts, useLabels, useMailboxes } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { FOLDER_META, FOLDERS, mailHref, type Scope, scopeSegment } from "@/lib/mail";
-import { setSidebarCollapsed, useSidebarCollapsed } from "@/lib/sidebar";
+import {
+  setSidebarCollapsed,
+  toggleDomainClosed,
+  useClosedDomains,
+  useSidebarCollapsed,
+} from "@/lib/sidebar";
 import type { Mailbox, ViewFolder } from "@/lib/types";
 import { useComposer } from "./composer-provider";
 
@@ -45,6 +50,9 @@ export function Sidebar({
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [mailboxes.data]);
   const unread = counts.data?.mailboxes ?? {};
+  const closedDomains = useClosedDomains();
+  // Same rule as SidebarFrame (its context is not visible up here).
+  const folded = useSidebarCollapsed() && !onNavigate;
 
   const write = () => {
     onNavigate?.();
@@ -89,36 +97,66 @@ export function Sidebar({
                 All mailboxes
               </NavRow>
             </li>
-            {domains.map(([domain, boxes]) => (
-              <li key={domain}>
-                {domains.length > 1 && (
-                  <NavRow
-                    to={mailHref(domain, folder)}
-                    active={scope.kind === "domain" && scope.domain === domain}
-                    onClick={onNavigate}
-                    lead={<Square className="border border-muted-foreground" />}
-                  >
-                    {domain}
-                  </NavRow>
-                )}
-                <ul className={cn("space-y-px", domains.length > 1 && "pl-4 in-data-folded:pl-0")}>
-                  {boxes.map((box) => (
-                    <li key={box.id}>
+            {domains.map(([domain, boxes]) => {
+              const grouped = domains.length > 1;
+              // An open mailbox keeps its domain unfolded; folded sidebars show all.
+              const open =
+                !grouped ||
+                folded ||
+                !closedDomains.has(domain) ||
+                boxes.some((b) => scope.kind === "mailbox" && scope.id === b.id);
+              return (
+                <li key={domain}>
+                  {grouped && (
+                    <div className="group/domain relative">
                       <NavRow
-                        to={mailHref(box.id, folder)}
-                        active={scope.kind === "mailbox" && scope.id === box.id}
+                        to={mailHref(domain, folder)}
+                        active={scope.kind === "domain" && scope.domain === domain}
                         onClick={onNavigate}
-                        lead={<Square color={box.color} />}
-                        count={unread[box.id] ?? 0}
-                        tip={box.address}
+                        lead={<Square className="border border-muted-foreground" />}
+                        count={
+                          open ? undefined : boxes.reduce((n, b) => n + (unread[b.id] ?? 0), 0)
+                        }
+                        className={folded ? undefined : "pr-8"}
                       >
-                        {domains.length > 1 ? `${box.address.split("@")[0]}@` : box.address}
+                        {domain}
                       </NavRow>
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
+                      {!folded && (
+                        <IconButton
+                          icon="expand_more"
+                          label={open ? `Fold ${domain}` : `Unfold ${domain}`}
+                          aria-expanded={open}
+                          size="xs"
+                          className={cn(
+                            "absolute top-1/2 right-1 size-6 -translate-y-1/2 transition-transform",
+                            !open && "-rotate-90",
+                          )}
+                          onClick={() => toggleDomainClosed(domain)}
+                        />
+                      )}
+                    </div>
+                  )}
+                  {open && (
+                    <ul className={cn("space-y-px", grouped && "pl-4 in-data-folded:pl-0")}>
+                      {boxes.map((box) => (
+                        <li key={box.id}>
+                          <NavRow
+                            to={mailHref(box.id, folder)}
+                            active={scope.kind === "mailbox" && scope.id === box.id}
+                            onClick={onNavigate}
+                            lead={<Square color={box.color} />}
+                            count={unread[box.id] ?? 0}
+                            tip={box.address}
+                          >
+                            {grouped ? `${box.address.split("@")[0]}@` : box.address}
+                          </NavRow>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              );
+            })}
             {mailboxes.data?.length === 0 && (
               <li className="px-2.5 py-1.5 text-[13px] text-muted-foreground in-data-folded:hidden">
                 None yet.{" "}
