@@ -237,6 +237,33 @@ func TestIdempotencyAndBatch(t *testing.T) {
 	}
 }
 
+// A retried reply with the same Idempotency-Key replays the first answer
+// instead of sending the reply twice.
+func TestReplyIsIdempotent(t *testing.T) {
+	e := setup(t)
+	k := e.key(t, apikey.Input{Scopes: []string{"*"}})
+	e.receive(t, "sales@a.test", "Question")
+	var thread string
+	if err := e.pool.QueryRow(context.Background(), `SELECT id FROM thread`).Scan(&thread); err != nil {
+		t.Fatal(err)
+	}
+	body := map[string]any{"text": "Answer"}
+	first := e.call(t, k, "POST", "/threads/"+thread+"/reply", body, "Idempotency-Key", "reply-1")
+	again := e.call(t, k, "POST", "/threads/"+thread+"/reply", body, "Idempotency-Key", "reply-1")
+	if first.code != 202 || again.code != 202 || again.header.Get("Idempotency-Replayed") != "true" || first.body["id"] != again.body["id"] {
+		t.Fatalf("replay: %d %d %s %s", first.code, again.code, first.raw, again.raw)
+	}
+	if e.ses.SentCount() != 1 {
+		t.Fatalf("sent %d times", e.ses.SentCount())
+	}
+	if r := e.call(t, k, "POST", "/threads/"+thread+"/reply", map[string]any{"text": "Other"}, "Idempotency-Key", "reply-1"); r.code != 409 {
+		t.Fatalf("changed body: %d", r.code)
+	}
+	if r := e.call(t, k, "POST", "/threads/"+thread+"/reply", map[string]any{"text": "x", "template": "t"}); r.code != 422 {
+		t.Fatalf("unknown field: %d", r.code)
+	}
+}
+
 func TestRateLimitAndSuppressions(t *testing.T) {
 	e := setup(t)
 	limit := 2

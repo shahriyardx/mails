@@ -228,8 +228,15 @@ func (a *API) patchThread(_ http.ResponseWriter, r *http.Request, c *caller) (in
 }
 
 func (a *API) replyThread(w http.ResponseWriter, r *http.Request, c *caller) (int, any, error) {
+	body, err := readBody(w, r)
+	if err != nil {
+		return 0, nil, err
+	}
 	var in send.ReplyInput
-	if err := httpx.Bind(r, &in); err != nil {
+	if err := decodeStrict(body, &in); err != nil {
+		return 0, nil, err
+	}
+	if err := httpx.Validate(&in); err != nil {
 		return 0, nil, err
 	}
 	allowed, err := a.reach(r.Context(), c)
@@ -237,8 +244,10 @@ func (a *API) replyThread(w http.ResponseWriter, r *http.Request, c *caller) (in
 		return 0, nil, err
 	}
 	in.Allowed, in.APIKeyID = allowed, c.key.ID
-	res, err := a.Send.Reply(r.Context(), chi.URLParam(r, "id"), in)
-	return 202, res, err
+	return a.idempotent(w, r, c, body, func() (int, any, error) {
+		res, err := a.Send.Reply(r.Context(), chi.URLParam(r, "id"), in)
+		return 202, res, err
+	})
 }
 
 func (a *API) deleteThread(_ http.ResponseWriter, r *http.Request, c *caller) (int, any, error) {
