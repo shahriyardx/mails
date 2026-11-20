@@ -6,6 +6,13 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-21
+
+### Fixed
+
+- Settings -> Inbound accepts Cloudflare tokens made on the Account API
+  tokens page (account-owned tokens), not only user tokens.
+
 ## [0.1.0] - 2026-11-21
 
 First release of Mails, the Go rewrite.
@@ -39,5 +46,6 @@ First release of Mails, the Go rewrite.
   subdomains, live updates that stopped after an error, and more. Every fix
   has a test.
 
-[Unreleased]: https://github.com/shahriyardx/mails/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/shahriyardx/mails/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/shahriyardx/mails/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/shahriyardx/mails/releases/tag/v0.1.0
