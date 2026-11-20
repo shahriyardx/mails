@@ -65,7 +65,8 @@ const fetches = (css: string) => CSS_FETCH.test(decodeCss(css));
  */
 function redresses(name: string, value: string) {
   if (name === "position") return !/^\s*static\s*$/i.test(value);
-  if (name === "transform" || name === "translate") return true;
+  // Names come from the browser's parser, so CSS escapes are already decoded.
+  if (["transform", "translate", "rotate", "scale", "zoom"].includes(name)) return true;
   return name.startsWith("margin") && value.includes("-");
 }
 
@@ -98,8 +99,8 @@ function stripRules(
  * as text: if anything fetching survives, the whole block goes.
  */
 export function cleanStylesheet(css: string, allowRemote = false) {
-  if ((allowRemote || !fetches(css)) && !/position|transform|translate|margin/i.test(css))
-    return css;
+  // Always parsed: a quick text test can be dodged with CSS escapes.
+  if (!css.trim()) return css;
   try {
     const sheet = new CSSStyleSheet();
     sheet.replaceSync(css);
@@ -171,9 +172,8 @@ export function prepareEmail(
     const style = node.getAttribute("style");
     if (style && "style" in node) {
       const fetching = !allowRemote && fetches(style);
-      if (fetching || /position|transform|translate|margin/i.test(style)) {
-        stripDeclarations((node as HTMLElement).style, allowRemote);
-      }
+      // Always: the parsed style has escapes decoded, a text test would not.
+      stripDeclarations((node as HTMLElement).style, allowRemote);
       if (fetching) {
         if (fetches(node.getAttribute("style") ?? "")) node.removeAttribute("style");
         blockedImages += 1;

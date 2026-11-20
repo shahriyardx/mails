@@ -108,8 +108,8 @@ describe("remote content is blocked until the reader opts in", () => {
     expect(leaks(out)).toBe(false);
   });
 
-  it("leaves a stylesheet with no fetch untouched", () => {
-    expect(cleanStylesheet("p { color: red }")).toBe("p { color: red }");
+  it("keeps a stylesheet with no fetch (as the browser writes it back)", () => {
+    expect(cleanStylesheet("p{color:red}").replace(/\s+/g, "")).toBe("p{color:red;}");
   });
 
   it("keeps embedded images and local fragment references", () => {
@@ -305,5 +305,16 @@ describe("sanitizeForEditor", () => {
     expect(out).not.toMatch(/<style|class=|id=|style=|<form|<input/);
     expect(out).toContain("Hi");
     expect(out).toContain('href="https://a.test"');
+  });
+});
+
+describe("ui redress with CSS escapes", () => {
+  it("decodes escapes before deciding", () => {
+    const { html } = prepareEmail(
+      '<style>.x{posit\\69 on:fixed;tr\\61nsform:scale(9);color:red}</style><div style="posit\\69 on:fixed;rotate:45deg;color:blue">hi</div>',
+      { showRemoteImages: false },
+    );
+    expect(html).not.toMatch(/fixed|scale\(9\)|rotate/);
+    expect(html).toContain("color: red");
   });
 });

@@ -76,7 +76,8 @@ export const MAX_HTML = 2_000_000;
  */
 function redresses(name: string, value: string) {
   if (name === "position") return !/^\s*static\s*$/i.test(value);
-  if (name === "transform" || name === "translate") return true;
+  // Names come from the browser's parser, so CSS escapes are already decoded.
+  if (["transform", "translate", "rotate", "scale", "zoom"].includes(name)) return true;
   return name.startsWith("margin") && value.includes("-");
 }
 
@@ -110,8 +111,8 @@ function stripRules(owner: RuleOwner, allowRemote: boolean) {
  */
 export function cleanStylesheet(css: string, allowRemote = false) {
   // Nothing to do: keep the author's text as written.
-  if ((allowRemote || !fetches(css)) && !/position|transform|translate|margin/i.test(css))
-    return css;
+  // Always parsed: a quick text test can be dodged with CSS escapes.
+  if (!css.trim()) return css;
   try {
     const sheet = new CSSStyleSheet();
     sheet.replaceSync(css);
