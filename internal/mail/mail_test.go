@@ -456,4 +456,10 @@ func TestMessageListsSerializeEmpty(t *testing.T) {
 			t.Errorf("message JSON lacks %s: %s", want, b)
 		}
 	}
+	// List items do not load these: leave them out rather than send null.
+	m.Attachments, m.Events = nil, nil
+	b, _ = json.Marshal(m)
+	if strings.Contains(string(b), `"attachments"`) || strings.Contains(string(b), `"events"`) {
+		t.Errorf("list item JSON has attachments/events: %s", b)
+	}
 }

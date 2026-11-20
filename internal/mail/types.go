@@ -131,8 +131,8 @@ type Message struct {
 	CreatedAt      time.Time      `json:"created_at" db:"created_at"`
 	Text           *string        `json:"text,omitempty" db:"text_body"`
 	HTML           *string        `json:"html,omitempty" db:"html_body"`
-	Attachments    []*Attachment  `json:"attachments" db:"-"`
-	Events         []*Event       `json:"events" db:"-"`
+	Attachments    []*Attachment  `json:"attachments,omitzero" db:"-"`
+	Events         []*Event       `json:"events,omitzero" db:"-"`
 }
 
 // messageColumns selects a message; bodies only when withBody.
