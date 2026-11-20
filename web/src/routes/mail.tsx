@@ -91,9 +91,10 @@ export function Component() {
   listQuery.delete("t");
   listQuery.delete("reply");
   const backHref = `${mailHref(scope, folder)}${listQuery.size ? `?${listQuery}` : ""}`;
-  const hrefFor = (id: string) => {
+  const hrefFor = (id: string, reply?: string) => {
     const next = new URLSearchParams(listQuery);
     next.set("t", id);
+    if (reply) next.set("reply", reply);
     return `${mailHref(scope, folder)}?${next}`;
   };
 

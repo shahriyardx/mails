@@ -33,8 +33,8 @@ const EMPTY: Record<ViewFolder, { icon: string; title: string }> = {
 
 /**
  * The conversation list: `header` (title and chips) on top, then threads
- * grouped by day. The open thread is a raised panel (its actions are in the
- * reading pane beside it); picking threads brings up a bulk bar at the bottom.
+ * grouped by day. The open thread is a raised panel with quick actions;
+ * picking threads brings up a bulk bar at the bottom.
  */
 export function ThreadList({
   header,
@@ -49,7 +49,7 @@ export function ThreadList({
   filter: ThreadFilter;
   folder: ViewFolder;
   activeId?: string;
-  hrefFor: (threadId: string) => string;
+  hrefFor: (threadId: string, reply?: "reply") => string;
   compact: boolean;
   /** All mail: say which mailbox each thread is in. */
   showMailbox: boolean;
@@ -179,6 +179,7 @@ export function ThreadList({
                 thread={thread}
                 folder={folder}
                 href={hrefFor(thread.id)}
+                replyHref={hrefFor(thread.id, "reply")}
                 active={thread.id === activeId}
                 checked={selected.has(thread.id)}
                 selecting={some}
@@ -285,6 +286,7 @@ function Row({
   thread,
   folder,
   href,
+  replyHref,
   active,
   checked,
   selecting,
@@ -300,6 +302,7 @@ function Row({
   thread: Thread;
   folder: ViewFolder;
   href: string;
+  replyHref: string;
   active: boolean;
   checked: boolean;
   selecting: boolean;
@@ -485,6 +488,30 @@ function Row({
               </span>
             )}
           </Link>
+
+          {/* The open thread's quick actions. */}
+          {active && !selecting && (
+            <span className="relative z-10 mt-2 flex flex-wrap gap-1.5">
+              {folder !== "drafts" && (
+                <Button
+                  size="xs"
+                  icon="reply"
+                  render={<Link to={replyHref} />}
+                  nativeButton={false}
+                >
+                  Reply
+                </Button>
+              )}
+              {folder !== "trash" && folder !== "archive" && (
+                <Button size="xs" icon="archive" onClick={onArchive}>
+                  Archive
+                </Button>
+              )}
+              <Button size="xs" icon="star" onClick={onStar}>
+                {thread.is_starred ? "Unstar" : "Star"}
+              </Button>
+            </span>
+          )}
         </div>
 
         {/* Hover actions take the timestamp's place (pointer screens). */}
