@@ -31,6 +31,9 @@ type Mailbox struct {
 	Color       string    `json:"color" db:"color"`
 	ForwardOff  bool      `json:"forward_off" db:"forward_off"`
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	// Receiving is set on create for a subdomain mailbox: what was done so
+	// the subdomain receives mail (see cloudflare.EnsureSubdomainReceiving).
+	Receiving any `json:"receiving,omitempty" db:"-"`
 }
 
 // From is the formatted From header: "Display Name <address>".
@@ -41,6 +44,9 @@ const columns = `id, address, domain, domain_id, display_name, signature, is_cat
 // Service holds what mailbox operations need.
 type Service struct {
 	DB *pgxpool.Pool
+	// Receiving, when set, is called for a new mailbox on a subdomain of a
+	// domain we have, to publish the MX records it needs.
+	Receiving func(ctx context.Context, domain string) any
 }
 
 func query(ctx context.Context, q db.Querier, where string, args ...any) ([]*Mailbox, error) {
@@ -163,7 +169,11 @@ func (s *Service) Create(ctx context.Context, in Input) (*Mailbox, error) {
 	if err != nil {
 		return nil, err
 	}
-	return s.Get(ctx, newID)
+	m, err := s.Get(ctx, newID)
+	if err == nil && s.Receiving != nil && m.Domain != dom.Name {
+		m.Receiving = s.Receiving(ctx, m.Domain)
+	}
+	return m, err
 }
 
 func clearOtherDefaults(ctx context.Context, tx pgx.Tx, keep string) error {

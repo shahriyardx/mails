@@ -22,9 +22,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/shahriyardx/mails/internal/auth"
+	"github.com/shahriyardx/mails/internal/cloudflare"
 	"github.com/shahriyardx/mails/internal/config"
 	"github.com/shahriyardx/mails/internal/delivery"
 	"github.com/shahriyardx/mails/internal/domain"
+	"github.com/shahriyardx/mails/internal/forwarding"
 	"github.com/shahriyardx/mails/internal/httpx"
 	"github.com/shahriyardx/mails/internal/inbound"
 	"github.com/shahriyardx/mails/internal/mail"
@@ -47,6 +49,8 @@ type Deps struct {
 	Send      *send.Service
 	Delivery  *delivery.Service
 	SNS       *delivery.Verifier
+	CF        *cloudflare.Service
+	Forward   *forwarding.Manager
 }
 
 // New builds the router. web is the built React app (web/dist).
@@ -78,6 +82,8 @@ func New(d *Deps, web fs.FS) http.Handler {
 					}))
 					app.Mount("/domains", domain.Routes(d.Domains))
 					app.Mount("/mailboxes", mailbox.Routes(d.Mailboxes))
+					app.Mount("/inbound", cloudflare.Routes(d.CF))
+					app.Mount("/forwarding", forwarding.Routes(d.Forward))
 					app.Mount("/", chiJoin(mail.Routes(d.Mail), send.Routes(d.Send), delivery.Routes(d.Delivery)))
 				})
 			})

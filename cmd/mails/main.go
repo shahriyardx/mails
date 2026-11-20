@@ -13,19 +13,23 @@ import (
 	"time"
 
 	"github.com/shahriyardx/mails/internal/auth"
+	"github.com/shahriyardx/mails/internal/cloudflare"
 	"github.com/shahriyardx/mails/internal/config"
 	"github.com/shahriyardx/mails/internal/db"
 	"github.com/shahriyardx/mails/internal/delivery"
 	"github.com/shahriyardx/mails/internal/domain"
+	"github.com/shahriyardx/mails/internal/forwarding"
 	"github.com/shahriyardx/mails/internal/inbound"
 	"github.com/shahriyardx/mails/internal/mail"
 	"github.com/shahriyardx/mails/internal/mailbox"
 	"github.com/shahriyardx/mails/internal/realtime"
+	"github.com/shahriyardx/mails/internal/secret"
 	"github.com/shahriyardx/mails/internal/send"
 	"github.com/shahriyardx/mails/internal/server"
 	"github.com/shahriyardx/mails/internal/ses"
 	"github.com/shahriyardx/mails/internal/storage"
 	"github.com/shahriyardx/mails/web"
+	"github.com/shahriyardx/mails/worker"
 )
 
 func main() {
@@ -84,7 +88,15 @@ func run() error {
 	}
 	hub := realtime.NewHub()
 	mailSvc := &mail.Service{DB: pool, Store: store, Hub: hub}
-	mailboxes := &mailbox.Service{DB: pool}
+	box, err := secret.New(cfg.Secret)
+	if err != nil {
+		return err
+	}
+	cf := &cloudflare.Service{
+		DB: pool, Box: box, NewAPI: cloudflare.NewAPI, AppURL: cfg.AppURL,
+		InboundSecret: cfg.InboundSecret, R2Bucket: cfg.R2Bucket, Script: worker.Script,
+	}
+	mailboxes := &mailbox.Service{DB: pool, Receiving: func(ctx context.Context, d string) any { return cf.EnsureSubdomainReceiving(ctx, d) }}
 	sender := &send.Service{
 		DB: pool, SES: sesClient, Store: store, Mailboxes: mailboxes, Mail: mailSvc, Hub: hub,
 		ConfigSet: cfg.SESConfigSet, Now: time.Now,
@@ -104,6 +116,8 @@ func run() error {
 		Send:      sender,
 		Delivery:  &delivery.Service{DB: pool, SES: sesClient, Hub: hub, Now: time.Now},
 		SNS:       &delivery.Verifier{HTTP: &http.Client{Timeout: 10 * time.Second}},
+		CF:        cf,
+		Forward:   &forwarding.Manager{DB: pool, CF: cf},
 	}
 	go every(ctx, time.Hour, "sweep staged uploads", mailSvc.SweepStaged)
 	if cfg.OutboxWorker {
