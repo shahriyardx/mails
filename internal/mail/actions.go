@@ -251,6 +251,9 @@ func (s *Service) DeleteThreads(ctx context.Context, allowed, ids []string, perm
 			if _, err := tx.Exec(ctx, `DELETE FROM thread WHERE id = ANY($1)`, purge); err != nil {
 				return fmt.Errorf("purge threads: %w", err)
 			}
+			if keys, err = unusedKeys(ctx, tx, keys); err != nil {
+				return err
+			}
 		}
 		if len(trash) > 0 {
 			if err := move(ctx, tx, trash, "trash"); err != nil {
@@ -300,6 +303,9 @@ func (s *Service) EmptyTrash(ctx context.Context, allowed []string, mailbox, dom
 		if _, err := tx.Exec(ctx, `DELETE FROM message m `+w.sql(), w.args...); err != nil {
 			return fmt.Errorf("empty trash: %w", err)
 		}
+		if keys, err = unusedKeys(ctx, tx, keys); err != nil {
+			return err
+		}
 		return recomputeAll(ctx, tx, touched)
 	})
 	if err != nil {
@@ -320,6 +326,23 @@ func objectKeys(ctx context.Context, q db.Querier, cond string, args ...any) ([]
 		return nil, fmt.Errorf("collect object keys: %w", err)
 	}
 	return keys, nil
+}
+
+// unusedKeys keeps the keys no remaining row points at. One inbound
+// payload stored for several mailboxes shares its files and raw message, so
+// deleting one copy must leave them for the others. Call it after the
+// delete, in the same transaction.
+func unusedKeys(ctx context.Context, q db.Querier, keys []string) ([]string, error) {
+	if len(keys) == 0 {
+		return nil, nil
+	}
+	rows, _ := q.Query(ctx, `SELECT DISTINCT k FROM unnest($1::text[]) k
+		WHERE NOT EXISTS (SELECT 1 FROM attachment WHERE r2_key = k) AND NOT EXISTS (SELECT 1 FROM message WHERE raw_key = k)`, keys)
+	out, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return nil, fmt.Errorf("find unused object keys: %w", err)
+	}
+	return out, nil
 }
 
 // forget deletes stored files in the background. A failure leaves an
