@@ -163,7 +163,9 @@ func (s *Service) Send(ctx context.Context, in Input) (*Result, error) {
 		return nil, err
 	}
 	status, sesID, reason := "sent", "", ""
-	sendCtx, cancel := context.WithTimeout(ctx, sesTimeout)
+	// A client hanging up must not abort the call: SES may have the mail
+	// already, and queueing it would send it twice.
+	sendCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), sesTimeout)
 	sesID, err = s.SES.SendRaw(sendCtx, ses.RawEmail{From: p.box.Address, To: p.envelop, Raw: p.raw, ConfigurationSet: s.configSet()})
 	cancel()
 	if err != nil {

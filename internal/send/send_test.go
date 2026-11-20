@@ -437,6 +437,23 @@ func TestOutboxFinishesJobOnShutdown(t *testing.T) {
 	}
 }
 
+// The caller hanging up mid-send must not turn a send into a queued retry
+// (which would send the mail twice).
+func TestClientHangUpDoesNotQueueResend(t *testing.T) {
+	e := setup(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	e.s.SES = cancelOnSend{Fake: e.ses, cancel: cancel}
+	res, err := e.s.Send(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Text: "x"})
+	if err != nil || res.Status != "sent" {
+		t.Fatalf("send: %+v %v", res, err)
+	}
+	var jobs int
+	_ = e.pool.QueryRow(context.Background(), `SELECT count(*) FROM send_job`).Scan(&jobs)
+	if e.ses.SentCount() != 1 || jobs != 0 {
+		t.Fatalf("sent=%d jobs=%d", e.ses.SentCount(), jobs)
+	}
+}
+
 func TestBackoff(t *testing.T) {
 	for attempt, want := range map[int]time.Duration{1: 30 * time.Second, 2: time.Minute, 6: 15 * time.Minute, 40: 15 * time.Minute} {
 		got := send.Backoff(attempt)
