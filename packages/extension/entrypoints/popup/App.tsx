@@ -62,6 +62,11 @@ export function App({ inTab }: { inTab: boolean }) {
 
   const [wide, setWide] = useState(false);
 
+  // Answers can land out of order (click A, then B, and A answers last).
+  // Each request takes a number; only the newest may change the screen.
+  const listRequest = useRef(0);
+  const openRequest = useRef(0);
+
   // Two panes only when there is room for two. The popup never has it.
   useEffect(() => {
     if (!inTab) return;
@@ -78,19 +83,22 @@ export function App({ inTab }: { inTab: boolean }) {
   const load = useCallback(
     async (options: { silent?: boolean } = {}) => {
       if (!settings || !isConnected(settings)) return;
+      const request = ++listRequest.current;
       if (!options.silent) setLoading(true);
       setError(null);
       try {
         const result = await listThreads(settings, view, { search: term, limit: PAGE });
+        if (request !== listRequest.current) return;
         setThreads(result.threads);
         setCursor(result.nextCursor);
         void cacheList(settings, view, term, result.threads);
       } catch (caught) {
+        if (request !== listRequest.current) return;
         setError(caught instanceof ApiError ? caught.message : "Could not load your mail.");
         setThreads([]);
         setCursor(null);
       } finally {
-        setLoading(false);
+        if (request === listRequest.current) setLoading(false);
       }
     },
     [settings, view, term],
@@ -147,6 +155,8 @@ export function App({ inTab }: { inTab: boolean }) {
 
   async function loadMore() {
     if (!settings || !cursor || loadingMore) return;
+    // The next page of this list: a newer load replaces the list, and wins.
+    const request = listRequest.current;
     setLoadingMore(true);
     try {
       const result = await listThreads(settings, view, {
@@ -154,10 +164,11 @@ export function App({ inTab }: { inTab: boolean }) {
         limit: PAGE,
         cursor,
       });
+      if (request !== listRequest.current) return;
       setThreads((current) => [...current, ...result.threads]);
       setCursor(result.nextCursor);
     } catch {
-      setCursor(null);
+      if (request === listRequest.current) setCursor(null);
     } finally {
       setLoadingMore(false);
     }
@@ -168,12 +179,15 @@ export function App({ inTab }: { inTab: boolean }) {
   const openThread = useCallback(
     async (id: string) => {
       if (!settings) return;
+      const request = ++openRequest.current;
+      const current = () => request === openRequest.current;
       setOpenId(id);
       setOpen(null);
       setOpenError(null);
       setOpenLoading(true);
       try {
         const detail = await getThread(settings, id);
+        if (!current()) return;
         setOpen(detail);
 
         if (detail.unread_count > 0) {
@@ -187,22 +201,26 @@ export function App({ inTab }: { inTab: boolean }) {
           setThreads((current) =>
             current.map((row) => (row.id === id ? { ...row, unread_count: 0 } : row)),
           );
-          setOpen((current) => (current ? { ...current, unread_count: 0 } : current));
+          if (current()) setOpen((open) => (open ? { ...open, unread_count: 0 } : open));
           refreshBadge();
         }
       } catch (caught) {
-        setOpenError(caught instanceof ApiError ? caught.message : "Could not open it.");
+        if (current()) {
+          setOpenError(caught instanceof ApiError ? caught.message : "Could not open it.");
+        }
       } finally {
-        setOpenLoading(false);
+        if (current()) setOpenLoading(false);
       }
     },
     [settings],
   );
 
   const closeThread = useCallback(() => {
+    openRequest.current += 1; // an answer still on its way is for nothing now
     setOpenId(null);
     setOpen(null);
     setOpenError(null);
+    setOpenLoading(false);
   }, []);
 
   /* ------------------------------------------------------------- the actions */
