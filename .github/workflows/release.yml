@@ -55,14 +55,13 @@ jobs:
           TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5437/postgres?sslmode=disable
         run: go vet ./... && go test ./...
 
-  # Builds every binary once, with Go's build cache, then the image just
-  # copies the Linux ones in (Dockerfile.release): no compile inside Docker.
+  # Builds every binary once, with Go's build cache. Read-only: this job runs
+  # third-party code (pnpm install, the Go build), so it gets no write token.
   binaries:
     needs: test
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      packages: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -90,6 +89,41 @@ jobs:
             if [ "$os" = linux ]; then mkdir -p "dist/image/linux-$arch" && cp "dist/$name/mails" "dist/image/linux-$arch/"; fi
           done
           (cd dist && sha256sum *.tar.gz > checksums.txt)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: |
+            dist/*.tar.gz
+            dist/checksums.txt
+            dist/image
+          retention-days: 1
+
+  # Publishes what binaries built. It holds the write tokens and runs no
+  # build or install, only the official actions and gh.
+  publish:
+    needs: [binaries, extension]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+          sparse-checkout: Dockerfile.release
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: extension
+          path: dist/extension
+      - name: Attach to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$TAG" dist/*.tar.gz dist/checksums.txt dist/extension/*.zip --clobber --repo "$GITHUB_REPOSITORY"
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -113,16 +147,13 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-      - name: Attach to release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "$TAG" dist/*.tar.gz dist/checksums.txt --clobber
 
+  # Read-only like binaries: builds the zips, publish attaches them.
   extension:
     needs: test
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     defaults:
       run:
         working-directory: packages/extension
@@ -142,43 +173,63 @@ jobs:
       - run: pnpm test
       - name: Zip for Chrome, Firefox and Edge
         run: pnpm zip:all
-      - name: Attach to release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "$TAG" .output/*.zip --clobber
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension
+          path: packages/extension/.output/*.zip
+          retention-days: 1
 
+  # Builds and packs the SDK without the npm token; sdk-publish publishes
+  # the packed tarball, which runs no package scripts.
   sdk:
     needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: packages/sdk
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: |
+          pnpm install --frozen-lockfile
+          npm pkg set version="${TAG#v}"
+          pnpm build
+          npm pack --ignore-scripts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdk
+          path: packages/sdk/*.tgz
+          retention-days: 1
+
+  sdk-publish:
+    needs: sdk
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write # npm provenance
     env:
       NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-    defaults:
-      run:
-        working-directory: packages/sdk
     steps:
       - name: Skip without NPM_TOKEN
         if: env.NODE_AUTH_TOKEN == ''
-        working-directory: .
         run: echo "NPM_TOKEN is not set; the SDK is not published."
-      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         if: env.NODE_AUTH_TOKEN != ''
         with:
-          ref: ${{ env.TAG }}
-      - uses: pnpm/action-setup@v4
-        if: env.NODE_AUTH_TOKEN != ''
-        with:
-          version: 12
+          name: sdk
       - uses: actions/setup-node@v4
         if: env.NODE_AUTH_TOKEN != ''
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
       - if: env.NODE_AUTH_TOKEN != ''
-        run: |
-          pnpm install --frozen-lockfile
-          npm pkg set version="${TAG#v}"
-          pnpm build
-          npm publish --access public --provenance
+        run: npm publish ./*.tgz --access public --provenance
