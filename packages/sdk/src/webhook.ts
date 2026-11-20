@@ -18,7 +18,7 @@ import type { DeliveryStatus, EmailAddress, Folder, Thread, WebhookEventName } f
 
 /** The envelope every event is wrapped in. */
 export interface WebhookEventEnvelope<T = Record<string, unknown>> {
-  /** Also the delivery id, so a repeat can be ignored. */
+  /** The event id: the same across retries and replays, so a repeat can be ignored. */
   id: string;
   object: "event";
   type: WebhookEventName | "webhook.test";
@@ -103,15 +103,18 @@ export type MailsWebhookEvent =
         | "email.bounced"
         | "email.complained"
         | "email.opened"
+        | "email.clicked"
         | "email.delayed"
         | "email.rejected";
     })
-  | (WebhookEventEnvelope<{ email: SentEmailSummary; error: string }> & {
+  | (WebhookEventEnvelope<{ email: SentEmailSummary }> & {
       type: "email.failed";
     })
   | (WebhookEventEnvelope<{ email: SentEmailSummary }> & { type: "email.canceled" })
-  | (WebhookEventEnvelope<{ thread: Thread }> & { type: "thread.updated" })
-  | (WebhookEventEnvelope<{ message: string }> & { type: "webhook.test" });
+  | (WebhookEventEnvelope<{ thread: Thread; changes: Record<string, unknown> }> & {
+      type: "thread.updated";
+    })
+  | (WebhookEventEnvelope<{ message: string; webhook_id: string }> & { type: "webhook.test" });
 
 export interface VerifyOptions {
   /** The endpoint's signing secret, from when it was created. */
@@ -121,8 +124,8 @@ export interface VerifyOptions {
   /** The `X-Mails-Signature` header. */
   signature: string | null | undefined;
   /**
-   * How far the timestamp may be from now, in seconds. Default 300, matching
-   * the server. It is what stops an old call being replayed at you.
+   * How far the timestamp may be from now, in seconds. Default 300. Checked
+   * here, by your receiver: it is what stops an old call being replayed.
    */
   toleranceSeconds?: number;
 }

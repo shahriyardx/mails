@@ -79,7 +79,7 @@ export class ValidationError extends MailsError {}
 /** 409 — it already exists, or a destructive call needs its confirmation flag. */
 export class ConflictError extends MailsError {}
 
-/** 413 — the body is over the 30 MB limit. Usually an attachment. */
+/** 413 — the body is over the 32 MB limit. Usually an attachment. */
 export class PayloadTooLargeError extends MailsError {}
 
 /** 429 — too many calls this minute. */

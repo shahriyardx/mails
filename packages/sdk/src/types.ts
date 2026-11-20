@@ -60,6 +60,7 @@ export type WebhookEventName =
   | "email.bounced"
   | "email.complained"
   | "email.opened"
+  | "email.clicked"
   | "email.delayed"
   | "email.rejected"
   | "email.failed"
@@ -363,7 +364,7 @@ export interface SentEmail {
 }
 
 export type BatchResult =
-  | ({ index: number; ok: true } & SentEmail)
+  | { index: number; ok: true; id: string; thread_id: string; delivery_status: "sent" | "queued" }
   | { index: number; ok: false; error: string; status: number };
 
 export interface BatchSendResult {
@@ -385,8 +386,10 @@ export interface ApiKeyInfo {
   reach: {
     /** True when the key reaches every mailbox in the account. */
     unrestricted: boolean;
-    domains: { id: string; name: string }[];
-    mailboxes: { id: string; address: string }[];
+    /** Domain ids the key holds. */
+    domains: string[];
+    /** Mailbox ids the key holds. */
+    mailboxes: string[];
   };
   reachable_mailboxes: number;
   rate_limit_per_minute: number;
