@@ -6,6 +6,8 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-21
+
 First release of Mails, the Go rewrite.
 
 ### Added
@@ -27,4 +29,15 @@ First release of Mails, the Go rewrite.
 - Release workflow publishing the image to `ghcr.io`, server binaries and
   extension zips.
 
-[Unreleased]: https://github.com/shahriyardx/mails/commits/main
+### Fixed
+
+- Two rounds of bug review before release: mail that could not be received
+  (NUL bytes, a trailing backslash in the subject, an empty From), double
+  sends (composer, SDK reply retries, client hang-ups, shutdown), lost
+  drafts and composer text, drafts trashed mid-send, shared attachments
+  deleted with one copy, reply threading outside us-east-1, API key reach on
+  subdomains, live updates that stopped after an error, and more. Every fix
+  has a test.
+
+[Unreleased]: https://github.com/shahriyardx/mails/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/shahriyardx/mails/releases/tag/v0.1.0
