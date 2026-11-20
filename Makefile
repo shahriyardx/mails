@@ -9,7 +9,7 @@ help: ## Show this list
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-8s %s\n", $$1, $$2}'
 
 web: ## Build the dashboard into web/dist
-	cd web && pnpm install --frozen-lockfile && pnpm build
+	cd web && pnpm install --frozen-lockfile --ignore-scripts && pnpm build
 
 build: web ## Build bin/mails with the dashboard embedded
 	CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/mails ./cmd/mails
