@@ -69,20 +69,43 @@ media, templates, scheduled send, test-mode keys and send-rate limits.
 ## Layout
 
 ```
-cmd/mails/            main: config, DB, migrations, workers, HTTP server
+cmd/mails/            main: wiring, workers, HTTP server; commands.go: migrate, reset-owner, vapid-keys
 internal/config       env vars (caarlos0/env)
-internal/db           pgx pool, goose migrations (migrations/*.sql, embedded)
+internal/db           pgx pool, Querier, goose migrations (migrations/*.sql, embedded)
 internal/db/dbtest    scratch database per test
 internal/auth         GitHub OAuth, scs sessions, Require middleware, Claim()
-internal/httpx        JSON/error helpers; errors match web/src/docs/api/errors.md
+internal/httpx        JSON/error helpers, Bind/Validate (validator), Opt[T] for PATCH
 internal/id           prefixed random ids ("msg_...")
+internal/addr         address/domain/subject parsing, snippets (one source of truth)
+internal/page         cursor pagination ("<micros>|<id>"), list shape
+internal/events       Event + Sink interface (webhooks listen); Recorder for tests
 internal/realtime     SSE hub at /api/events
 internal/server       chi router; route map in its package comment
+internal/ses          SES v2 client interface + AWS impl; ses/sesfake for tests
+internal/storage      R2 Store interface (streaming), Memory store for tests/dev
+internal/secret       AES-GCM box keyed from SECRET (Cloudflare token at rest)
+internal/safehttp     HTTP client/URL check refusing private addresses (webhooks, push)
+internal/domain       sending domains: SES identity, BYODKIM, MAIL FROM, DNS records
+internal/mailbox      mailboxes, default, create-on-send
+internal/inbound      POST /api/inbound: verify, store, thread, filters, forward answer
+internal/forwarding   forward targets (inbound) + destination/rule management
+internal/mail         threads, messages, folder moves, labels, filters, contacts,
+                      attachments, image trust, preferences, Recompute
+internal/send         compose/send, MIME (go-mail), drafts, replies, outbox worker
+internal/delivery     /api/ses/events (SNS verify), blocked list, log, metrics, overview
+internal/cloudflare   token, worker deploy, routing, subdomain MX; cffake for tests
+internal/push         web push (webpush-go)
+internal/setup        first-run wizard state (settings row)
+internal/apikey       keys (sha256), scopes, presets, reach
+internal/idempotency  Idempotency-Key replay with advisory lock
+internal/webhook      signed delivery, retries, endpoint management
+internal/apiv1        /api/v1 handlers: auth, rate limit (httprate), scope + reach checks
 web/                  React dashboard (Vite). web/embed.go embeds web/dist
-web/src/docs/         docs markdown, rendered in the dashboard at /docs
-worker/               Cloudflare Email Worker (TypeScript, copied from ../mail)
-packages/sdk          Node SDK (TypeScript), to rename to @shahriyardx/mails
-packages/extension    Browser extension (WXT), to rename to "Mails"
+web/src/docs/         docs markdown + nav.json, rendered in the dashboard at /docs
+worker/               Cloudflare Email Worker; `pnpm build` writes dist/index.js,
+                      embedded by worker/embed.go and deployed from the dashboard
+packages/sdk          Node SDK @shahriyardx/mails
+packages/extension    Browser extension "Mails" (WXT)
 specs/                design spec
 ```
 
@@ -134,27 +157,26 @@ go test ./...                          # needs the compose Postgres
 Tests make a scratch database each (`dbtest.New(t)`) and skip when Postgres
 is not running. Port 5433 belongs to another project on this machine.
 
-## Status (2026-11-20)
+## Status (2026-11-20, overnight build)
 
-Done:
-- Repo created; worker, SDK, extension copied; docs moved to `web/src/docs`
-  (pages for removed features deleted).
-- Full schema (`0001_init.sql`), goose migrations on boot.
-- GitHub sign-in, single owner, second account refused, race-safe first
-  claim, sessions. Tests: `internal/auth/auth_test.go` (4 passing).
-- chi router, SSE hub, SPA serving, health check. Binary builds and boots.
+Done (all with Go tests against scratch Postgres; `go test ./...`,
+`go vet ./...` and staticcheck clean):
+- Steps 1-8: domains, mailboxes, inbound, mail, send + outbox, delivery
+  events, Cloudflare + forwarding, push, setup wizard, API keys, idempotency,
+  rate limits, webhooks, every `/api/v1` route.
+- Step 10: worker/SDK/extension renamed to Mails; worker auth headers and
+  extension remote-content blocking hardened (see worker/PAYLOAD.md).
+- Step 11: Dockerfile (distroless), compose `app` profile, README, docs.
+- Security fixes from review: threading cannot be hijacked by subject or a
+  leaked Message-ID; SNS needs SES_SNS_TOPIC_ARN; webhook/push URLs cannot
+  reach private networks; restricted API keys cannot widen their reach.
 
-Next, in this order:
-1. `internal/domain` + `internal/mailbox`: SES identities, DKIM, DNS checks, mailbox CRUD.
-2. `internal/inbound`: `POST /api/inbound` (shared secret), ingest, threading, filters, forwarding answer, spam folder.
-3. `internal/mail`: threads, messages, folders, search, star/read/move/trash, labels, contacts, image trust, preferences, attachments (R2 presigned download, upload).
-4. `internal/send`: compose, drafts, signatures, MIME, outbox worker (retry/backoff), SES send.
-5. `internal/delivery`: `/api/ses/events` (SNS), message events, suppressions, logs, metrics, overview.
-6. `internal/cloudflare`: token integration, worker deploy, routing, forward destinations.
-7. `internal/push`, setup wizard state (`settings` table).
-8. `internal/apiv1`: API keys (hash, scopes, reach), idempotency, rate limit, all `/api/v1` routes per `web/src/docs/api/*.md`, webhooks with signed delivery and retry worker.
-9. `web/`: Vite app, UI kit on Base UI with the soothing-dark tokens from the spec, port screens from `../mail`, `/docs` viewer.
-10. Rename worker/SDK/extension to Mails; SDK drops templates.
-11. Dockerfile (multi-stage, distroless static), README, self-hosting doc.
+Notes:
+- Idle memory: about 12 MB private (RssAnon) plus about 38 MB of mapped
+  binary pages (shared, reclaimable). cloudflare-go v6's root package pulls
+  every Cloudflare service in; dropping it would shrink the binary most.
+- TRUST_AUTH_RESULTS in the worker is off by default, so spf/dkim/dmarc are
+  null until the owner confirms Cloudflare writes the topmost header.
 
-Each step: tests first for the logic, `go vet ./...`, `go test ./...`, commit.
+Still to verify by hand on the real setup: send one mail through SES and
+receive one through the worker (needs real AWS, Cloudflare and R2 keys).
