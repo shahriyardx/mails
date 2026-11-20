@@ -6,6 +6,13 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-21
+
+### Changed
+
+- The release image builds for arm64 by cross-compiling instead of
+  emulation, so releases publish in minutes. Same code as 0.1.2.
+
 ## [0.1.2] - 2026-11-21
 
 ### Fixed
@@ -54,7 +61,8 @@ First release of Mails, the Go rewrite.
   subdomains, live updates that stopped after an error, and more. Every fix
   has a test.
 
-[Unreleased]: https://github.com/shahriyardx/mails/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/shahriyardx/mails/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/shahriyardx/mails/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/shahriyardx/mails/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/shahriyardx/mails/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/shahriyardx/mails/releases/tag/v0.1.0
