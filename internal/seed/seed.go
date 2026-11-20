@@ -181,7 +181,7 @@ func finish(ctx context.Context, pool *pgxpool.Pool, box mailboxRow, l letter, m
 		if l.label != "" {
 			labelID := id.New("lbl")
 			if err := tx.QueryRow(ctx, `INSERT INTO label (id, name) VALUES ($1, $2)
-				ON CONFLICT (name) DO UPDATE SET name = excluded.name RETURNING id`, labelID, l.label).Scan(&labelID); err != nil {
+				ON CONFLICT (lower(name)) DO UPDATE SET name = label.name RETURNING id`, labelID, l.label).Scan(&labelID); err != nil {
 				return err
 			}
 			if _, err := tx.Exec(ctx, `INSERT INTO thread_label (thread_id, label_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, threadID, labelID); err != nil {
