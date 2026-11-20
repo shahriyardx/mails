@@ -29,7 +29,7 @@ src/
     settings/layout.tsx  settings shell (nav from pages.ts)
     settings/pages.ts    the list of settings pages  <- add pages here
     settings/placeholder.tsx
-    docs.tsx             /docs/* placeholder
+    docs.tsx             /docs/* markdown viewer (web/src/docs + nav.json)
   components/kit/        the UI kit (import from "@/components/kit")
   components/mail/       mail screens: sidebar, thread list/view, composer, email frame
   components/app/        app-wide pieces (account menu)

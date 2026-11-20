@@ -164,6 +164,9 @@ Done (all with Go tests against scratch Postgres; `go test ./...`,
 - Steps 1-8: domains, mailboxes, inbound, mail, send + outbox, delivery
   events, Cloudflare + forwarding, push, setup wizard, API keys, idempotency,
   rate limits, webhooks, every `/api/v1` route.
+- Step 9: dashboard in web/ (Vite, React 19, Base UI kit, soothing-dark
+  tokens with a contrast test, mail screens, composer, every settings page,
+  /docs viewer, push service worker). `cd web && pnpm test` (150 tests).
 - Step 10: worker/SDK/extension renamed to Mails; worker auth headers and
   extension remote-content blocking hardened (see worker/PAYLOAD.md).
 - Step 11: Dockerfile (distroless), compose `app` profile, README, docs.
@@ -172,11 +175,14 @@ Done (all with Go tests against scratch Postgres; `go test ./...`,
   reach private networks; restricted API keys cannot widen their reach.
 
 Notes:
-- Idle memory: about 12 MB private (RssAnon) plus about 38 MB of mapped
-  binary pages (shared, reclaimable). cloudflare-go v6's root package pulls
+- Idle memory: about 15 MB private (docker stats 15.7 MiB) plus mapped
+  binary pages (shared, reclaimable). Image 109 MB. cloudflare-go v6's root package pulls
   every Cloudflare service in; dropping it would shrink the binary most.
-- TRUST_AUTH_RESULTS in the worker is off by default, so spf/dkim/dmarc are
+- WORKER_TRUST_AUTH_RESULTS (env) is off by default, so spf/dkim/dmarc are
   null until the owner confirms Cloudflare writes the topmost header.
+- Not built: the "Reporting" page (SES configuration-set setup from the
+  dashboard). Set the configuration set and SNS topic in AWS by hand; see
+  web/src/docs/guide/self-hosting.md.
 
 Still to verify by hand on the real setup: send one mail through SES and
 receive one through the worker (needs real AWS, Cloudflare and R2 keys).
