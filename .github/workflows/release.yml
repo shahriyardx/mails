@@ -132,7 +132,7 @@ jobs:
         run: |
           docker buildx build --platform linux/amd64 -f Dockerfile.release -t mails:smoke --load dist/image
           docker run --rm mails:smoke help
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
