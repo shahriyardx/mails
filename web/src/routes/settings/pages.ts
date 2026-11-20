@@ -1,0 +1,38 @@
+import type { ComponentType } from "react";
+
+/**
+ * Every settings page, in sidebar order. The router and the settings nav both
+ * read this list, so adding a page is one entry here plus its file:
+ *
+ *   { path: "domains", title: "Domains", icon: "language", group: "Sending",
+ *     load: () => import("./domains") }   // domains.tsx: export default function
+ *
+ * A page without `load` shows the "coming soon" placeholder.
+ */
+export interface SettingsPage {
+  path: string;
+  title: string;
+  /** Material Symbols name (must be in scripts/fetch-icons.mjs). */
+  icon: string;
+  group: "You" | "Mail" | "Sending" | "Developers" | "Insights";
+  load?: () => Promise<{ default: ComponentType }>;
+}
+
+export const SETTINGS_PAGES: SettingsPage[] = [
+  { path: "account", title: "Account", icon: "account_circle", group: "You" },
+  { path: "appearance", title: "Appearance", icon: "palette", group: "You" },
+  { path: "notifications", title: "Notifications", icon: "notifications", group: "You" },
+  { path: "mailboxes", title: "Mailboxes", icon: "alternate_email", group: "Mail" },
+  { path: "labels", title: "Labels", icon: "label", group: "Mail" },
+  { path: "filters", title: "Filters", icon: "filter_alt", group: "Mail" },
+  { path: "blocked", title: "Blocked", icon: "block", group: "Mail" },
+  { path: "forwarding", title: "Forwarding", icon: "forward_to_inbox", group: "Mail" },
+  { path: "domains", title: "Domains", icon: "language", group: "Sending" },
+  { path: "inbound", title: "Inbound", icon: "move_to_inbox", group: "Sending" },
+  { path: "api-keys", title: "API keys", icon: "key", group: "Developers" },
+  { path: "webhooks", title: "Webhooks", icon: "webhook", group: "Developers" },
+  { path: "logs", title: "Logs", icon: "list_alt", group: "Developers" },
+  { path: "overview", title: "Overview", icon: "dashboard", group: "Insights" },
+  { path: "metrics", title: "Metrics", icon: "monitoring", group: "Insights" },
+  { path: "reporting", title: "Reporting", icon: "bar_chart", group: "Insights" },
+];

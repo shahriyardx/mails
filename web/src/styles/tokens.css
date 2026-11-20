@@ -1,0 +1,43 @@
+/* Soothing dark: the only theme. Values follow the "Color: soothing dark"
+   table in specs/2026-11-20-mails-design.md. Every grey sits at hue 85 with
+   chroma at or below 0.01. Surfaces are mixed from --foreground into
+   --background in srgb (an oklch mix of two greys drifts in hue).
+
+   src/test/contrast.test.ts parses this file: every text/background pair
+   must stay at or above 4.5:1. --muted-foreground drops under that past an
+   11% mix, so no surface that carries text goes beyond 11%. */
+:root {
+  color-scheme: dark;
+
+  --background: oklch(0.2 0.005 85);
+  --foreground: oklch(0.88 0.01 85);
+  --muted-foreground: oklch(0.66 0.008 85);
+  --primary: oklch(0.8 0.01 85);
+  --primary-foreground: var(--background);
+  --destructive: oklch(0.68 0.1 25);
+
+  /* Tonal surfaces, each a small step lighter than what it sits on. */
+  --surface-1: color-mix(in srgb, var(--foreground) 4%, var(--background));
+  --surface-2: color-mix(in srgb, var(--foreground) 7%, var(--background));
+  --surface-box: color-mix(in srgb, var(--foreground) 7%, var(--background));
+  --field-card: color-mix(in srgb, var(--foreground) 9%, var(--background));
+  --field-box: color-mix(in srgb, var(--foreground) 11%, var(--background));
+  --border: color-mix(in srgb, var(--foreground) 12%, var(--background));
+  --input: color-mix(in srgb, var(--foreground) 16%, var(--background));
+
+  /* Tonal buttons and hover/selected fills. */
+  --tonal: color-mix(in srgb, var(--foreground) 9%, var(--background));
+  --tonal-hover: color-mix(in srgb, var(--foreground) 11%, var(--background));
+  --tonal-foreground: var(--foreground);
+  --selected: color-mix(in srgb, var(--foreground) 10%, var(--background));
+
+  /* Errors: a soft wash with the destructive text on it. */
+  --destructive-soft: color-mix(in srgb, var(--destructive) 14%, var(--background));
+
+  /* Focus: an off-white ring, no accent colour. */
+  --ring: color-mix(in srgb, var(--foreground) 75%, var(--background));
+
+  /* Snackbars: the inverse of the page, as Material does it. */
+  --inverse: var(--primary);
+  --inverse-foreground: var(--background);
+}
