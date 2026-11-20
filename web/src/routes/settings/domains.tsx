@@ -396,9 +396,17 @@ function RecordItem({
   check: DomainCheck | undefined;
   zone: string;
 }) {
+  // A verified record needs nothing: one line, values on click.
+  const [open, setOpen] = useState(!check?.ok);
+  const name = relativeName(record.name, zone);
   return (
-    <li className="space-y-2 py-3 first:pt-0">
-      <div className="flex flex-wrap items-center gap-2 text-xs">
+    <li className="py-2.5 first:pt-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full min-w-0 items-center gap-2 rounded-md text-left text-xs outline-none focus-visible:outline-2 focus-visible:outline-ring"
+      >
         {check?.ok ? (
           <StatusDot tone="ok">Verified</StatusDot>
         ) : record.required ? (
@@ -409,23 +417,37 @@ function RecordItem({
         <Badge size="sm" className="font-mono">
           {record.kind}
         </Badge>
-        <span className="text-muted-foreground">{record.purpose}</span>
-        {record.priority !== undefined && (
-          <span className="ml-auto font-mono text-muted-foreground">
-            priority {record.priority}
+        <span className="min-w-0 truncate text-muted-foreground">{record.purpose}</span>
+        <span className="ml-auto max-w-[40%] truncate font-mono text-muted-foreground">{name}</span>
+        <Icon
+          name="expand_more"
+          size={16}
+          className={cn("text-muted-foreground transition-transform", open && "rotate-180")}
+        />
+      </button>
+      {open && (
+        <div className="mt-2.5 grid gap-1.5 sm:grid-cols-[3rem_1fr] sm:items-center">
+          <span className="text-xs text-muted-foreground">Name</span>
+          <CopyValue value={name} label="Copy name" />
+          <span className="text-xs text-muted-foreground">
+            Value
+            {record.priority !== undefined && (
+              <span className="block font-mono">prio {record.priority}</span>
+            )}
           </span>
-        )}
-      </div>
-      <div className="grid gap-1.5 sm:grid-cols-[3rem_1fr] sm:items-center">
-        <span className="text-xs text-muted-foreground">Name</span>
-        <CopyValue value={relativeName(record.name, zone)} label="Copy name" />
-        <span className="text-xs text-muted-foreground">Value</span>
-        {record.informational ? (
-          <span className="px-3 py-2 text-[13px] text-muted-foreground italic">{record.value}</span>
-        ) : (
-          <CopyValue value={record.value} label="Copy value" className="max-h-24 overflow-y-auto" />
-        )}
-      </div>
+          {record.informational ? (
+            <span className="px-3 py-2 text-[13px] text-muted-foreground italic">
+              {record.value}
+            </span>
+          ) : (
+            <CopyValue
+              value={record.value}
+              label="Copy value"
+              className="max-h-24 overflow-y-auto"
+            />
+          )}
+        </div>
+      )}
     </li>
   );
 }

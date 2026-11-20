@@ -247,7 +247,7 @@ export function SidebarFrame({
               <IconButton
                 icon="chevron_left"
                 label="Collapse sidebar"
-                variant="outline"
+                variant="ghost"
                 size="xs"
                 onClick={() => setSidebarCollapsed(true)}
               />

@@ -11,7 +11,7 @@ export function ThemeToggle() {
       <IconButton
         icon={next === "light" ? "light_mode" : "dark_mode"}
         label={label}
-        variant="outline"
+        variant="ghost"
         size="xs"
         onClick={() => setChoice(next)}
       />
