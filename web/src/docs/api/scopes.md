@@ -9,7 +9,7 @@ Scopes say **what kind of call** is allowed.
 
 | Scope | Allows |
 | --- | --- |
-| `emails:send` | `POST /emails`, `/emails/batch` |
+| `emails:send` | `POST /emails`, `/emails/batch`, `/emails/:id/cancel` |
 | `emails:read` | Listing and reading sent mail |
 | `mail:read` | Threads, messages, attachments, raw messages |
 | `mail:write` | Moving, reading, starring, labelling, replying, deleting |
@@ -20,23 +20,17 @@ Scopes say **what kind of call** is allowed.
 | `labels:read` | Listing and reading labels |
 | `labels:write` | Creating, renaming and deleting them |
 | `contacts:read` | Listing contacts |
-| `templates:read` | Listing and reading templates, and sending one |
-| `templates:write` | Creating, changing and deleting them |
 | `suppressions:read` | Listing blocked addresses |
 | `suppressions:write` | Blocking and unblocking |
 | `webhooks:read` | Listing endpoints and deliveries |
 | `webhooks:write` | Creating, changing, testing, replaying |
-| `events:read` | Listing the event names your code posts |
-| `events:write` | `POST /events` — starting an automation from your own code |
 | `stats:read` | `GET /stats` |
 | `*` | All of the above, and anything added later |
 
 **Writing implies reading.** A key with `mail:write` has `mail:read` without
 being given it, because "may change but may not see" is a trap that only ever
-shows up as a 403 in production.
-
-Sending a [template](/api/templates) needs `templates:read` as well as
-`emails:send`, so the ready-made **Send only** choice carries both.
+shows up as a 403 in production. The same goes for `emails:send` and
+`emails:read`. `contacts:read` and `stats:read` have no write side.
 
 A missing scope is a `403`:
 
@@ -49,6 +43,20 @@ A missing scope is a `403`:
 }
 ```
 
+### The presets
+
+The dashboard offers four ready-made sets:
+
+| Preset | Scopes |
+| --- | --- |
+| **Full access** | `*` |
+| **Send only** | `emails:send`, `emails:read` |
+| **Read only** | every `:read` scope |
+| **Inbox agent** | `emails:send`, `emails:read`, `mail:read`, `mail:write`, `mailboxes:read`, `labels:read`, `labels:write`, `contacts:read`, `stats:read` |
+
+Scopes and reach are fixed when a key is made. Only its name can change
+later, so a key never quietly gains power.
+
 ## Reach
 
 Reach says **which mail** those calls may touch.
@@ -59,16 +67,24 @@ Reach says **which mail** those calls may touch.
 | **Whole domains** | Every address on those domains, including ones made later |
 | **Named addresses** | Exactly those mailboxes |
 
-Reach is enforced everywhere, not only on sending:
+A key holds whole domains or named addresses, never both.
 
-- `GET /threads` returns only threads in mailboxes the key reaches.
-- `GET /domains` returns only domains it holds.
+Reach is enforced everywhere mail is involved:
+
+- `GET /threads`, `/messages` and `/emails` return only mail in mailboxes the
+  key reaches.
+- `GET /domains` returns the domains it holds, plus the domains of the
+  mailboxes it holds.
 - `GET /contacts` returns `403` for any key that is not unrestricted, because
-  contacts are kept per account and there is no honest way to narrow them.
-- `POST /domains` returns `403` for the same reason — adding a domain changes
-  the account, not one corner of it.
-- A webhook cannot be created without a mailbox by a key that does not reach
-  the whole account, or it would be a way to receive mail the key cannot read.
+  contacts are kept for the whole account and there is no honest way to
+  narrow them.
+- `POST /domains` and `DELETE /domains/:id` return `403` for the same reason —
+  adding or removing a domain changes the account, not one corner of it.
+- A key that reaches part of the account must scope a webhook to a mailbox or
+  domain it holds, or it would be a way to receive mail the key cannot read.
+
+Labels and blocked addresses are kept for the whole account and reach does
+not narrow them. Only the scope decides.
 
 ### Something out of reach is a 404, not a 403
 
@@ -99,5 +115,5 @@ Give each integration the narrowest key that does its job.
 | --- | --- | --- |
 | A billing service sending receipts | `emails:send` | the `billing.` domain |
 | A dashboard showing delivery health | `emails:read`, `stats:read` | everything |
-| A bot that answers support mail | `mail:read`, `mail:write`, `emails:send` | `support@` |
+| A bot that answers support mail | `mail:write`, `emails:send` | `support@` |
 | A backup script | `mail:read` | everything |

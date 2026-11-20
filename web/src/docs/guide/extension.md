@@ -4,8 +4,8 @@ Your inbox in the toolbar, for Chrome, Firefox and Edge. It tells you when
 mail arrives, shows the conversation, and hands you back to the dashboard the
 moment you want to write something.
 
-It lives in [`packages/extension`](https://github.com/shahriyardx/mailroom/tree/main/packages/extension)
-and talks to your own instance over the public API. Nothing passes through
+It lives in `packages/extension` in the repository, and talks to your own
+instance over the public API. Nothing passes through
 anybody else, because there is no anybody else: the extension holds an API key
 you made, and calls your server directly.
 
@@ -30,38 +30,39 @@ version of all three in a 400-pixel box.
 There is no store listing yet, so it is loaded from a build.
 
 ```sh
+cd packages/extension
 pnpm install
-pnpm ext:build          # chrome, firefox and edge, all three
+pnpm build:all          # chrome, firefox and edge, all three
 ```
 
 The output lands in `packages/extension/.output/`.
 
-::: code-group
+**Chrome and Edge**
 
-```txt [Chrome and Edge]
+```txt
 1. Open chrome://extensions (edge://extensions)
 2. Turn on Developer mode
 3. Load unpacked → packages/extension/.output/chrome-mv3
 ```
 
-```txt [Firefox]
+**Firefox**
+
+```txt
 1. Open about:debugging#/runtime/this-firefox
 2. Load Temporary Add-on…
 3. Pick packages/extension/.output/firefox-mv3/manifest.json
 ```
 
-:::
-
-`pnpm ext:zip` produces store-ready archives instead, and `pnpm ext:dev`
-starts a browser with the extension loaded and reloading as you edit.
+`pnpm zip:all` produces store-ready archives instead, and `pnpm dev` starts a
+browser with the extension loaded and reloading as you edit.
 
 ## Connecting it
 
 The extension asks for two things, once.
 
-1. **Address** — where your Mailroom lives, for example
+1. **Address**: where your Mails instance lives, for example
    `https://mail.example.com`.
-2. **API key** — from [Settings → API keys](/guide/api-keys).
+2. **API key**: from [Settings → API keys](/docs/guide/api-keys).
 
 The key needs `mail:read` to show anything, and `mail:write` for the triage
 buttons. The **Inbox agent** preset is exactly right; **Read only** works too

@@ -6,7 +6,7 @@ separates a real event from a stranger's.
 ## The scheme
 
 ```
-X-Mailroom-Signature: t=1758448682,v1=4a8f3c…
+X-Mails-Signature: t=1758448682,v1=4a8f3c…
 ```
 
 `v1` is `HMAC-SHA256(secret, "<t>.<raw body>")`, hex.
@@ -19,31 +19,30 @@ To check it:
 3. Recompute the HMAC over `` `${t}.${rawBody}` ``.
 4. Compare in **constant time**.
 
-::: danger Verify the raw body
-`JSON.parse` followed by `JSON.stringify` does not always give back the same
-bytes — key order, number formatting, escapes. The signature is over bytes.
-
-Read the body as text or a buffer, verify, **then** parse.
-:::
+> **Danger:** Verify the raw body. `JSON.parse` followed by `JSON.stringify`
+> does not always give back the same bytes: key order, number formatting,
+> escapes. The signature is over bytes.
+>
+> Read the body as text or a buffer, verify, **then** parse.
 
 ## With the SDK
 
 `constructWebhookEvent` does all four steps and throws if anything is wrong,
 so a handler that forgets to check a return value still cannot be fooled.
 
-::: code-group
+**Fetch API (Workers, Bun, Deno, route handlers)**
 
-```ts [Next.js]
-import { constructWebhookEvent } from "@shahriyardx/mailroom";
+```ts
+import { constructWebhookEvent } from "@shahriyardx/mails";
 
 export async function POST(request: Request) {
   const raw = await request.text();
 
   try {
     const event = await constructWebhookEvent({
-      secret: process.env.MAILROOM_WEBHOOK_SECRET!,
+      secret: process.env.MAILS_WEBHOOK_SECRET!,
       payload: raw,
-      signature: request.headers.get("x-mailroom-signature"),
+      signature: request.headers.get("x-mails-signature"),
     });
 
     switch (event.type) {
@@ -62,9 +61,11 @@ export async function POST(request: Request) {
 }
 ```
 
-```js [Express]
+**Express**
+
+```js
 const express = require("express");
-const { constructWebhookEvent } = require("@shahriyardx/mailroom");
+const { constructWebhookEvent } = require("@shahriyardx/mails");
 
 const app = express();
 
@@ -74,9 +75,9 @@ app.post(
   async (req, res) => {
     try {
       const event = await constructWebhookEvent({
-        secret: process.env.MAILROOM_WEBHOOK_SECRET,
+        secret: process.env.MAILS_WEBHOOK_SECRET,
         payload: req.body,
-        signature: req.get("x-mailroom-signature"),
+        signature: req.get("x-mails-signature"),
       });
       res.json({ ok: true });
       await handle(event);
@@ -87,19 +88,21 @@ app.post(
 );
 ```
 
-```ts [Hono / Workers]
-import { Hono } from "hono";
-import { constructWebhookEvent } from "@shahriyardx/mailroom";
+**Hono on Workers**
 
-const app = new Hono<{ Bindings: { MAILROOM_WEBHOOK_SECRET: string } }>();
+```ts
+import { Hono } from "hono";
+import { constructWebhookEvent } from "@shahriyardx/mails";
+
+const app = new Hono<{ Bindings: { MAILS_WEBHOOK_SECRET: string } }>();
 
 app.post("/hooks/mail", async (c) => {
   const raw = await c.req.text();
   try {
     const event = await constructWebhookEvent({
-      secret: c.env.MAILROOM_WEBHOOK_SECRET,
+      secret: c.env.MAILS_WEBHOOK_SECRET,
       payload: raw,
-      signature: c.req.header("x-mailroom-signature"),
+      signature: c.req.header("x-mails-signature"),
     });
     return c.json({ ok: true, type: event.type });
   } catch {
@@ -108,16 +111,15 @@ app.post("/hooks/mail", async (c) => {
 });
 ```
 
-:::
 
 `verifyWebhook` is the same check as a plain boolean if you would rather parse
 the body yourself.
 
 ## Without the SDK
 
-::: code-group
+**Node**
 
-```js [Node]
+```js
 const { createHmac, timingSafeEqual } = require("node:crypto");
 
 function verify(secret, rawBody, header, tolerance = 300) {
@@ -142,7 +144,9 @@ function verify(secret, rawBody, header, tolerance = 300) {
 }
 ```
 
-```python [Python]
+**Python**
+
+```python
 import hmac, hashlib, time
 
 def verify(secret: str, raw_body: bytes, header: str, tolerance: int = 300) -> bool:
@@ -166,7 +170,9 @@ def verify(secret: str, raw_body: bytes, header: str, tolerance: int = 300) -> b
     return hmac.compare_digest(expected, parts.get("v1", ""))
 ```
 
-```go [Go]
+**Go**
+
+```go
 func Verify(secret, rawBody, header string, tolerance time.Duration) bool {
 	var ts int64
 	var got string
@@ -196,14 +202,13 @@ func Verify(secret, rawBody, header string, tolerance time.Duration) bool {
 }
 ```
 
-:::
 
 ## Testing your handler
 
 Sign a body yourself and post it, rather than waiting for real mail:
 
 ```ts
-import { signWebhookPayload } from "@shahriyardx/mailroom";
+import { signWebhookPayload } from "@shahriyardx/mails";
 
 const body = JSON.stringify({
   id: "whd_test",
@@ -217,14 +222,14 @@ await fetch("http://localhost:3000/hooks/mail", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
-    "X-Mailroom-Signature": await signWebhookPayload("whsec_…", body),
+    "X-Mails-Signature": await signWebhookPayload("whsec_…", body),
   },
   body,
 });
 ```
 
 Or point a real endpoint at a tunnel and use
-[ping](/api/webhooks#test), which tells you the status and the reply your
+[ping](/docs/api/webhooks#test), which tells you the status and the reply your
 handler gave.
 
 ## Rotating a secret
@@ -236,6 +241,7 @@ curl -X PATCH https://mail.yourdomain.com/api/v1/webhooks/whk_… \
   -d '{ "rotate_secret": true }'
 ```
 
-The new secret is in the reply, once. There is no overlap window: deploy the
-new secret to your handler first if you cannot afford a gap, or accept a few
-seconds of rejected calls, which will be retried anyway.
+The new secret is in the reply, once. There is no overlap window, and a call
+your handler rejects with a `4xx` is not retried. So put the new secret in
+your handler as soon as you have it, then
+[replay](/docs/webhooks/retries#replaying) whatever it rejected in between.

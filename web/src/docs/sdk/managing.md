@@ -97,9 +97,9 @@ await mail.suppressions.create({
 await mail.suppressions.delete("unsubscribed@example.net"); // id or address
 ```
 
-Blocking an already-blocked address is not an error. Unblocking one that hard
-bounced risks your sending reputation — see
-[Blocked addresses](/api/suppressions).
+Blocking an already-blocked address is not an error: you get the existing
+entry back. Unblocking one that hard bounced risks your sending reputation.
+See [Blocked addresses](/docs/api/suppressions).
 
 ## Webhooks
 
@@ -115,13 +115,13 @@ console.log(hook.secret); // shown once. Store it now.
 
 An endpoint hears about the whole account unless it is scoped. Pass
 `domain_id` for every address on one domain (including ones added later), or
-`mailbox_id` for a single address. One or the other, never both.
+`mailbox_id` for a single address. One or the other, never both: both is a `ValidationError`.
 
 ```ts
 await mail.webhooks.create({
   url: "https://api.example.com/hooks/acme",
   events: ["*"],
-  domain_id: "dom_…", // everything sent from or to @acme.com
+  domain_id: "dom_…", // every mailbox on acme.com
 });
 ```
 
@@ -160,8 +160,9 @@ for (const day of stats.days) {
 }
 ```
 
-`days` has a row for every day in the window, quiet ones included. Rates are
-shares out of 100 — SES warns above **5** bounces and **0.1** complaints.
+`days` has a row only for days that had mail; quiet days are left out, so
+fill the gaps yourself if you chart it. Rates are shares out of 100: SES warns
+above **5** bounces and **0.1** complaints.
 
 ## An endpoint not yet wrapped
 

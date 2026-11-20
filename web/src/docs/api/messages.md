@@ -15,18 +15,21 @@ Scope: `mail:read`
 | Filter | |
 | --- | --- |
 | `direction` | `inbound` or `outbound` |
-| `folder` | A folder name, or `all` |
+| `folder` | `inbox`, `sent`, `drafts`, `archive`, `spam`, `trash`, or `all` |
 | `thread_id` | Everything in one conversation |
 | `drafts` | `true` for only drafts, `false` to exclude them |
 | `unread`, `starred` | `true` or `false` |
 | `from` | Exact sender address |
-| `to` | Exact recipient address |
+| `to` | Exact recipient address, in `to`, `cc` or `bcc` |
 | `subject` | Substring |
-| `q` | Full text over subject, body and sender |
-| `since`, `until` | Against `received_at` |
+| `q` | Full text over subject and body |
+| `status` | Delivery statuses, comma-separated. Sent mail only |
+| `opened` | `true` or `false` |
+| `api_key_id` | Only mail sent by one key |
+| `since`, `until` | Against `received_at`. An ISO 8601 time, or milliseconds since 1970 |
 | `include_body` | `true` to include `text` and `html`. Off by default |
 | `mailbox_id`, `mailbox`, `domain` | Narrow to part of the account |
-| `limit`, `cursor` | See [Pagination](/api/pagination) |
+| `limit`, `cursor` | See [Pagination](/docs/api/pagination) |
 
 Bodies are left out by default because they are large and a list of fifty of
 them is mostly HTML you did not ask for.
@@ -39,37 +42,69 @@ GET /api/v1/messages/:id
 
 Scope: `mail:read`
 
-The message with its body, its files and its events.
+The message with its body, its files and its events. The SES message id works
+as well as the id.
 
 ```json
 {
   "object": "message",
   "id": "msg_…",
   "thread_id": "thr_…",
+  "mailbox_id": "mbx_…",
   "mailbox": "support@example.com",
   "message_id": "<CAO…@mail.gmail.com>",
+  "in_reply_to": null,
+  "references": [],
   "from": { "name": "Ada", "address": "ada@example.net" },
   "to": [{ "name": null, "address": "support@example.com" }],
+  "cc": [],
+  "bcc": [],
+  "reply_to": null,
   "subject": "Refund for order 4821",
+  "snippet": "Hi — I'd like to return…",
   "folder": "inbox",
   "direction": "inbound",
   "is_read": false,
-  "spf": "pass",
-  "dkim": "pass",
-  "dmarc": "pass",
-  "spam_score": 0,
-  "mailed_by": "mail.example.net",
-  "signed_by": "example.net",
-  "tls": "TLS1.3",
+  "is_starred": false,
+  "is_draft": false,
+  "has_attachments": true,
+  "size_bytes": 48211,
+  "spf": null,
+  "dkim": null,
+  "dmarc": null,
+  "spam_score": null,
+  "mailed_by": null,
+  "signed_by": null,
+  "tls": null,
+  "ses_message_id": null,
+  "status": null,
+  "error": null,
+  "opened_at": null,
+  "open_count": 0,
+  "api_key_id": null,
+  "sent_at": "2026-09-20T14:03:09Z",
+  "received_at": "2026-09-20T14:03:11Z",
+  "created_at": "2026-09-20T14:03:12Z",
   "text": "…",
   "html": "…",
   "attachments": [ … ],
-  "events": [ … ]
+  "events": []
 }
 ```
 
-`spf`, `dkim` and `dmarc` are what the receiving worker saw. Mailroom does not
-act on them; it records them so you can.
+`ses_message_id`, `status`, `error`, `opened_at` and `events` are about sent
+mail, and stay empty on mail you received.
+
+### The authentication fields
+
+`spf`, `dkim`, `dmarc`, `mailed_by`, `signed_by` and `tls` are what
+Cloudflare checked when the message arrived. They are `null` until the
+inbound worker is told to trust Cloudflare's results (`TRUST_AUTH_RESULTS`),
+because nothing in a message proves Cloudflare wrote that header. See
+[Receiving mail](/docs/guide/receiving).
+
+`spam_score` is always `null`. The only score a message could carry is one the
+sender wrote.
 
 ## Change one
 
@@ -127,6 +162,7 @@ Scope: `mail:read`
   "size_bytes": 84213,
   "content_id": null,
   "is_inline": false,
+  "created_at": "2026-09-20T14:03:12Z",
   "download_url": "https://…",
   "download_url_expires_in": 300
 }
@@ -140,4 +176,4 @@ For a small file, `?download=true` returns the bytes directly and saves a
 second request.
 
 An attachment is only reachable **through a message this key may read**.
-Staged uploads, which have no message yet, are not reachable at all.
+Files uploaded in the dashboard and not yet sent are not reachable at all.

@@ -19,11 +19,14 @@ console.log(sent.id, sent.ses_message_id, sent.thread_id);
 ```
 
 `to`, `cc` and `bcc` take a string or an array, and `Name <address>` is
-understood.
+understood. At most 50 recipients across all three.
 
-`from` has to be an address on a verified domain. A key that reaches a whole
-domain can use any address on it — the mailbox is created the first time it
-does.
+`from` has to be an address on a verified domain. The mailbox is created the
+first time you send from a new address, as long as your key reaches that
+domain.
+
+Send nothing else. A field the API does not take is a `ValidationError`,
+not something quietly ignored.
 
 ## When it does not go out at once
 
@@ -35,68 +38,21 @@ if (sent.status === "queued") {
 }
 ```
 
-A send SES refuses for good throws. Anything else — throttling, an outage, a
-dropped socket — comes back `queued`, and the [send queue](/guide/queue)
+A send SES refuses for good throws. Anything else (throttling, an outage, a
+dropped socket) comes back `queued`, and the [send queue](/docs/guide/queue)
 carries it from there. You do not have to do anything about it.
 
-## Sending later
+A recipient on the [blocked list](/docs/api/suppressions) stops the whole
+send with a `ConflictError`; `error.body.suppressed` lists the addresses.
+
+While it is still waiting, you can call it off:
 
 ```ts
-const sent = await mail.emails.send({
-  from: "reminders@yourdomain.com",
-  to: "customer@example.net",
-  subject: "Your appointment tomorrow",
-  text: "See you at 10.",
-  scheduled_at: "in 2 hours",
-});
-
-console.log(sent.status);        // "scheduled"
-console.log(sent.scheduled_at);  // "2026-09-21T16:00:00.000Z"
-```
-
-`scheduled_at` takes a `Date`, an ISO 8601 string, a Unix time, or a short
-relative form: `"in 30 minutes"`, `"in 2 hours"`, `"in 1 day"`. A time already
-past sends now, and 30 days is as far ahead as it goes.
-
-While it waits:
-
-```ts
-await mail.emails.reschedule(sent.id, new Date("2026-10-01T09:00:00Z"));
 await mail.emails.cancel(sent.id);
 ```
 
-Both throw `ConflictError` once the message has been picked up for sending.
-They work on a `queued` message too, not only a scheduled one.
-
-## Templates
-
-```ts
-const receipt = await mail.templates.create({
-  name: "Receipt",
-  subject: "Your receipt, {{ name }}",
-  html: "<p>Hello {{ name }}, you paid {{ amount }}.</p>",
-});
-
-await mail.emails.send({
-  from: "receipts@yourdomain.com",
-  to: "customer@example.net",
-  template: receipt.id,
-  data: { name: "Ada", amount: "£10.00" },
-});
-```
-
-<code v-pre>{{ name }}</code> substitutes with HTML escaped, <code v-pre>{{{ body }}}</code> substitutes
-without, and <code v-pre>{{ user.name }}</code> reaches into an object. That is the whole
-language — see [Templates](/api/templates).
-
-A value you did not send throws `ValidationError` naming what is missing,
-rather than leaving a hole in the message. `templates.get()` tells you what a
-template asks for:
-
-```ts
-const template = await mail.templates.get(receipt.id);
-console.log(template.variables); // ["name", "amount"]
-```
+That throws `ConflictError` once the message has been picked up for sending.
+There is nothing left to stop by then.
 
 ## Attachments
 
@@ -125,8 +81,8 @@ await mail.emails.send({
 });
 ```
 
-At most **20 files**, and 30 MB for the whole request. Base64 adds about a
-third, so that is roughly 22 MB of actual file.
+At most **20 files**, and 32 MB for the whole request. Base64 adds about a
+third, so that is roughly 24 MB of actual file.
 
 ## Sending exactly once
 
@@ -140,7 +96,7 @@ await mail.emails.send(
 Repeat the call with the same key and you get the first reply back, not a
 second message. Keys last 24 hours.
 
-Use something **meaningful** — `receipt-4821`, not a UUID made at call time. A
+Use something **meaningful**: `receipt-4821`, not a UUID made at call time. A
 fresh UUID on a retry is a different key and protects nothing.
 
 It also switches automatic retries on for that call, since repeating it is now
@@ -162,19 +118,23 @@ for (const item of result.data) {
 ```
 
 Up to **100**. Every one is attempted, so one bad address does not throw the
-rest away. This does **not** throw when some fail — check `result.failed`.
+rest away. This does **not** throw when some fail: check `result.failed`.
+
+Each item carries `index` and `ok`. A sent one adds `id`, `thread_id` and
+`delivery_status` (`sent` or `queued`); a failed one adds `error` and
+`status`, the HTTP status that message alone would have got.
 
 ## Replying to a conversation
 
 ```ts
 await mail.threads.reply(threadId, {
-  text: "Refunded — sorry for the trouble.",
+  text: "Refunded. Sorry for the trouble.",
   reply_all: true,
 });
 ```
 
 Recipients, subject and the headers that keep it threaded come off the last
-message. See [Reading mail](/sdk/reading#replying).
+message. See [Reading mail](/docs/sdk/reading#replying).
 
 ## What was sent
 
@@ -190,8 +150,9 @@ for (const message of page.data) {
 }
 ```
 
-A `Date` is serialised for you. So is an array — `status` goes out
-comma-separated.
+A `Date` is serialised for you. So is an array: `status` goes out
+comma-separated. A string for `since` or `until` has to be a full timestamp
+(`2026-09-01T00:00:00Z`); a bare date is refused.
 
 ## One send in full
 
@@ -208,12 +169,12 @@ hands you.
 
 ## A worked example
 
-Receipts, with a per-order idempotency key and bounces logged:
+Receipts, with a per-order idempotency key and bad addresses flagged:
 
 ```ts
-import { Mailroom, isMailroomError } from "@shahriyardx/mailroom";
+import { Mails, isMailsError } from "@shahriyardx/mails";
 
-const mail = new Mailroom();
+const mail = new Mails();
 
 export async function sendReceipt(order: Order) {
   try {
@@ -228,7 +189,7 @@ export async function sendReceipt(order: Order) {
       { idempotencyKey: `receipt-${order.id}` },
     );
   } catch (error) {
-    if (isMailroomError(error) && error.code === "invalid_request") {
+    if (isMailsError(error) && error.code === "invalid_request") {
       // A bad address is the order's problem, not something to retry.
       await flagBadEmail(order.id, error.message);
       return null;

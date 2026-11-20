@@ -11,7 +11,7 @@ Scope: `stats:read`
 | Parameter | |
 | --- | --- |
 | `days` | A window ending now. 1 to 365. **30** by default |
-| `since`, `until` | An explicit window. `since` overrides `days` |
+| `since`, `until` | An explicit window: an ISO 8601 time or a date like `2026-09-14`. `since` overrides `days` |
 | `mailbox_id`, `mailbox`, `domain` | Narrow to part of the account |
 
 ```sh
@@ -22,8 +22,8 @@ curl "https://mail.yourdomain.com/api/v1/stats?days=7" \
 ```json
 {
   "object": "stats",
-  "since": "2026-09-14T10:00:00.000Z",
-  "until": "2026-09-21T10:00:00.000Z",
+  "since": "2026-09-14T10:00:00Z",
+  "until": "2026-09-21T10:00:00Z",
   "sending": {
     "sent": 1284,
     "delivered": 1249,
@@ -48,10 +48,22 @@ curl "https://mail.yourdomain.com/api/v1/stats?days=7" \
 }
 ```
 
+## What is counted
+
+- `sending.sent` is outbound mail that reached SES. Drafts are not counted,
+  and neither is mail still `queued`, `canceled` or `failed`.
+- `delivered` counts complaints too: a complaint could not exist otherwise.
+- `failed` is mail the [send queue](/docs/guide/queue) gave up on.
+- `receiving.received` and `receiving.threads` are within the window:
+  messages that arrived, and the conversations they arrived in.
+- `receiving.unread`, `drafts` and `bytes` are **not** limited to the window.
+  They are the current state — unread threads in the inbox, drafts waiting,
+  and the size of everything stored.
+
 ## The rates
 
 `bounce_rate`, `complaint_rate` and `open_rate` are **shares of sent mail out
-of 100** — so `1.64` is 1.64%, not 164%.
+of 100**, with two decimals — so `1.64` is 1.64%, not 164%.
 
 | | SES starts warning above |
 | --- | --- |
@@ -61,22 +73,20 @@ of 100** — so `1.64` is 1.64%, not 164%.
 Watching these two is the single most useful thing this endpoint is for. A
 bounce rate climbing past 3 is worth investigating before AWS does it for you.
 
+Delivered, bounced, complained and opened all come from SES's own reporting.
+Without [delivery reporting](/docs/guide/domains) set up they stay at zero.
+
 `open_rate` counts messages whose tracking image was loaded. Apple Mail and
 Gmail fetch images through their own servers, so treat it as evidence of
 delivery rather than proof of reading.
 
 ## Days
 
-`days` has a row for **every day in the window**, quiet ones included, so a
-chart needs one call rather than one point per request. Days are UTC.
+`days` has a row for each UTC day **that had any mail**. Quiet days are left
+out, so a chart should fill the gaps with zeros.
 
 ## Mailboxes
 
-Up to 50 mailboxes, busiest first. `received` is always 0 for a
-send-only address, which makes it easy to see which mailboxes are doing what.
-
-## Receiving
-
-`receiving.threads` and `receiving.unread` are **not** limited to the window —
-they are the current state of the inbox, because "how many unread do I have
-over the last 30 days" is not a question anybody asks.
+Every mailbox in reach, by address, with what it sent and received in the
+window. `received` is 0 for a send-only address, which makes it easy to see
+which mailboxes are doing what.

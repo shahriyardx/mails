@@ -57,7 +57,7 @@ for (const message of thread.messages ?? []) {
 }
 ```
 
-Pass `{ includeBody: false }` for a lighter reply when only the shape matters.
+Pass `{ includeBody: false }` as the second argument for a lighter reply when only the shape matters.
 
 ## Filing
 
@@ -70,7 +70,8 @@ await mail.threads.update(id, {
 });
 ```
 
-Only what you send is changed. An unknown label is a `ValidationError` and
+Only what you send is changed. `folder` takes `inbox`, `archive`, `spam` or
+`trash`; drafts never move. An unknown label is a `ValidationError` and
 **nothing is changed** — labels are resolved before anything is written, so
 you never get an error next to a move that already happened.
 
@@ -84,7 +85,7 @@ await mail.threads.delete(id, { permanent: true });
 
 ```ts
 await mail.threads.reply(id, {
-  text: "Thanks — sorted.",
+  text: "Thanks, sorted.",
   reply_all: true,
   quote: true, // on by default
 });
@@ -92,12 +93,12 @@ await mail.threads.reply(id, {
 
 | Field | |
 | --- | --- |
-| `text`, `html` | One is required |
+| `text`, `html` | The reply. A plain `text` reply gets an HTML version made for you |
 | `reply_all` | Also answer everyone else on the last message |
 | `to`, `cc`, `bcc` | Replace the worked-out recipients |
 | `subject` | Defaults to `Re: …` |
 | `quote` | Append the message being answered. On by default |
-| `attachments` | As on a normal send |
+| `headers`, `attachments` | As on a normal send |
 
 ## Messages on their own
 
@@ -145,9 +146,9 @@ straight to storage and does not spend your rate limit.
 An agent that answers unread support mail and files it:
 
 ```ts
-import { Mailroom } from "@shahriyardx/mailroom";
+import { Mails } from "@shahriyardx/mails";
 
-const mail = new Mailroom();
+const mail = new Mails();
 
 for await (const thread of mail.threads.listAll({
   mailbox: "support@yourdomain.com",
