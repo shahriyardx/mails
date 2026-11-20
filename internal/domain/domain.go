@@ -233,7 +233,7 @@ func (s *Service) Refresh(ctx context.Context, idOrName string) (*Domain, error)
 		if err != nil {
 			return nil, fmt.Errorf("mark domain failed: %w", err)
 		}
-		return s.Get(ctx, d.ID)
+		return s.afterChange(ctx, d.ID)
 	}
 	spf, dmarc := s.probe(ctx, d.Name)
 	if err := s.save(ctx, d, detail, &spf, &dmarc); err != nil {
@@ -290,8 +290,9 @@ func (s *Service) Remove(ctx context.Context, idOrName string, inSES bool) (*Dom
 			return nil, false, fmt.Errorf("remember removed domain: %w", err)
 		}
 	}
-	// Its mailboxes fall back to a parent domain, if one is left.
-	if err := s.linkMailboxes(ctx); err != nil {
+	// Its mailboxes and inheriting subdomains fall back to a parent
+	// domain, if one is left.
+	if err := s.settle(ctx); err != nil {
 		return nil, false, err
 	}
 	return d, deleted, nil
@@ -404,7 +405,7 @@ func (s *Service) sync(ctx context.Context) (ImportResult, error) {
 			return res, err
 		}
 	}
-	return res, s.linkMailboxes(ctx)
+	return res, s.settle(ctx)
 }
 
 // ListFresh returns the list, first re-importing from SES when it is empty
@@ -433,17 +434,41 @@ func (s *Service) ListFresh(ctx context.Context) (list []*Domain, warning string
 }
 
 func (s *Service) afterChange(ctx context.Context, domainID string) (*Domain, error) {
-	if err := s.linkMailboxes(ctx); err != nil {
+	if err := s.settle(ctx); err != nil {
 		return nil, err
 	}
 	return s.Get(ctx, domainID)
 }
 
-// linkMailboxes files every mailbox under the closest domain covering it
+// settle runs after any change to the domain list or a status.
+//
+// An inherited subdomain stands or falls with its parent: it takes the
+// parent's status, and when the parent is gone it moves to the closest
+// remaining ancestor with its own identity, or, with none, is failed (it
+// needs an identity of its own).
+//
+// Every mailbox is filed under the closest domain covering it
 // (addr.Covering, the rule API key reach uses), or none. Adding sub.a.test
 // moves x@sub.a.test off a.test; removing it moves them back.
-func (s *Service) linkMailboxes(ctx context.Context) error {
+func (s *Service) settle(ctx context.Context) error {
 	return pgx.BeginFunc(ctx, s.DB, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `
+WITH orphan AS (
+	SELECT c.id, (SELECT p.name FROM domain p WHERE p.inherited_from IS NULL
+		AND right(c.name, length(p.name) + 1) = '.' || p.name ORDER BY length(p.name) DESC LIMIT 1) AS parent
+	FROM domain c WHERE c.inherited_from IS NOT NULL
+		AND NOT EXISTS (SELECT 1 FROM domain p WHERE p.name = c.inherited_from))
+UPDATE domain c SET inherited_from = o.parent,
+	status = CASE WHEN o.parent IS NULL THEN 'failed' ELSE c.status END,
+	dkim_status = CASE WHEN o.parent IS NULL THEN 'failed' ELSE c.dkim_status END,
+	sending_enabled = o.parent IS NOT NULL AND c.sending_enabled
+FROM orphan o WHERE c.id = o.id`); err != nil {
+			return fmt.Errorf("re-parent subdomains: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `UPDATE domain c SET status = p.status, sending_enabled = p.sending_enabled,
+			last_checked_at = p.last_checked_at FROM domain p WHERE c.inherited_from = p.name`); err != nil {
+			return fmt.Errorf("follow parent domains: %w", err)
+		}
 		type dom struct{ ID, Name string }
 		type box struct {
 			ID, Address string

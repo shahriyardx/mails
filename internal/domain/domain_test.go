@@ -300,6 +300,69 @@ func TestRemovedDomainStaysRemoved(t *testing.T) {
 	}
 }
 
+// A subdomain sending on its parent's verification stands or falls with it.
+func TestInheritedFollowsParent(t *testing.T) {
+	s, fake, _ := newService(t)
+	ctx := context.Background()
+	sendable := func(name string) bool {
+		t.Helper()
+		d, err := s.Get(ctx, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d.Sendable()
+	}
+	// Both added before either verifies, so each has its own identity.
+	for _, n := range []string{"a.test", "b.a.test"} {
+		if _, err := s.Add(ctx, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, n := range []string{"a.test", "b.a.test"} {
+		fake.Verify(n)
+		if _, err := s.Refresh(ctx, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c, err := s.Add(ctx, "c.b.a.test")
+	if err != nil || c.InheritedFrom == nil || *c.InheritedFrom != "b.a.test" || !c.Sendable() {
+		t.Fatalf("c = %+v %v", c, err)
+	}
+
+	fake.Identities["b.a.test"].VerificationStatus = "FAILED"
+	fake.Identities["b.a.test"].SendingEnabled = false
+	if _, err := s.Refresh(ctx, "b.a.test"); err != nil {
+		t.Fatal(err)
+	}
+	if sendable("c.b.a.test") {
+		t.Fatal("child still sendable after its parent failed")
+	}
+	fake.Verify("b.a.test")
+	if _, err := s.Refresh(ctx, "b.a.test"); err != nil {
+		t.Fatal(err)
+	}
+	if !sendable("c.b.a.test") {
+		t.Fatal("child not sendable after its parent recovered")
+	}
+
+	// Its parent gone, it moves to the next verified ancestor...
+	if _, _, err := s.Remove(ctx, "b.a.test", false); err != nil {
+		t.Fatal(err)
+	}
+	c, _ = s.Get(ctx, "c.b.a.test")
+	if c.InheritedFrom == nil || *c.InheritedFrom != "a.test" || !c.Sendable() {
+		t.Fatalf("after parent removed: %+v", c)
+	}
+	// ...and with none left it needs its own identity.
+	if _, _, err := s.Remove(ctx, "a.test", false); err != nil {
+		t.Fatal(err)
+	}
+	c, _ = s.Get(ctx, "c.b.a.test")
+	if c.InheritedFrom != nil || c.Sendable() || c.Status != "failed" {
+		t.Fatalf("after every parent removed: %+v", c)
+	}
+}
+
 func TestSelector(t *testing.T) {
 	for in, want := range map[string]string{"Mail!": "mail", "--": "mail", "s1-x": "s1-x"} {
 		if got := domain.Selector(in); got != want {
