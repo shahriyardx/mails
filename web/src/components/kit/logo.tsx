@@ -1,12 +1,34 @@
+import { useId } from "react";
 import { cn } from "@/lib/cn";
 
-/** The mark: a lavender diamond. Matches public/favicon.svg. */
+/** The mark: the folded diamond. Matches public/favicon.svg. */
 export function Logo({ className }: { className?: string }) {
+  const clip = useId();
   return (
-    <span
-      aria-hidden
-      className={cn("inline-block size-2.5 shrink-0 rotate-45 rounded-[3px] bg-primary", className)}
-    />
+    <svg aria-hidden viewBox="0 0 128 128" className={cn("size-4 shrink-0", className)}>
+      <clipPath id={clip}>
+        <rect width="128" height="64" />
+      </clipPath>
+      <rect
+        x="22"
+        y="22"
+        width="84"
+        height="84"
+        rx="16"
+        fill="#8f80f0"
+        transform="rotate(45 64 64)"
+      />
+      <rect
+        x="22"
+        y="22"
+        width="84"
+        height="84"
+        rx="16"
+        fill="#c8bff9"
+        transform="rotate(45 64 64)"
+        clipPath={`url(#${clip})`}
+      />
+    </svg>
   );
 }
 

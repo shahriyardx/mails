@@ -1,5 +1,6 @@
 import { cx, hueFor, initialsFor } from "@/lib/format";
 import type React from "react";
+import { useId } from "react";
 
 /**
  * The handful of controls the popup is built from.
@@ -320,13 +321,26 @@ export function Avatar({
 
 /* ------------------------------------------------------------- odds and ends */
 
-/** The mark: a lavender diamond, as in the web sidebar. */
+/** The mark: the folded diamond, as in assets/icon.svg and the web sidebar. */
 export function Logo({ className }: { className?: string }) {
+  const clip = useId();
   return (
-    <span
-      aria-hidden
-      className={cx("inline-block size-2.5 shrink-0 rotate-45 rounded-[3px] bg-primary", className)}
-    />
+    <svg aria-hidden viewBox="0 0 128 128" className={cx("size-4 shrink-0", className)}>
+      <clipPath id={clip}>
+        <rect width="128" height="64" />
+      </clipPath>
+      <rect x="22" y="22" width="84" height="84" rx="16" fill="#8f80f0" transform="rotate(45 64 64)" />
+      <rect
+        x="22"
+        y="22"
+        width="84"
+        height="84"
+        rx="16"
+        fill="#c8bff9"
+        transform="rotate(45 64 64)"
+        clipPath={`url(#${clip})`}
+      />
+    </svg>
   );
 }
 
