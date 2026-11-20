@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement } from "react";
+import { act, createElement, type RefObject } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OutgoingMail } from "@/lib/types";
@@ -115,5 +115,32 @@ describe("Composer", () => {
       to: ["bob@example.test"],
     });
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("registers a flush that saves unsaved text before the composer is replaced", async () => {
+    const flushRef: RefObject<(() => Promise<boolean>) | null> = { current: null };
+    await render({ flushRef });
+    await type(field("Subject"), "Half written");
+
+    let ok: boolean | undefined;
+    await act(async () => {
+      ok = await flushRef.current!();
+    });
+    expect(ok).toBe(true);
+    expect(api.saveDraft).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("the flush reports failure when the draft cannot be saved", async () => {
+    api.saveDraft.mockRejectedValue(new Error("offline"));
+    const flushRef: RefObject<(() => Promise<boolean>) | null> = { current: null };
+    await render({ flushRef });
+    await type(field("Subject"), "Half written");
+
+    let ok: boolean | undefined;
+    await act(async () => {
+      ok = await flushRef.current!();
+    });
+    expect(ok).toBe(false);
   });
 });

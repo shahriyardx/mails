@@ -7,6 +7,7 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { Address } from "@/lib/types";
@@ -48,7 +49,15 @@ export function useComposer() {
 /** One composer at a time, floating over whatever screen is open. */
 export function ComposerProvider({ children }: { children: ReactNode }) {
   const [draft, setDraft] = useState<(ComposerDraft & { key: number }) | null>(null);
-  const open = useCallback((next?: ComposerDraft) => setDraft({ ...next, key: Date.now() }), []);
+  // The open composer's save, so opening another never drops unsaved text.
+  const flush = useRef<(() => Promise<boolean>) | null>(null);
+  const open = useCallback((next?: ComposerDraft) => {
+    void (async () => {
+      // Not saved (the reason is toasted): the open composer stays, text and all.
+      if (flush.current && !(await flush.current())) return;
+      setDraft({ ...next, key: Date.now() });
+    })();
+  }, []);
   const close = useCallback(() => setDraft(null), []);
   const api = useMemo(() => ({ open, close, isOpen: draft !== null }), [open, close, draft]);
 
@@ -57,7 +66,7 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
       {children}
       <Suspense>
         <AnimatePresence>
-          {draft && <Composer key={draft.key} draft={draft} onClose={close} />}
+          {draft && <Composer key={draft.key} draft={draft} onClose={close} flushRef={flush} />}
         </AnimatePresence>
       </Suspense>
     </Context.Provider>

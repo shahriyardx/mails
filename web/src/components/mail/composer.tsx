@@ -1,6 +1,6 @@
 import DOMPurify from "dompurify";
 import { motion } from "motion/react";
-import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type KeyboardEvent, type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Icon,
@@ -61,9 +61,12 @@ function pickMailbox(mailboxes: Mailbox[], wanted?: string) {
 export default function Composer({
   draft,
   onClose,
+  flushRef,
 }: {
   draft: ComposerDraft;
   onClose: () => void;
+  /** Set to this composer's flush, so a new composer can save this one first. */
+  flushRef?: RefObject<(() => Promise<boolean>) | null>;
 }) {
   const phone = useIsPhone();
   const mailboxes = useMailboxes();
@@ -172,17 +175,31 @@ export default function Composer({
       set(value);
     });
 
-  async function close() {
+  /** Saves unsaved changes; resolves false (with the reason toasted) when it could not. */
+  async function flush() {
     const hasContent =
       recipients.current.to.length > 0 || subject.trim() || html.replace(/<[^>]*>/g, "").trim();
     if (dirty.current && hasContent) {
       if (!(await save())) {
         toast.error("Draft not saved. Copy your text, or fix the problem and close again.");
-        return;
+        return false;
       }
       toast("Draft saved");
     }
-    onClose();
+    return true;
+  }
+
+  // Re-set every render, so the provider always calls the current flush.
+  useEffect(() => {
+    if (!flushRef) return;
+    flushRef.current = flush;
+    return () => {
+      if (flushRef.current === flush) flushRef.current = null;
+    };
+  });
+
+  async function close() {
+    if (await flush()) onClose();
   }
 
   async function discard() {

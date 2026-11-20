@@ -31,6 +31,7 @@ import {
   useThreads,
 } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { shortcutBlocked } from "@/lib/hooks";
 import { FOLDER_META, isFolder, mailHref, parseScope, type Scope, withListParam } from "@/lib/mail";
 import type { ThreadFilter, ViewFolder } from "@/lib/types";
 
@@ -54,15 +55,9 @@ export function Component() {
   // c: compose, /: search (outside text fields).
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      const target = event.target as HTMLElement | null;
-      if (
-        target?.closest("input, textarea, [contenteditable=true]") ||
-        event.metaKey ||
-        event.ctrlKey ||
-        event.altKey
-      )
-        return;
-      if (event.key === "c") {
+      if (shortcutBlocked(event)) return;
+      // One composer at a time: "c" never replaces the one being written.
+      if (event.key === "c" && !composer.isOpen) {
         event.preventDefault();
         composer.open();
       } else if (event.key === "/") {
