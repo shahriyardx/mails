@@ -77,6 +77,40 @@ func TestBuildRoundTrip(t *testing.T) {
 	}
 }
 
+// RFC 2392: a Content-ID header is wrapped in angle brackets, whether the
+// caller gave them or not.
+func TestInlineContentIDHasAngleBrackets(t *testing.T) {
+	raw, err := Build(Mail{
+		From: addr.Address{Address: "zoe@a.test"}, To: []addr.Address{{Address: "ada@b.test"}},
+		HTML: `<img src="cid:img1"><img src="cid:img2">`, MessageID: "abc@a.test", Date: time.Now(),
+		Files: []File{{Name: "1.png", ContentType: "image/png", ContentID: "img1", Data: []byte{1}},
+			{Name: "2.png", ContentType: "image/png", ContentID: "<img2>", Data: []byte{2}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := mail.CreateReader(bytes.NewReader(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for {
+		p, err := r.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cid := p.Header.Get("Content-Id"); cid != "" {
+			ids = append(ids, cid)
+		}
+	}
+	if strings.Join(ids, ",") != "<img1>,<img2>" {
+		t.Fatalf("content ids = %q", ids)
+	}
+}
+
 func TestCheckHeaders(t *testing.T) {
 	tests := []struct {
 		h  map[string]string
