@@ -153,7 +153,7 @@ func (s *Service) OnReceived(_ context.Context, r inbound.Received) {
 	if s.Send == nil || r.Folder == "spam" || r.Folder == "trash" {
 		return
 	}
-	p := Payload{Title: r.From.Display(), Body: r.Subject, URL: "/mail/inbox?thread=" + url.QueryEscape(r.ThreadID), Tag: "thread:" + r.ThreadID}
+	p := Payload{Title: r.From.Display(), Body: r.Subject, URL: "/mail/all/inbox?t=" + url.QueryEscape(r.ThreadID), Tag: "thread:" + r.ThreadID}
 	if p.Title == "" {
 		p.Title = "New mail"
 	}

@@ -105,7 +105,7 @@ export function query(
 
   if (extra.search?.trim()) params.set("q", extra.search.trim());
   params.set("limit", String(extra.limit ?? 25));
-  if (extra.cursor) params.set("next_cursor", extra.cursor);
+  if (extra.cursor) params.set("cursor", extra.cursor);
 
   return params.toString();
 }
