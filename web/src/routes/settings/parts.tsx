@@ -53,8 +53,8 @@ export function StatusDot({
 export const rowActions =
   "transition-opacity md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 md:has-[[aria-expanded=true]]:opacity-100";
 
-/** An empty list: one sentence and one primary button inside. */
-export const emptyBox = "rounded-[14px] border border-dashed border-border px-6 py-10 text-center";
+/** An empty list: one short sentence (the add button is on the title row). */
+export const emptyBox = "rounded-[14px] border border-dashed border-border px-6 py-8 text-center";
 
 /** A titled part of a page: a heading and a muted line, no box around it. */
 export function Section({
@@ -215,7 +215,7 @@ export function SwitchRow({
 }) {
   const id = useId();
   return (
-    <div className={cn("flex items-start gap-3", className)}>
+    <div className={cn("flex gap-3", description ? "items-start" : "items-center", className)}>
       <div className="min-w-0 flex-1">
         <div id={`${id}-l`} className="text-[13px] font-medium">
           {label}
@@ -232,7 +232,7 @@ export function SwitchRow({
         disabled={disabled}
         aria-labelledby={`${id}-l`}
         aria-describedby={description ? `${id}-d` : undefined}
-        className="mt-0.5"
+        className={description ? "mt-0.5" : undefined}
       />
     </div>
   );

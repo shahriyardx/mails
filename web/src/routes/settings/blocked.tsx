@@ -44,21 +44,24 @@ export default function Blocked() {
     <div className="flex flex-col gap-4">
       <PageAction>{blockButton}</PageAction>
 
-      <div className="relative">
-        <Icon
-          name="search"
-          size={18}
-          className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
-        />
-        <Input
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search blocked addresses"
-          aria-label="Search blocked addresses"
-          className="pl-9"
-        />
-      </div>
+      {/* Nothing to search until something is blocked. */}
+      {(search || rows.length > 0) && (
+        <div className="relative">
+          <Icon
+            name="search"
+            size={18}
+            className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search"
+            aria-label="Search blocked addresses"
+            className="pl-9"
+          />
+        </div>
+      )}
 
       {list.isPending ? (
         <List aria-busy="true">
@@ -73,7 +76,6 @@ export default function Blocked() {
           <p className="text-muted-foreground">
             {q ? `Nothing blocked matches "${q}".` : "Nothing is blocked."}
           </p>
-          {!q && <div className="mt-4">{blockButton}</div>}
         </div>
       ) : (
         <List>

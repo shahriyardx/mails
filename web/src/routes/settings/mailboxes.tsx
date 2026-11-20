@@ -69,9 +69,6 @@ export default function Mailboxes() {
           <p className="text-muted-foreground">
             No mailboxes yet. Add a domain first, then a mailbox on it.
           </p>
-          <Button variant="primary" icon="add" className="mt-4" onClick={() => setAdding(true)}>
-            Add mailbox
-          </Button>
         </div>
       ) : (
         <List>
@@ -80,9 +77,6 @@ export default function Mailboxes() {
           ))}
         </List>
       )}
-      <p className="text-xs text-muted-foreground">
-        Mail to an address with no mailbox goes to the domain's catch-all, if it has one.
-      </p>
       <CreateMailbox open={adding} onOpenChange={setAdding} onCreated={setNote} />
     </div>
   );
@@ -206,7 +200,7 @@ function SettingsFields({
           maxLength={200}
         />
       </Field>
-      <Field label="Colour" description="Marks this mailbox in the mail list.">
+      <Field label="Colour">
         <div className="flex flex-wrap items-center gap-3">
           <ColorPicker
             value={value.color}
@@ -221,7 +215,7 @@ function SettingsFields({
           />
         </div>
       </Field>
-      <Field label="Signature" description="Added under new mail. Plain text, or HTML.">
+      <Field label="Signature" description="Plain text or HTML.">
         <Textarea
           value={value.signature}
           onChange={(event) => set("signature", event.target.value)}
@@ -238,7 +232,7 @@ function SettingsFields({
         />
         <SwitchRow
           label="Default"
-          description="New mail is written from this address unless you pick another."
+          description="New mail starts from this address."
           checked={value.is_default}
           onCheckedChange={(on) => set("is_default", on)}
         />

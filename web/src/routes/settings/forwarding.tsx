@@ -71,9 +71,7 @@ export default function Forwarding() {
   if (!data.connected && data.addresses.length === 0) {
     return (
       <div className={EMPTY}>
-        <p className="text-muted-foreground">
-          Forwarding goes through Cloudflare Email Routing. Connect Cloudflare first.
-        </p>
+        <p className="text-muted-foreground">Connect Cloudflare first.</p>
         <Button
           variant="primary"
           icon="arrow_forward"
@@ -99,11 +97,8 @@ export default function Forwarding() {
           Add address
         </Button>
       </PageAction>
-      <Addresses view={data} onAdd={() => setAdding(true)} />
-      <Section
-        title="Everything"
-        description="A copy of every message this instance receives, whichever mailbox it lands in."
-      >
+      <Addresses view={data} />
+      <Section title="Everything" description="A copy of every message received.">
         <div className="rounded-[14px] border border-border bg-surface px-4 py-3">
           <Targets rules={data.instance} view={data} scope={{}} label="everything" />
         </div>
@@ -200,14 +195,14 @@ function AddAddress({
   );
 }
 
-function Addresses({ view, onAdd }: { view: ForwardingView; onAdd: () => void }) {
+function Addresses({ view }: { view: ForwardingView }) {
   const refresh = useRefreshForwarding();
   const waiting = view.addresses.filter((a) => !a.verified).length;
 
   return (
     <Section
       title="Destinations"
-      description="Where copies can go: your Cloudflare Email Routing destinations."
+      description="Where copies can go."
       action={
         <IconButton
           icon="refresh"
@@ -236,15 +231,6 @@ function Addresses({ view, onAdd }: { view: ForwardingView; onAdd: () => void })
       {view.addresses.length === 0 ? (
         <div className={EMPTY}>
           <p className="text-muted-foreground">Nowhere to forward to yet.</p>
-          <Button
-            variant="primary"
-            icon="add"
-            className="mt-4"
-            disabled={!view.connected}
-            onClick={onAdd}
-          >
-            Add address
-          </Button>
         </div>
       ) : (
         <List>
@@ -281,9 +267,8 @@ function AddressRow({ address }: { address: ForwardAddress }) {
       }
       action={
         <>
-          {address.verified ? (
-            <StatusDot tone="ok">Verified</StatusDot>
-          ) : address.in_cloudflare ? (
+          {/* Only what needs attention is marked. */}
+          {address.verified ? null : address.in_cloudflare ? (
             <StatusDot tone="pending">Waiting</StatusDot>
           ) : (
             <StatusDot tone="bad">Gone</StatusDot>

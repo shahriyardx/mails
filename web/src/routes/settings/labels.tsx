@@ -36,16 +36,13 @@ export default function Labels() {
   return (
     <div className="space-y-4">
       <PageAction>
-        <Button variant="primary" icon="new_label" onClick={add}>
+        <Button variant="primary" icon="add" onClick={add}>
           New label
         </Button>
       </PageAction>
       {labels.data.length === 0 ? (
         <div className={emptyBox}>
           <p className="text-muted-foreground">No labels yet.</p>
-          <Button variant="primary" icon="new_label" className="mt-4" onClick={add}>
-            New label
-          </Button>
         </div>
       ) : (
         <List>
@@ -54,9 +51,6 @@ export default function Labels() {
           ))}
         </List>
       )}
-      <p className="text-[13px] text-muted-foreground">
-        Filters can add a label to new mail as it arrives.
-      </p>
       <LabelDialog label={editing} onClose={() => setEditing(null)} />
     </div>
   );
@@ -82,7 +76,6 @@ function LabelRow({ label, onEdit }: { label: Label; onEdit: () => void }) {
             style={{ background: label.color }}
           />
           <span className="truncate">{label.name}</span>
-          <span className="font-mono text-xs font-normal text-muted-foreground">{label.color}</span>
         </button>
       }
       action={

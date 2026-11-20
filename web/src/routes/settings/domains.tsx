@@ -89,12 +89,7 @@ export default function Domains() {
       )}
       {data.length === 0 ? (
         <div className={emptyBox}>
-          <p className="text-muted-foreground">
-            No domains yet. Import the ones already in SES, or add one.
-          </p>
-          <Button variant="primary" icon="add" className="mt-4" onClick={() => setAdding(true)}>
-            Add domain
-          </Button>
+          <p className="text-muted-foreground">No domains yet.</p>
         </div>
       ) : (
         <List>
@@ -139,9 +134,7 @@ function AddDomain({
         <DialogHeader>
           <DialogTitle>Add a domain</DialogTitle>
           <DialogDescription>
-            A subdomain of a verified domain needs nothing published: it sends on its parent's
-            verification. Anything else becomes an SES identity with its own DKIM key and return
-            path.
+            A subdomain of a verified domain needs no DNS records.
           </DialogDescription>
         </DialogHeader>
         <form id="add-domain" onSubmit={submit}>
@@ -173,11 +166,10 @@ function AddDomain({
   );
 }
 
-/** The one-word status beside a domain; the details say what is left. */
+/** The one-word status beside a domain that still needs work; a ready one shows none. */
 function domainStatus(domain: Domain) {
   const summary = domainSummary(domain);
-  if (summary.ready)
-    return { tone: "ok", text: domain.inherited_from ? "Inherited" : "Verified" } as const;
+  if (summary.ready) return null;
   if (summary.danger) return { tone: "bad", text: "Failing" } as const;
   return { tone: "pending", text: "Pending" } as const;
 }
@@ -209,7 +201,7 @@ function DomainItem({ domain, nested }: { domain: Domain; nested?: boolean }) {
         <div className="truncate text-sm font-semibold">{domain.name}</div>
         <div className="truncate font-mono text-xs text-muted-foreground">{details}</div>
       </div>
-      <StatusDot tone={status.tone}>{status.text}</StatusDot>
+      {status && <StatusDot tone={status.tone}>{status.text}</StatusDot>}
     </>
   );
 
@@ -381,7 +373,7 @@ function DomainDetails({ domain }: { domain: Domain }) {
 
       <SwitchRow
         label="Capture every address"
-        description={`Mail to an address on ${domain.name} that no mailbox claims creates that mailbox and is kept here. Off: it is only forwarded, if a forwarding rule covers it.`}
+        description={`Mail to an unknown address on ${domain.name} creates its mailbox. Off: it is only forwarded, if a rule covers it.`}
         checked={domain.auto_create_mailboxes}
         onCheckedChange={(on) =>
           update.mutate(

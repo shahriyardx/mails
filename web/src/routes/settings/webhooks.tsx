@@ -185,7 +185,6 @@ export default function Webhooks() {
           ) : list.length === 0 ? (
             <div className={emptyBox}>
               <p className="text-muted-foreground">No endpoints yet.</p>
-              <div className="mt-4">{newEndpoint}</div>
             </div>
           ) : (
             <List>
@@ -328,33 +327,17 @@ export default function Webhooks() {
         </div>
 
         <Section
-          title="Checking a call is genuine"
-          description={
-            <>
-              Each call carries an <code className="font-mono">X-Mails-Signature</code> header, an
-              HMAC-SHA256 of the timestamp and body with the endpoint's secret.
-            </>
-          }
+          title="Verifying calls"
           action={
-            <div className="flex shrink-0 gap-1">
-              <Button
-                size="sm"
-                variant="ghost"
-                icon="menu_book"
-                render={<Link to="/docs/webhooks/verifying" />}
-                nativeButton={false}
-              >
-                Verifying a call
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                render={<Link to="/docs/webhooks/events" />}
-                nativeButton={false}
-              >
-                The events
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              icon="menu_book"
+              render={<Link to="/docs/webhooks/verifying" />}
+              nativeButton={false}
+            >
+              Docs
+            </Button>
           }
         >
           <CodeBlock text={VERIFY_SAMPLE} />
