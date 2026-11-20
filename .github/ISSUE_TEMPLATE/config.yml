@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security problem
+    url: https://github.com/shahriyardx/mails/security/advisories/new
+    about: Please report vulnerabilities privately, not as an issue.
+  - name: Documentation
+    url: https://github.com/shahriyardx/mails/tree/main/web/src/docs
+    about: Setup, self-hosting and the API reference.

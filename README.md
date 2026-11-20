@@ -1,5 +1,9 @@
 # Mails
 
+[![CI](https://github.com/shahriyardx/mails/actions/workflows/ci.yml/badge.svg)](https://github.com/shahriyardx/mails/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/shahriyardx/mails?include_prereleases&sort=semver)](https://github.com/shahriyardx/mails/releases)
+[![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-a99cf5)](LICENSE)
+
 Your own email platform, on your own domains.
 
 Mails sends through Amazon SES, receives through Cloudflare Email Routing,
@@ -34,11 +38,13 @@ Needs Go 1.27, Node 22 with pnpm, and Docker.
 
 ```sh
 docker compose up -d postgres
-set -a; . ./.env; set +a
-go run ./cmd/mails                # server on :3000
+make dev                          # build and run on :3000
 cd web && pnpm install && pnpm dev # dashboard with hot reload
-go test ./...                     # needs the compose Postgres
+make test                         # needs the compose Postgres
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide. Report security
+problems privately, as described in [SECURITY.md](SECURITY.md).
 
 ## Documentation
 

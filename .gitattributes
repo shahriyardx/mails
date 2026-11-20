@@ -1,0 +1,10 @@
+* text=auto eol=lf
+
+# Built files kept in the repo (embedded into the binary).
+worker/dist/** linguist-generated=true -diff
+*.woff2 binary
+*.png binary
+
+# Lockfiles: keep them out of language stats and diffs.
+pnpm-lock.yaml linguist-generated=true -diff
+go.sum linguist-generated=true
