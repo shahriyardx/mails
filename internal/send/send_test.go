@@ -493,6 +493,25 @@ func TestDeleteStuckClaimedDraft(t *testing.T) {
 	}
 }
 
+func TestOversizedFilesRefusedBeforeReading(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	m := &mail.Service{DB: e.pool, Store: e.store}
+	a, _ := m.Stage(ctx, "a.bin", "application/octet-stream", strings.NewReader("A"))
+	b, _ := m.Stage(ctx, "b.bin", "application/octet-stream", strings.NewReader("B"))
+	// Two files of 25 MB each, by their recorded size.
+	if _, err := e.pool.Exec(ctx, `UPDATE attachment SET size_bytes = 25 << 20`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := e.s.Send(ctx, send.Input{From: "me@a.test", To: to("x@b.test"), Text: "x", AttachmentIDs: []string{a.ID, b.ID}})
+	if code(err) != 413 {
+		t.Fatalf("err = %v, want 413", err)
+	}
+	if e.ses.SentCount() != 0 {
+		t.Fatal("oversized message went out")
+	}
+}
+
 func TestDraftFileListIsAuthoritative(t *testing.T) {
 	e := setup(t)
 	ctx := context.Background()

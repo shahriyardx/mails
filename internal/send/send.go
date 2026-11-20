@@ -344,10 +344,12 @@ func (s *Service) prepare(ctx context.Context, in *Input, draft bool) (*prepared
 		return nil, err
 	}
 	if len(p.raw) > maxRaw {
-		return nil, &httpx.Error{Status: 413, Code: "payload_too_large", Message: "The message is over SES's 40 MB limit"}
+		return nil, errTooLarge
 	}
 	return p, nil
 }
+
+var errTooLarge = &httpx.Error{Status: 413, Code: "payload_too_large", Message: "The message is over SES's 40 MB limit"}
 
 func (s *Service) checkSuppressed(ctx context.Context, recipients []string) error {
 	rows, _ := s.DB.Query(ctx, `SELECT address FROM suppression WHERE address = ANY($1) ORDER BY address`, recipients)
@@ -402,6 +404,7 @@ func (s *Service) loadFiles(ctx context.Context, p *prepared, draft bool) error 
 		ContentID                        *string
 		MessageID                        *string
 		MailboxID                        *string
+		Size                             int
 	}
 	// attachment_ids is the whole list: a file of the draft that is not
 	// named was removed by the composer and is dropped on save or send.
@@ -409,7 +412,7 @@ func (s *Service) loadFiles(ctx context.Context, p *prepared, draft bool) error 
 	if len(ids) == 0 {
 		return nil
 	}
-	rows, _ := s.DB.Query(ctx, `SELECT a.id, a.filename, a.content_type, a.r2_key, a.content_id, a.message_id, m.mailbox_id
+	rows, _ := s.DB.Query(ctx, `SELECT a.id, a.filename, a.content_type, a.r2_key, a.content_id, a.message_id, m.mailbox_id, a.size_bytes
 		FROM attachment a LEFT JOIN message m ON m.id = a.message_id WHERE a.id = ANY($1)`, dedupe(ids))
 	found, err := pgx.CollectRows(rows, pgx.RowToStructByPos[row])
 	if err != nil {
@@ -417,6 +420,19 @@ func (s *Service) loadFiles(ctx context.Context, p *prepared, draft bool) error 
 	}
 	if len(found) != len(dedupe(ids)) {
 		return httpx.Invalid("attachment_ids", "attachment_ids: One or more files do not exist")
+	}
+	if !draft {
+		// Refuse an oversized message before reading any stored file.
+		total := 0
+		for _, f := range p.files {
+			total += len(f.Data)
+		}
+		for _, a := range found {
+			total += a.Size
+		}
+		if total > maxRaw {
+			return errTooLarge
+		}
 	}
 	for _, a := range found {
 		switch {
