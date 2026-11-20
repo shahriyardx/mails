@@ -138,10 +138,12 @@ console.log(ping.succeeded, ping.status_code, ping.response_body);
 A failed ping is a **result**, not a throw — the call worked, the endpoint did
 not.
 
-Catch an endpoint up after an outage:
+Catch an endpoint up after an outage. Turn it on first: replaying to an
+endpoint that is off throws a `ConflictError`.
 
 ```ts
-for await (const delivery of mail.webhooks.listAllDeliveries({ succeeded: false })) {
+await mail.webhooks.update(id, { enabled: true });
+for await (const delivery of mail.webhooks.listAllDeliveries({ webhook_id: id, succeeded: false })) {
   await mail.webhooks.replay(delivery.id);
 }
 ```
@@ -160,8 +162,9 @@ for (const day of stats.days) {
 }
 ```
 
-`days` has a row only for days that had mail; quiet days are left out, so
-fill the gaps yourself if you chart it. Rates are shares out of 100: SES warns
+`days` has a row for every day in the window, quiet ones with zeros, so it
+charts as it is. A `since`/`until` window is at most 366 days (a
+`ValidationError` otherwise). Rates are shares out of 100: SES warns
 above **5** bounces and **0.1** complaints.
 
 ## An endpoint not yet wrapped

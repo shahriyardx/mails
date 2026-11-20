@@ -223,7 +223,8 @@ curl "https://mail.yourdomain.com/api/v1/emails?status=bounced,complained&since=
   -H "Authorization: Bearer mk_live_..."
 ```
 
-`since` and `until` take a full time, not a bare date: `2026-09-01` is a `422`.
+`since` and `until` also take a bare date: `2026-09-01` means midnight UTC at
+the start of that day.
 
 ## Read one
 

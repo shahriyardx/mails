@@ -63,12 +63,17 @@ catch (error) {
 The client retries on its own when repeating is **safe**:
 
 - Every `GET`
-- Any `POST` sent with an `idempotencyKey`
+- A send, batch send or reply (`emails.send`, `emails.sendBatch`,
+  `threads.reply`) sent with an `idempotencyKey`: the only calls the server
+  deduplicates by key
 
-Nothing else. An unkeyed send that times out is never repeated, because
-"probably did not send" is not good enough to risk sending twice.
+Nothing else: a key on any other `POST` does not make it retried. An unkeyed
+send that times out is never repeated, because "probably did not send" is not
+good enough to risk sending twice.
 
-What is retried: `429`, any `5xx`, timeouts and dropped connections. Waits are
+What is retried: `429`, any `5xx`, timeouts and dropped connections. A keyed
+send also waits out the `409` that says the first try with that key is still
+in progress, so a retry never reports a conflict for mail that went. Waits are
 exponential with jitter, and a `Retry-After` is obeyed when the server sends
 one.
 

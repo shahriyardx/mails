@@ -39,8 +39,9 @@ no. Repeating it will not change the answer, so it is not repeated.
 
 After **20 failures in a row**, the endpoint is turned off. An endpoint that
 has been gone for a day should not still be collecting retries. Events that
-come up while it is off are recorded as not sent, with the error
-`The endpoint is turned off`.
+come up while it is off are not queued for it at all, so there is nothing to
+replay for them. Retries that were already queued when it went off are
+recorded as not sent, with the error `The endpoint is turned off`.
 
 Turn it back on when it is fixed:
 
@@ -78,15 +79,15 @@ POST /api/v1/webhook-deliveries/:id/replay
 ```
 
 Sends the stored payload again, once, right away, and waits for the answer.
-It goes out even if the endpoint is turned off, which is how you test a fix
-before turning it back on.
+The endpoint must be turned on: replaying to one that is off is a `409`, so
+turn it back on first. To test a fix before that, use [ping](#checking-an-endpoint-is-alive).
 
-Everything that failed, again:
+Everything that failed on one endpoint, again:
 
 ```sh
 BASE=https://mail.yourdomain.com/api/v1
 
-curl -s "$BASE/webhook-deliveries?succeeded=false&limit=100" \
+curl -s "$BASE/webhook-deliveries?webhook_id=whk_…&succeeded=false&limit=100" \
      -H "Authorization: Bearer $KEY" \
 | jq -r '.data[].id' \
 | while read -r id; do

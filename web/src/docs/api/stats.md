@@ -11,7 +11,7 @@ Scope: `stats:read`
 | Parameter | |
 | --- | --- |
 | `days` | A window ending now. 1 to 365. **30** by default |
-| `since`, `until` | An explicit window: an ISO 8601 time or a date like `2026-09-14`. `since` overrides `days` |
+| `since`, `until` | An explicit window: an ISO 8601 time or a date like `2026-09-14`. `since` overrides `days`. At most 366 days long, and `since` not after `until`, or it is a `422` |
 | `mailbox_id`, `mailbox`, `domain` | Narrow to part of the account |
 
 ```sh
@@ -82,8 +82,8 @@ delivery rather than proof of reading.
 
 ## Days
 
-`days` has a row for each UTC day **that had any mail**. Quiet days are left
-out, so a chart should fill the gaps with zeros.
+`days` has a row for **every** UTC day in the window, oldest first. Quiet days
+are there too, with zeros, so a chart needs no gap filling.
 
 ## Mailboxes
 

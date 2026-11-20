@@ -28,8 +28,18 @@ Only a reply that worked is remembered. If the first call failed — a bad
 field, a blocked recipient — the same key can be used again once you have
 fixed it.
 
-Two calls with the same key at the same moment do not both send: the second
-waits for the first and gets its reply.
+Two calls with the same key at the same moment do not both send. The second
+does not wait: while the first is still running it gets a `409`:
+
+```json
+{
+  "error": "A request with this idempotency key is still in progress",
+  "code": "conflict"
+}
+```
+
+Wait a moment and repeat it; once the first has finished, the repeat gets its
+reply. The [Node SDK](/docs/sdk/errors) does this for you.
 
 ### Use something meaningful
 
@@ -51,8 +61,9 @@ something changed between the first call and the retry.
 
 ### Where it works
 
-`POST /emails` and `POST /emails/batch`. For a batch, the whole array is what
-the key covers. Other endpoints ignore the header.
+`POST /emails`, `POST /emails/batch` and `POST /threads/:id/reply`. For a
+batch, the whole array is what the key covers. Other endpoints ignore the
+header.
 
 ## Rate limits
 

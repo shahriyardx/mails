@@ -94,7 +94,9 @@ await mail.emails.send(
 ```
 
 Repeat the call with the same key and you get the first reply back, not a
-second message. Keys last 24 hours.
+second message. Keys last 24 hours. `sendBatch` and `threads.reply` take a key
+the same way, and these three are the only `POST`s the client retries on its
+own after a timeout or a `5xx` (see [Errors](/docs/sdk/errors#retries)).
 
 Use something **meaningful**: `receipt-4821`, not a UUID made at call time. A
 fresh UUID on a retry is a different key and protects nothing.
@@ -151,8 +153,8 @@ for (const message of page.data) {
 ```
 
 A `Date` is serialised for you. So is an array: `status` goes out
-comma-separated. A string for `since` or `until` has to be a full timestamp
-(`2026-09-01T00:00:00Z`); a bare date is refused.
+comma-separated. A string for `since` or `until` can be a full timestamp
+(`2026-09-01T00:00:00Z`) or a bare date (`2026-09-01`, midnight UTC).
 
 ## One send in full
 

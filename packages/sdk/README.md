@@ -94,7 +94,7 @@ With `MAILS_API_KEY` and `MAILS_BASE_URL` set, `new Mails()` on its own is enoug
 
 `baseUrl` is your instance's address. The `/api/v1` suffix is added for you, so `https://mail.example.com` and `https://mail.example.com/api/v1` both work.
 
-**Retries.** A call is repeated only when repeating it is safe: every `GET`, and any `POST` sent with an [idempotency key](#idempotency). Waits are exponential with jitter, and a `Retry-After` header is obeyed when the server sends one.
+**Retries.** A call is repeated only when repeating it is safe: every `GET`, and a send, batch send or reply sent with an [idempotency key](#idempotency). Waits are exponential with jitter, and a `Retry-After` header is obeyed when the server sends one.
 
 ## Sending mail
 
@@ -543,7 +543,7 @@ try {
 
 ## Idempotency
 
-Pass `idempotencyKey` on a send, and a repeat of the same call returns the first reply instead of sending twice. Keys are remembered for 24 hours, per endpoint.
+Pass `idempotencyKey` on a send, batch send or reply, and a repeat of the same call returns the first reply instead of sending twice. Keys are remembered for 24 hours, per endpoint.
 
 ```ts
 await mail.emails.send(
@@ -552,7 +552,7 @@ await mail.emails.send(
 );
 ```
 
-Reusing a key with a **different** body is a `409` — that is the guard working, not a bug. It also switches automatic retries on for that call, since repeating it is now safe.
+Reusing a key with a **different** body is a `409` — that is the guard working, not a bug. It also switches automatic retries on for that call, since repeating it is now safe; a retry that finds the first try still in progress waits and tries again. A key on any other call is ignored by the server, so it does not turn retries on.
 
 ## Rate limits
 
