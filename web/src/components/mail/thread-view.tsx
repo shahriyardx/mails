@@ -19,7 +19,7 @@ import {
   Skeleton,
   Tooltip,
 } from "@/components/kit";
-import { errorMessage, useImageTrust, useThread } from "@/lib/api";
+import { errorMessage, useDeleteDraft, useImageTrust, useThread } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import {
   attachmentUrl,
@@ -135,6 +135,7 @@ function Conversation({
 }) {
   const actions = useThreadActions();
   const composer = useComposer();
+  const discardDraft = useDeleteDraft();
   const [params, setParams] = useSearchParams();
   const [purging, setPurging] = useState(false);
   const messages = thread.messages ?? [];
@@ -330,6 +331,7 @@ function Conversation({
                 }
                 onReply={(mode) => composer.open(replyDraft(thread, message, mode))}
                 onEditDraft={() => composer.open(draftOf(thread, message))}
+                onDiscardDraft={() => discardDraft.mutate(message.id)}
               />
             ))}
           </ol>
@@ -382,6 +384,7 @@ function MessageItem({
   onToggle,
   onReply,
   onEditDraft,
+  onDiscardDraft,
 }: {
   message: Message;
   first: boolean;
@@ -390,6 +393,7 @@ function MessageItem({
   onToggle: () => void;
   onReply: (mode: ReplyMode) => void;
   onEditDraft: () => void;
+  onDiscardDraft: () => void;
 }) {
   const inline = useMemo(
     () =>
@@ -404,7 +408,7 @@ function MessageItem({
   const outbound = message.direction === "outbound";
   const when = formatWhen(message.sent_at ?? message.received_at);
 
-  const menu = open && !message.is_draft && (
+  const menu = open && (
     <DropdownMenu>
       <DropdownMenuTrigger render={<IconButton icon="more_vert" label="More" size="xs" />} />
       <DropdownMenuContent>
@@ -435,24 +439,13 @@ function MessageItem({
           {message.error}
         </p>
       )}
-      {message.is_draft ? (
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2.5 text-[13px]">
-          <span className="min-w-0 flex-1 truncate text-muted-foreground">
-            {message.snippet || "Empty draft"}
-          </span>
-          <Button size="sm" variant="primary" icon="edit" onClick={onEditDraft}>
-            Edit
-          </Button>
-        </div>
-      ) : (
-        <EmailFrame
-          html={message.html}
-          text={message.text}
-          sender={outbound ? undefined : message.from.address.toLowerCase()}
-          imagesAllowed={outbound || imagesAllowed}
-          inlineImages={inline}
-        />
-      )}
+      <EmailFrame
+        html={message.html}
+        text={message.text}
+        sender={outbound ? undefined : message.from.address.toLowerCase()}
+        imagesAllowed={outbound || imagesAllowed}
+        inlineImages={inline}
+      />
       {files.length > 0 && (
         <ul className="mt-4 flex flex-wrap gap-2">
           {files.map((file) => (
@@ -479,6 +472,36 @@ function MessageItem({
     </div>
   );
 
+  // A draft always shows its Edit button: it is never collapsed behind a
+  // toggle, so an unsent reply can be picked up again in one click.
+  if (message.is_draft) {
+    return (
+      <li className="rounded-[14px] border border-dashed border-accent/50 bg-surface px-4.5 py-4">
+        <div className="flex items-center gap-2">
+          <span className="flex-1 font-display text-xs font-semibold tracking-[0.04em] text-accent uppercase">
+            Draft · {when}
+          </span>
+          <Button size="sm" variant="ghost" icon="delete" onClick={onDiscardDraft}>
+            Discard
+          </Button>
+          <Button size="sm" variant="primary" icon="edit" onClick={onEditDraft}>
+            Edit
+          </Button>
+        </div>
+        <p className="mt-1 truncate text-xs text-muted-foreground">
+          to {(message.to ?? []).map(displayName).join(", ") || "—"}
+        </p>
+        <button
+          type="button"
+          onClick={onEditDraft}
+          className="mt-1.5 block w-full truncate text-left text-soft-foreground"
+        >
+          {message.snippet || "Empty draft"}
+        </button>
+      </li>
+    );
+  }
+
   if (outbound) {
     return (
       <li className="rounded-[14px] border border-border bg-surface px-4.5 py-4">
@@ -490,9 +513,9 @@ function MessageItem({
             className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-left"
           >
             <span className="font-display text-xs font-semibold tracking-[0.04em] text-accent uppercase">
-              {message.is_draft ? "Draft" : first ? "You wrote" : "Your reply"} · {when}
+              {first ? "You wrote" : "Your reply"} · {when}
             </span>
-            {message.status && !message.is_draft && <DeliveryBadge message={message} />}
+            {message.status && <DeliveryBadge message={message} />}
           </button>
           <Details message={message} />
           {menu}

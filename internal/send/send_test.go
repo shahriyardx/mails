@@ -290,6 +290,36 @@ func TestDraftThenSend(t *testing.T) {
 	}
 }
 
+// A reply drafted from a mailbox whose domain cannot send (receive-only, or
+// verification lapsed) still saves and can be edited; only sending is refused.
+func TestDraftOnDomainThatCannotSend(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	if _, err := e.pool.Exec(ctx, `INSERT INTO mailbox (id, address, domain, domain_id, display_name)
+		VALUES ('mbx_p', 'me@pending.test', 'pending.test', 'dom_p', 'Me')`); err != nil {
+		t.Fatal(err)
+	}
+	d, err := e.s.SaveDraft(ctx, send.Input{From: "me@pending.test", To: to("a@b.test"), Subject: "Re: hi", Text: "v1"})
+	if err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	if _, err := e.s.SaveDraft(ctx, send.Input{From: "me@pending.test", To: to("a@b.test"), Subject: "Re: hi", Text: "v2", DraftID: d.ID}); err != nil {
+		t.Fatalf("edit: %v", err)
+	}
+	if _, err := e.s.Send(ctx, send.Input{From: "me@pending.test", To: to("a@b.test"), Subject: "Re: hi", Text: "v2", DraftID: d.ID}); code(err) != 422 {
+		t.Fatalf("send from unverified domain: %v", err)
+	}
+	var isDraft bool
+	_ = e.pool.QueryRow(ctx, `SELECT is_draft FROM message WHERE id = $1`, d.ID).Scan(&isDraft)
+	if !isDraft {
+		t.Fatal("refused send must leave the draft editable")
+	}
+	// No mailbox at all for the address: still refused, nothing created.
+	if _, err := e.s.SaveDraft(ctx, send.Input{From: "new@pending.test", Text: "x"}); code(err) != 422 {
+		t.Fatalf("draft from unknown unverified address: %v", err)
+	}
+}
+
 func TestReplyToReceivedMail(t *testing.T) {
 	e := setup(t)
 	ctx := context.Background()

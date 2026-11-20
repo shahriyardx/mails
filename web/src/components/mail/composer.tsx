@@ -84,6 +84,7 @@ export default function Composer({
   );
   const [expanded, setExpanded] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const draftId = useRef(draft.draftId);
   const dirty = useRef(false);
   const saving = useRef<Promise<unknown> | null>(null);
@@ -119,22 +120,31 @@ export default function Composer({
     };
   }
 
-  async function save() {
+  /** Saves the draft; resolves false (with the reason toasted) when it could not. */
+  async function save(): Promise<boolean> {
+    // One save at a time: a second save started before the first returns
+    // would not know the draft id yet and create a duplicate draft.
+    await saving.current;
     const mail = message(false);
-    if (!mail || !dirty.current) return;
+    if (!mail || !dirty.current) return true;
     dirty.current = false;
+    mail.draft_id = draftId.current;
     const run = saveDraft(mail)
       .then((res) => {
         draftId.current = res.id;
+        setSaveError(null);
         setSavedAt(
           new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }),
         );
+        return true;
       })
-      .catch(() => {
+      .catch((error) => {
         dirty.current = true; // try again on the next change
+        setSaveError(errorMessage(error));
+        return false;
       });
     saving.current = run;
-    await run;
+    return run;
   }
 
   // Autosave a little after typing stops.
@@ -155,7 +165,10 @@ export default function Composer({
   async function close() {
     const hasContent = to.length > 0 || subject.trim() || html.replace(/<[^>]*>/g, "").trim();
     if (dirty.current && hasContent) {
-      await save();
+      if (!(await save())) {
+        toast.error("Draft not saved. Copy your text, or fix the problem and close again.");
+        return;
+      }
       toast("Draft saved");
     }
     onClose();
@@ -243,8 +256,14 @@ export default function Composer({
         <h2 className="flex-1 truncate text-[15px] font-semibold">
           {draft.title ?? "New message"}
         </h2>
-        {savedAt && (
-          <span className="mr-1 font-mono text-xs text-muted-foreground">saved {savedAt}</span>
+        {saveError ? (
+          <span className="mr-1 truncate text-xs text-destructive" title={saveError}>
+            Not saved: {saveError}
+          </span>
+        ) : (
+          savedAt && (
+            <span className="mr-1 font-mono text-xs text-muted-foreground">saved {savedAt}</span>
+          )
         )}
         {!phone && (
           <IconButton

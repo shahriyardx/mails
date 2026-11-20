@@ -237,6 +237,15 @@ func (s *Service) prepare(ctx context.Context, in *Input, draft bool) (*prepared
 		return nil, httpx.Invalid("from", "from: Not an email address")
 	}
 	box, err := s.Mailboxes.ForSending(ctx, from.Address)
+	if errors.Is(err, mailbox.ErrNotCovered) && draft {
+		// A draft is not mail yet: an existing mailbox may keep one even
+		// while its domain cannot send (receive-only, or verification
+		// lapsed). Sending it still needs the domain.
+		box, err = s.Mailboxes.Get(ctx, from.Address)
+		if err != nil {
+			err = mailbox.ErrNotCovered
+		}
+	}
 	if errors.Is(err, mailbox.ErrNotCovered) {
 		return nil, httpx.Invalid("from", "from: "+from.Address+" is not on a domain verified for sending")
 	} else if err != nil {
