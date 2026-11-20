@@ -85,6 +85,10 @@ export default function Composer({
   const [expanded, setExpanded] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // The latest recipients, set as they change. Ctrl+Enter in a recipient
+  // field turns the typed address into a chip and sends in the same event,
+  // before a re-render could hand submit() the new state.
+  const recipients = useRef({ to, cc, bcc });
   const draftId = useRef(draft.draftId);
   const dirty = useRef(false);
   const saving = useRef<Promise<unknown> | null>(null);
@@ -100,6 +104,7 @@ export default function Composer({
   function message(forSend: boolean): OutgoingMail | null {
     if (!mailbox) return null;
     const list = (entries: Address[]) => entries.map(formatAddress);
+    const { to, cc, bcc } = recipients.current;
     const body = forSend
       ? restoreBlockedImages(html) + (signature ? `<br><br>${signature}` : "")
       : html;
@@ -161,9 +166,15 @@ export default function Composer({
       dirty.current = true;
       set(value);
     };
+  const touchRecipients = (field: "to" | "cc" | "bcc", set: (value: Address[]) => void) =>
+    touch((value: Address[]) => {
+      recipients.current = { ...recipients.current, [field]: value };
+      set(value);
+    });
 
   async function close() {
-    const hasContent = to.length > 0 || subject.trim() || html.replace(/<[^>]*>/g, "").trim();
+    const hasContent =
+      recipients.current.to.length > 0 || subject.trim() || html.replace(/<[^>]*>/g, "").trim();
     if (dirty.current && hasContent) {
       if (!(await save())) {
         toast.error("Draft not saved. Copy your text, or fix the problem and close again.");
@@ -194,7 +205,10 @@ export default function Composer({
         toast.success(res.status === "queued" ? "Queued. It keeps trying until it sends." : "Sent");
         onClose();
       },
-      onError: (error) => toast.error(errorMessage(error)),
+      onError: (error) => {
+        dirty.current = true; // not sent: Close saves it again
+        toast.error(errorMessage(error));
+      },
     });
   }
 
@@ -317,7 +331,7 @@ export default function Composer({
         >
           <RecipientInput
             value={to}
-            onChange={touch(setTo)}
+            onChange={touchRecipients("to", setTo)}
             label="To"
             autoFocus={to.length === 0}
           />
@@ -325,10 +339,10 @@ export default function Composer({
         {showCc && (
           <>
             <Row label="Cc">
-              <RecipientInput value={cc} onChange={touch(setCc)} label="Cc" />
+              <RecipientInput value={cc} onChange={touchRecipients("cc", setCc)} label="Cc" />
             </Row>
             <Row label="Bcc">
-              <RecipientInput value={bcc} onChange={touch(setBcc)} label="Bcc" />
+              <RecipientInput value={bcc} onChange={touchRecipients("bcc", setBcc)} label="Bcc" />
             </Row>
           </>
         )}
