@@ -59,7 +59,7 @@ type API interface {
 	UploadWorker(ctx context.Context, account, script string, code []byte, compatDate string, flags []string, bindings []Binding) error
 	DeleteWorker(ctx context.Context, account, script string) error
 	RoutingEnabled(ctx context.Context, zone string) (bool, error)
-	SetRouting(ctx context.Context, zone string, on bool) error
+	SetRouting(ctx context.Context, zone, zoneName string, on bool) error
 	// CatchAllWorker returns the worker the catch-all rule sends to, "" if none.
 	CatchAllWorker(ctx context.Context, zone string) (string, error)
 	// SetCatchAll points the catch-all at script, or drops mail when "".
@@ -198,12 +198,12 @@ func (a *api) RoutingEnabled(ctx context.Context, zone string) (bool, error) {
 	return bool(s.Enabled), nil
 }
 
-func (a *api) SetRouting(ctx context.Context, zone string, on bool) error {
+func (a *api) SetRouting(ctx context.Context, zone, zoneName string, on bool) error {
 	var err error
 	if on {
-		_, err = a.c.EmailRouting.Enable(ctx, email_routing.EmailRoutingEnableParams{ZoneID: cf.F(zone), Body: map[string]any{}})
+		_, err = a.c.EmailRouting.DNS.New(ctx, email_routing.DNSNewParams{ZoneID: cf.F(zone), Name: cf.F(zoneName)})
 	} else {
-		_, err = a.c.EmailRouting.Disable(ctx, email_routing.EmailRoutingDisableParams{ZoneID: cf.F(zone), Body: map[string]any{}})
+		_, err = a.c.EmailRouting.DNS.Delete(ctx, email_routing.DNSDeleteParams{ZoneID: cf.F(zone)})
 	}
 	return wrap(err)
 }

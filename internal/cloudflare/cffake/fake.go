@@ -79,7 +79,7 @@ func (f *Fake) RoutingEnabled(_ context.Context, zone string) (bool, error) {
 	return f.Routing[zone], f.check()
 }
 
-func (f *Fake) SetRouting(_ context.Context, zone string, on bool) error {
+func (f *Fake) SetRouting(_ context.Context, zone, _ string, on bool) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.Routing[zone] = on

@@ -66,7 +66,8 @@ type Deps struct {
 // New builds the router. web is the built React app (web/dist).
 func New(d *Deps, web fs.FS) http.Handler {
 	r := chi.NewRouter()
-	r.Use(middleware.RealIP, middleware.Recoverer, securityHeaders)
+	// No RealIP: it trusts client-sent headers, and nothing here keys on IP.
+	r.Use(middleware.Recoverer, securityHeaders)
 
 	r.Route("/api", func(api chi.Router) {
 		api.Get("/health", func(w http.ResponseWriter, r *http.Request) {

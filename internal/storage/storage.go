@@ -15,7 +15,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
@@ -42,7 +42,7 @@ type Store interface {
 type r2 struct {
 	client   *s3.Client
 	presign  *s3.PresignClient
-	uploader *manager.Uploader
+	uploader *transfermanager.Client
 	bucket   string
 }
 
@@ -56,14 +56,14 @@ func NewR2(accountID, accessKey, secretKey, bucket string) Store {
 	return &r2{
 		client:  client,
 		presign: s3.NewPresignClient(client),
-		// One part in flight keeps an upload's memory at one 5 MB part.
-		uploader: manager.NewUploader(client, func(u *manager.Uploader) { u.Concurrency = 1 }),
+		// One part in flight keeps an upload's memory at about one 8 MB part.
+		uploader: transfermanager.New(client, func(o *transfermanager.Options) { o.Concurrency = 1 }),
 		bucket:   bucket,
 	}
 }
 
 func (s *r2) Put(ctx context.Context, key string, body io.Reader, contentType string) error {
-	_, err := s.uploader.Upload(ctx, &s3.PutObjectInput{
+	_, err := s.uploader.UploadObject(ctx, &transfermanager.UploadObjectInput{
 		Bucket: &s.bucket, Key: &key, Body: body, ContentType: &contentType,
 	})
 	if err != nil {

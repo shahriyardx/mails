@@ -203,10 +203,28 @@ func (s *Service) RemoveWorker(ctx context.Context) error {
 	return explain(api.DeleteWorker(ctx, account, ScriptName), "Workers Scripts -> Edit")
 }
 
+// zoneName finds a zone's name; Email Routing's enable call needs it.
+func zoneName(ctx context.Context, api API, zoneID string) (string, error) {
+	zones, err := api.Zones(ctx)
+	if err != nil {
+		return "", explain(err, "Zone -> Read")
+	}
+	for _, z := range zones {
+		if z.ID == zoneID {
+			return z.Name, nil
+		}
+	}
+	return "", httpx.NotFound("This token cannot see that zone")
+}
+
 // RouteZone turns Email Routing on for a zone and points its catch-all at
 // the worker.
 func (s *Service) RouteZone(ctx context.Context, zoneID string) error {
 	api, _, err := s.Client(ctx)
+	if err != nil {
+		return err
+	}
+	name, err := zoneName(ctx, api, zoneID)
 	if err != nil {
 		return err
 	}
@@ -216,7 +234,7 @@ func (s *Service) RouteZone(ctx context.Context, zoneID string) error {
 		return explain(err, needs)
 	}
 	if !on {
-		if err := api.SetRouting(ctx, zoneID, true); err != nil {
+		if err := api.SetRouting(ctx, zoneID, name, true); err != nil {
 			return explain(err, needs)
 		}
 	}
@@ -234,7 +252,7 @@ func (s *Service) UnrouteZone(ctx context.Context, zoneID string, disableRouting
 		return explain(err, needs)
 	}
 	if disableRouting {
-		return explain(api.SetRouting(ctx, zoneID, false), needs)
+		return explain(api.SetRouting(ctx, zoneID, "", false), needs)
 	}
 	return nil
 }
