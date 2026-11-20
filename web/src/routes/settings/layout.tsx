@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router";
 import { AccountMenu } from "@/components/app/account-menu";
 import { Icon, IconButton, Sheet, SheetContent, SheetTitle } from "@/components/kit";
-import { NavGroup, NavRow, SidebarFrame } from "@/components/mail/sidebar";
+import { NavGroup, NavRow, SidebarAside, SidebarFrame } from "@/components/mail/sidebar";
 import { SETTINGS_PAGES } from "./pages";
 import { PageActionSlot } from "./parts";
 
@@ -21,9 +21,9 @@ export function Component() {
 
   return (
     <div className="flex h-dvh overflow-hidden">
-      <aside className="hidden w-58 shrink-0 border-r border-border md:block">
+      <SidebarAside>
         <Nav pathname={pathname} />
-      </aside>
+      </SidebarAside>
       <Sheet open={navOpen} onOpenChange={setNavOpen}>
         <SheetContent>
           <SheetTitle className="sr-only">Settings</SheetTitle>
@@ -73,7 +73,7 @@ function Nav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => vo
     nav.current?.querySelector("[aria-current=page]")?.scrollIntoView({ block: "nearest" });
   }, [pathname]);
   return (
-    <SidebarFrame>
+    <SidebarFrame collapsible drawer={Boolean(onNavigate)}>
       <NavRow
         to="/mail/all/inbox"
         active={false}
@@ -96,6 +96,7 @@ function Nav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => vo
                   to={`/settings/${page.path}`}
                   active={pathname.startsWith(`/settings/${page.path}`)}
                   onClick={onNavigate}
+                  icon={page.icon}
                 >
                   {page.title}
                 </NavRow>
@@ -103,7 +104,7 @@ function Nav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => vo
             ))}
             {group === "Developers" && (
               <li>
-                <NavRow to="/docs" active={false} onClick={onNavigate}>
+                <NavRow to="/docs" active={false} onClick={onNavigate} icon="menu_book">
                   Docs
                 </NavRow>
               </li>
@@ -111,7 +112,7 @@ function Nav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => vo
           </NavGroup>
         ))}
       </nav>
-      <div className="-mx-1 flex shrink-0 items-center justify-end px-1">
+      <div className="-mx-1 flex shrink-0 items-center justify-end px-1 in-data-folded:justify-center">
         <AccountMenu docs={false} />
       </div>
     </SidebarFrame>

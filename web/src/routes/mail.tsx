@@ -19,7 +19,7 @@ import {
 } from "@/components/kit";
 import { spatial } from "@/components/kit/motion";
 import { useComposer } from "@/components/mail/composer-provider";
-import { Sidebar } from "@/components/mail/sidebar";
+import { Sidebar, SidebarAside } from "@/components/mail/sidebar";
 import { ThreadList } from "@/components/mail/thread-list";
 import { ThreadView } from "@/components/mail/thread-view";
 import {
@@ -130,9 +130,9 @@ export function Component() {
 
   return (
     <div className="flex h-dvh overflow-hidden">
-      <aside className="hidden w-58 shrink-0 border-r border-border md:block">
+      <SidebarAside>
         <Sidebar {...sidebarProps} />
-      </aside>
+      </SidebarAside>
       <Sheet open={navOpen} onOpenChange={setNavOpen}>
         <SheetContent>
           <SheetTitle className="sr-only">Navigation</SheetTitle>

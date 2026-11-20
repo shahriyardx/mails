@@ -1,18 +1,19 @@
-import { type ReactNode, useMemo } from "react";
+import { createContext, type ReactNode, useContext, useMemo } from "react";
 import { Link } from "react-router";
 import { AccountMenu } from "@/components/app/account-menu";
 import { ThemeToggle } from "@/components/app/theme-toggle";
-import { Button, Count, Icon, Wordmark } from "@/components/kit";
+import { Button, Count, Icon, IconButton, Logo, Tooltip, Wordmark } from "@/components/kit";
 import { useCounts, useLabels, useMailboxes } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { FOLDER_META, FOLDERS, mailHref, type Scope, scopeSegment } from "@/lib/mail";
+import { setSidebarCollapsed, useSidebarCollapsed } from "@/lib/sidebar";
 import type { Mailbox, ViewFolder } from "@/lib/types";
 import { useComposer } from "./composer-provider";
 
 /**
  * Brand and theme switch, Write message, folders, then mailboxes and labels
- * marked with small coloured squares. Rendered in the fixed column and in
- * the phone drawer.
+ * marked with small coloured squares. Rendered in the fixed column (which
+ * can fold down to icons) and in the phone drawer (always full).
  */
 export function Sidebar({
   scope,
@@ -45,19 +46,14 @@ export function Sidebar({
   }, [mailboxes.data]);
   const unread = counts.data?.mailboxes ?? {};
 
+  const write = () => {
+    onNavigate?.();
+    composer.open();
+  };
+
   return (
-    <SidebarFrame>
-      <Button
-        variant="primary"
-        icon="edit"
-        className="h-10 w-full shrink-0 font-semibold"
-        onClick={() => {
-          onNavigate?.();
-          composer.open();
-        }}
-      >
-        Write message
-      </Button>
+    <SidebarFrame collapsible drawer={Boolean(onNavigate)}>
+      <WriteButton onClick={write} />
 
       <nav aria-label="Mail" className="-mx-1 min-h-0 flex-1 space-y-5 overflow-y-auto px-1">
         <ul className="space-y-px">
@@ -67,10 +63,11 @@ export function Sidebar({
                 to={mailHref(segment, item)}
                 active={folder === item && !label}
                 onClick={onNavigate}
-                end={
-                  item === "inbox" || item === "drafts" || item === "spam" ? (
-                    <Count value={counts.data?.folders[item] ?? 0} />
-                  ) : null
+                icon={FOLDER_META[item].icon}
+                count={
+                  item === "inbox" || item === "drafts" || item === "spam"
+                    ? (counts.data?.folders[item] ?? 0)
+                    : undefined
                 }
               >
                 {FOLDER_META[item].label}
@@ -104,7 +101,7 @@ export function Sidebar({
                     {domain}
                   </NavRow>
                 )}
-                <ul className={cn("space-y-px", domains.length > 1 && "pl-4")}>
+                <ul className={cn("space-y-px", domains.length > 1 && "pl-4 in-data-folded:pl-0")}>
                   {boxes.map((box) => (
                     <li key={box.id}>
                       <NavRow
@@ -112,7 +109,8 @@ export function Sidebar({
                         active={scope.kind === "mailbox" && scope.id === box.id}
                         onClick={onNavigate}
                         lead={<Square color={box.color} />}
-                        end={<Count value={unread[box.id] ?? 0} />}
+                        count={unread[box.id] ?? 0}
+                        tip={box.address}
                       >
                         {domains.length > 1 ? `${box.address.split("@")[0]}@` : box.address}
                       </NavRow>
@@ -122,7 +120,7 @@ export function Sidebar({
               </li>
             ))}
             {mailboxes.data?.length === 0 && (
-              <li className="px-2.5 py-1.5 text-[13px] text-muted-foreground">
+              <li className="px-2.5 py-1.5 text-[13px] text-muted-foreground in-data-folded:hidden">
                 None yet.{" "}
                 <Link
                   to="/settings/mailboxes"
@@ -154,7 +152,7 @@ export function Sidebar({
         )}
       </nav>
 
-      <div className="-mx-1 flex shrink-0 items-center gap-1 px-1">
+      <div className="-mx-1 flex shrink-0 items-center gap-1 px-1 in-data-folded:flex-col in-data-folded:gap-2">
         <NavRow
           to="/settings"
           active={false}
@@ -170,25 +168,126 @@ export function Sidebar({
   );
 }
 
-/** The sidebar's shell, shared with settings: brand and theme switch on top. */
-export function SidebarFrame({ children }: { children: ReactNode }) {
+const Folded = createContext(false);
+
+/** The desktop column: full width, or icons only when folded. */
+export function SidebarAside({ children }: { children: ReactNode }) {
+  const folded = useSidebarCollapsed();
   return (
-    <div className="flex h-full min-h-0 flex-col gap-5 px-4 pt-5 pb-3">
-      <div className="flex h-8 shrink-0 items-center justify-between pl-2">
-        <Link
-          to="/mail/all/inbox"
-          className="rounded-md outline-none focus-visible:outline-2 focus-visible:outline-ring"
-        >
-          <Wordmark />
-        </Link>
-        <ThemeToggle />
-      </div>
+    <aside
+      className={cn(
+        "hidden shrink-0 border-r border-border transition-[width] duration-200 md:block",
+        folded ? "w-17" : "w-58",
+      )}
+    >
       {children}
+    </aside>
+  );
+}
+
+/**
+ * The sidebar's shell, shared with settings and docs: brand and theme switch
+ * on top. `collapsible` adds the fold button; the phone drawer (`drawer`) is
+ * never folded.
+ */
+export function SidebarFrame({
+  children,
+  collapsible = false,
+  drawer = false,
+}: {
+  children: ReactNode;
+  collapsible?: boolean;
+  drawer?: boolean;
+}) {
+  const stored = useSidebarCollapsed();
+  const folded = collapsible && !drawer && stored;
+  return (
+    <div
+      data-folded={folded || undefined}
+      className={cn(
+        "flex h-full min-h-0 flex-col gap-5 pt-5 pb-3",
+        folded ? "items-center px-2.5" : "px-4",
+      )}
+    >
+      {folded ? (
+        <div className="flex shrink-0 flex-col items-center gap-2">
+          <Link
+            to="/mail/all/inbox"
+            aria-label="Mails"
+            className="grid size-8 place-items-center rounded-md outline-none focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            <Logo className="size-5" />
+          </Link>
+          <FoldButton folded />
+          <ThemeToggle />
+        </div>
+      ) : (
+        <div className="flex h-8 shrink-0 items-center justify-between gap-1 pl-2">
+          <Link
+            to="/mail/all/inbox"
+            className="mr-auto rounded-md outline-none focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            <Wordmark />
+          </Link>
+          <ThemeToggle />
+          {collapsible && !drawer && <FoldButton folded={false} />}
+        </div>
+      )}
+      <Folded.Provider value={folded}>{children}</Folded.Provider>
     </div>
   );
 }
 
+function FoldButton({ folded }: { folded: boolean }) {
+  const label = folded ? "Expand sidebar" : "Collapse sidebar";
+  return (
+    <Tooltip label={label} side={folded ? "right" : "bottom"}>
+      <IconButton
+        icon={folded ? "chevron_right" : "chevron_left"}
+        label={label}
+        variant="outline"
+        size="xs"
+        onClick={() => setSidebarCollapsed(!folded)}
+      />
+    </Tooltip>
+  );
+}
+
+function WriteButton({ onClick }: { onClick: () => void }) {
+  if (useContext(Folded)) {
+    return (
+      <Tooltip label="Write message" side="right">
+        <IconButton
+          icon="edit"
+          label="Write message"
+          variant="primary"
+          className="size-10 shrink-0"
+          onClick={onClick}
+        />
+      </Tooltip>
+    );
+  }
+  return (
+    <Button
+      variant="primary"
+      icon="edit"
+      className="h-10 w-full shrink-0 font-semibold"
+      onClick={onClick}
+    >
+      Write message
+    </Button>
+  );
+}
+
 export function NavGroup({ title, children }: { title: string; children: ReactNode }) {
+  if (useContext(Folded)) {
+    return (
+      <section aria-label={title}>
+        <div aria-hidden className="mx-auto mb-2 h-px w-6 bg-border" />
+        <ul className="flex flex-col items-center gap-px">{children}</ul>
+      </section>
+    );
+  }
   return (
     <section>
       <h2 className="px-2.5 pb-1.5 font-sans text-[11px] font-semibold tracking-[0.1em] text-muted-foreground uppercase">
@@ -203,45 +302,86 @@ function Square({ color, className }: { color?: string; className?: string }) {
   return (
     <span
       aria-hidden
-      className={cn("size-2 shrink-0 rounded-[2px]", className)}
+      className={cn("size-2 shrink-0 rounded-[2px] in-data-folded:size-2.5", className)}
       style={color ? { background: color } : undefined}
     />
   );
 }
 
+const rowState = (active: boolean) =>
+  active
+    ? "bg-surface text-foreground shadow-[inset_0_0_0_1px_var(--border)]"
+    : "text-soft-foreground hover:bg-surface hover:text-foreground";
+
+/**
+ * One sidebar link. Folded, it shows `icon` (or `lead`) alone with the label
+ * as a tooltip, and a dot when `count` is above zero.
+ */
 export function NavRow({
   to,
   active,
+  icon,
   lead,
   end,
+  count,
+  tip,
   onClick,
   className,
   children,
 }: {
   to: string;
   active: boolean;
+  /** Material Symbols name, shown only when the sidebar is folded. */
+  icon?: string;
   lead?: ReactNode;
   end?: ReactNode;
+  count?: number;
+  /** Tooltip when folded; defaults to the label. */
+  tip?: string;
   onClick?: () => void;
   className?: string;
   children: ReactNode;
 }) {
+  const focus =
+    "outline-none transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring";
+  if (useContext(Folded)) {
+    const label = tip ?? (typeof children === "string" ? children : undefined);
+    return (
+      <Tooltip label={tip ?? children} side="right">
+        <Link
+          to={to}
+          onClick={onClick}
+          aria-label={label}
+          aria-current={active ? "page" : undefined}
+          className={cn(
+            "relative grid size-10 place-items-center rounded-lg",
+            focus,
+            rowState(active),
+          )}
+        >
+          {icon ? <Icon name={icon} size={20} /> : lead}
+          {(count ?? 0) > 0 && (
+            <span aria-hidden className="absolute top-2 right-2 size-1.5 rounded-full bg-primary" />
+          )}
+        </Link>
+      </Tooltip>
+    );
+  }
   return (
     <Link
       to={to}
       onClick={onClick}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex h-8.5 min-w-0 items-center gap-2.5 rounded-lg px-2.5 font-medium outline-none transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
-        active
-          ? "bg-surface text-foreground shadow-[inset_0_0_0_1px_var(--border)]"
-          : "text-soft-foreground hover:bg-surface hover:text-foreground",
+        "flex h-8.5 min-w-0 items-center gap-2.5 rounded-lg px-2.5 font-medium",
+        focus,
+        rowState(active),
         className,
       )}
     >
       {lead}
       <span className="min-w-0 flex-1 truncate">{children}</span>
-      {end}
+      {count !== undefined ? <Count value={count} /> : end}
     </Link>
   );
 }
