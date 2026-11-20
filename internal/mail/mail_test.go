@@ -351,6 +351,12 @@ func TestLabelsFiltersContactsPrefs(t *testing.T) {
 	if p, _ = e.s.SavePreferences(ctx, uid, mail.Preferences{NavCollapsed: ptr(true)}); p.Density != "compact" || !*p.NavCollapsed {
 		t.Fatalf("merge: %+v", p)
 	}
+	if p, _ = e.s.SavePreferences(ctx, uid, mail.Preferences{Theme: "light"}); p.Theme != "light" || p.Density != "compact" {
+		t.Fatalf("theme: %+v", p)
+	}
+	if _, err := e.s.SavePreferences(ctx, uid, mail.Preferences{Theme: "neon"}); code(err) != 422 {
+		t.Fatalf("bad theme accepted")
+	}
 	if _, err := e.s.SavePreferences(ctx, uid, mail.Preferences{Density: "huge"}); code(err) != 422 {
 		t.Fatalf("bad density: %v", err)
 	}

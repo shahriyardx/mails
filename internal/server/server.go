@@ -24,6 +24,7 @@ import (
 	"github.com/shahriyardx/mails/internal/apikey"
 	"github.com/shahriyardx/mails/internal/apiv1"
 	"github.com/shahriyardx/mails/internal/auth"
+	"github.com/shahriyardx/mails/internal/avatar"
 	"github.com/shahriyardx/mails/internal/cloudflare"
 	"github.com/shahriyardx/mails/internal/config"
 	"github.com/shahriyardx/mails/internal/delivery"
@@ -63,6 +64,7 @@ type Deps struct {
 	Webhooks  *webhook.Service
 	V1        *apiv1.API
 	Reporting *reporting.Service
+	Avatars   *avatar.Service
 }
 
 // New builds the router. web is the built React app (web/dist).
@@ -103,6 +105,7 @@ func New(d *Deps, web fs.FS) http.Handler {
 					app.Mount("/api-keys", apikey.Routes(d.Keys))
 					app.Mount("/webhooks", webhook.Routes(d.Webhooks))
 					app.Mount("/reporting", reporting.Routes(d.Reporting))
+					app.Method("GET", "/avatar", avatar.Handler(d.Avatars))
 					app.Mount("/", chiJoin(mail.Routes(d.Mail), send.Routes(d.Send), delivery.Routes(d.Delivery)))
 				})
 			})

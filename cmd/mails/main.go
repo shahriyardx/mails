@@ -16,6 +16,7 @@ import (
 	"github.com/shahriyardx/mails/internal/apikey"
 	"github.com/shahriyardx/mails/internal/apiv1"
 	"github.com/shahriyardx/mails/internal/auth"
+	"github.com/shahriyardx/mails/internal/avatar"
 	"github.com/shahriyardx/mails/internal/cloudflare"
 	"github.com/shahriyardx/mails/internal/config"
 	"github.com/shahriyardx/mails/internal/db"
@@ -152,6 +153,7 @@ func run() error {
 		Keys:      &apikey.Service{DB: pool},
 		Webhooks:  hooks,
 		Reporting: reports,
+		Avatars:   &avatar.Service{DB: pool, HTTP: avatarClient(cfg.Secure()), DNS: net.DefaultResolver, Now: time.Now},
 	}
 	idem := &idempotency.Store{DB: pool}
 	deps.V1 = &apiv1.API{
@@ -184,4 +186,18 @@ func run() error {
 		return err
 	}
 	return nil
+}
+
+// avatarClient fetches sender pictures. Site icons often redirect
+// (example.com -> www.example.com), so it follows a few; every hop still
+// dials through safehttp's private-address check.
+func avatarClient(secure bool) *http.Client {
+	c := safehttp.Client(5*time.Second, !secure)
+	c.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
+		if len(via) >= 3 {
+			return http.ErrUseLastResponse
+		}
+		return nil
+	}
+	return c
 }
