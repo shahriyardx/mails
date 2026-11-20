@@ -31,8 +31,10 @@ import (
 	"github.com/shahriyardx/mails/internal/inbound"
 	"github.com/shahriyardx/mails/internal/mail"
 	"github.com/shahriyardx/mails/internal/mailbox"
+	"github.com/shahriyardx/mails/internal/push"
 	"github.com/shahriyardx/mails/internal/realtime"
 	"github.com/shahriyardx/mails/internal/send"
+	"github.com/shahriyardx/mails/internal/setup"
 )
 
 // Deps is every service the router mounts. main builds it; tests can build
@@ -51,6 +53,8 @@ type Deps struct {
 	SNS       *delivery.Verifier
 	CF        *cloudflare.Service
 	Forward   *forwarding.Manager
+	Push      *push.Service
+	Setup     *setup.Service
 }
 
 // New builds the router. web is the built React app (web/dist).
@@ -84,6 +88,8 @@ func New(d *Deps, web fs.FS) http.Handler {
 					app.Mount("/mailboxes", mailbox.Routes(d.Mailboxes))
 					app.Mount("/inbound", cloudflare.Routes(d.CF))
 					app.Mount("/forwarding", forwarding.Routes(d.Forward))
+					app.Mount("/push", push.Routes(d.Push))
+					app.Mount("/setup", setup.Routes(d.Setup))
 					app.Mount("/", chiJoin(mail.Routes(d.Mail), send.Routes(d.Send), delivery.Routes(d.Delivery)))
 				})
 			})

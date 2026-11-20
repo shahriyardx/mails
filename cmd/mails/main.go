@@ -22,11 +22,13 @@ import (
 	"github.com/shahriyardx/mails/internal/inbound"
 	"github.com/shahriyardx/mails/internal/mail"
 	"github.com/shahriyardx/mails/internal/mailbox"
+	"github.com/shahriyardx/mails/internal/push"
 	"github.com/shahriyardx/mails/internal/realtime"
 	"github.com/shahriyardx/mails/internal/secret"
 	"github.com/shahriyardx/mails/internal/send"
 	"github.com/shahriyardx/mails/internal/server"
 	"github.com/shahriyardx/mails/internal/ses"
+	"github.com/shahriyardx/mails/internal/setup"
 	"github.com/shahriyardx/mails/internal/storage"
 	"github.com/shahriyardx/mails/web"
 	"github.com/shahriyardx/mails/worker"
@@ -86,6 +88,10 @@ func run() error {
 		slog.Warn("R2 is not configured: attachments are kept in memory and lost on restart")
 		store = storage.NewMemory()
 	}
+	pusher := &push.Service{DB: pool, PublicKey: cfg.VAPIDPublicKey}
+	if cfg.VAPIDPublicKey != "" && cfg.VAPIDPrivateKey != "" {
+		pusher.Send = push.WebPush(cfg.VAPIDPublicKey, cfg.VAPIDPrivateKey, cfg.VAPIDSubject)
+	}
 	hub := realtime.NewHub()
 	mailSvc := &mail.Service{DB: pool, Store: store, Hub: hub}
 	box, err := secret.New(cfg.Secret)
@@ -111,13 +117,16 @@ func run() error {
 			Selector: cfg.SESDKIMSelector, MailFromPrefix: cfg.SESMailFromPrefix, Now: time.Now,
 		},
 		Mailboxes: mailboxes,
-		Inbound:   &inbound.Service{DB: pool, Hub: hub, Now: time.Now},
-		Mail:      mailSvc,
-		Send:      sender,
-		Delivery:  &delivery.Service{DB: pool, SES: sesClient, Hub: hub, Now: time.Now},
-		SNS:       &delivery.Verifier{HTTP: &http.Client{Timeout: 10 * time.Second}},
-		CF:        cf,
-		Forward:   &forwarding.Manager{DB: pool, CF: cf},
+		Inbound: &inbound.Service{DB: pool, Hub: hub, Now: time.Now,
+			OnReceived: []func(context.Context, inbound.Received){pusher.OnReceived}},
+		Mail:     mailSvc,
+		Send:     sender,
+		Delivery: &delivery.Service{DB: pool, SES: sesClient, Hub: hub, Now: time.Now},
+		SNS:      &delivery.Verifier{HTTP: &http.Client{Timeout: 10 * time.Second}},
+		CF:       cf,
+		Forward:  &forwarding.Manager{DB: pool, CF: cf},
+		Push:     pusher,
+		Setup:    &setup.Service{DB: pool, SESConfigured: cfg.AWSAccessKeyID != "", Region: cfg.AWSRegion},
 	}
 	go every(ctx, time.Hour, "sweep staged uploads", mailSvc.SweepStaged)
 	if cfg.OutboxWorker {

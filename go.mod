@@ -3,6 +3,7 @@ module github.com/shahriyardx/mails
 go 1.27.3
 
 require (
+	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/alexedwards/scs/pgxstore v0.0.0-20261119174900-ed2e92329119
 	github.com/alexedwards/scs/v2 v2.9.0
 	github.com/aws/aws-sdk-go-v2 v1.48.0
@@ -43,6 +44,7 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.16 // indirect
 	github.com/go-playground/locales v0.14.2 // indirect
 	github.com/go-playground/universal-translator v0.18.2 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
