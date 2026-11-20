@@ -14,6 +14,11 @@ All notable changes are listed here. The format follows
   denied"): the binary lost its exec bit between release jobs. The image
   now sets it, and the release starts the image before pushing it.
 
+### Changed
+
+- Releases are built and published from a local machine with
+  `make release VERSION=x.y.z`; GitHub Actions only runs CI.
+
 ## [0.1.4] - 2026-11-21
 
 ### Fixed

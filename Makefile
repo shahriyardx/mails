@@ -1,5 +1,5 @@
 # Common tasks. Needs Go, pnpm and the compose Postgres for tests.
-.PHONY: help dev build web test lint fmt docker push-image publish-sdk clean
+.PHONY: help dev build web test lint fmt docker release push-image publish-sdk clean
 
 IMAGE ?= ghcr.io/shahriyardx/mails
 # Version to tag the image with; defaults to the latest git tag (v1.2.3 -> 1.2.3).
@@ -33,6 +33,9 @@ fmt: ## Format Go and dashboard code
 
 docker: ## Build the Docker image as mails:dev
 	docker build -t mails:dev .
+
+release: ## Build and publish release VERSION from this machine (scripts/release.sh; DRY_RUN=1 to try)
+	scripts/release.sh $(VERSION)
 
 push-image: web ## Build Linux binaries here and push the image to ghcr (run `docker login ghcr.io` first)
 	@test -n "$(VERSION)" || (echo "No version: tag a release or pass VERSION=1.2.3"; exit 1)

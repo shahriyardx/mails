@@ -30,7 +30,9 @@ rest.
 
 Each release publishes the image `ghcr.io/shahriyardx/mails` (`:latest` or a
 version such as `:1.2.0`), server binaries and the browser extension zips on
-the [releases page](https://github.com/shahriyardx/mails/releases).
+the [releases page](https://github.com/shahriyardx/mails/releases). Releases
+are built and published from a maintainer's machine with
+`make release VERSION=x.y.z` (see `scripts/release.sh`).
 
 ## Development
 
