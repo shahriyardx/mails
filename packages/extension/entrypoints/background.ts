@@ -55,8 +55,13 @@ async function getSeen(): Promise<Seen> {
 
 /* ------------------------------------------------------------- the toolbar */
 
-async function paintBadge(count: number, settings: Settings) {
-  const text = !settings.badge || count === 0 ? "" : count > 99 ? "99+" : String(count);
+/** "25+" when there are more than one page holds. */
+function countLabel(count: number, more = false) {
+  return count > 99 ? "99+" : more ? `${count}+` : String(count);
+}
+
+async function paintBadge(count: number, settings: Settings, more = false) {
+  const text = !settings.badge || count === 0 ? "" : countLabel(count, more);
   try {
     await browser.action.setBadgeText({ text });
     await browser.action.setBadgeBackgroundColor({ color: "#a99cf5" }); // --primary (dark)
@@ -105,9 +110,11 @@ async function pollOnce(): Promise<void> {
   }
 
   let threads: ApiThread[];
+  let more: boolean;
   try {
     const result = await listThreads(settings, "unread", { limit: 25 });
     threads = result.threads;
+    more = result.hasMore;
   } catch (error) {
     const message =
       error instanceof ApiError
@@ -124,8 +131,8 @@ async function pollOnce(): Promise<void> {
   const state = await getState();
   const seen = await getSeen();
 
-  await paintBadge(unread, settings);
-  await setTitle(unread === 0 ? "Mails" : `Mails — ${unread} unread`);
+  await paintBadge(unread, settings, more);
+  await setTitle(unread === 0 ? "Mails" : `Mails — ${countLabel(unread, more)} unread`);
 
   const fresh = threads.filter((thread) => {
     const stamp = Date.parse(thread.last_message_at);

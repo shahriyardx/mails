@@ -101,4 +101,19 @@ describe("background worker", () => {
     expect(fake.listThreads).toHaveBeenCalledTimes(1);
     expect(fake.browser.notifications.create).toHaveBeenCalledTimes(1);
   });
+
+  it("shows 25+ when there are more unread threads than one page", async () => {
+    fake.browser.alarms.get.mockResolvedValue({ name: "mails:poll" });
+    await start();
+    fake.listThreads.mockResolvedValue({
+      threads: Array.from({ length: 25 }, (_, i) => thread(`thr_${i}`)),
+      nextCursor: "next",
+      hasMore: true,
+    });
+
+    await fire("alarm", { name: "mails:poll" });
+    await settled();
+
+    expect(fake.browser.action.setBadgeText).toHaveBeenLastCalledWith({ text: "25+" });
+  });
 });

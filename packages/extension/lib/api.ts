@@ -113,6 +113,8 @@ export function query(
 export interface ListResult {
   threads: ApiThread[];
   nextCursor: string | null;
+  /** More threads match than were returned. */
+  hasMore: boolean;
 }
 
 /**
@@ -131,7 +133,7 @@ export async function listThreads(
 ): Promise<ListResult> {
   // Watching nothing is a real answer, and it is not the same as watching
   // everything. Asking the server here would return the whole account.
-  if (watchesNothing(settings)) return { threads: [], nextCursor: null };
+  if (watchesNothing(settings)) return { threads: [], nextCursor: null, hasMore: false };
 
   const ids = watchedMailboxIds(settings) ?? [];
 
@@ -150,7 +152,12 @@ export async function listThreads(
     const merged = pages
       .flatMap((page) => page.data)
       .sort((a, b) => Date.parse(b.last_message_at) - Date.parse(a.last_message_at));
-    return { threads: merged.slice(0, extra.limit ?? 25), nextCursor: null };
+    const limit = extra.limit ?? 25;
+    return {
+      threads: merged.slice(0, limit),
+      nextCursor: null,
+      hasMore: merged.length > limit || pages.some((page) => page.has_more),
+    };
   }
 
   const page = await call<ApiList<ApiThread>>(
@@ -163,7 +170,7 @@ export async function listThreads(
     })}`,
     { signal: extra.signal },
   );
-  return { threads: page.data, nextCursor: page.next_cursor };
+  return { threads: page.data, nextCursor: page.next_cursor, hasMore: page.has_more };
 }
 
 export async function getThread(settings: Settings, id: string, signal?: AbortSignal) {
