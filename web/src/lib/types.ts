@@ -180,6 +180,239 @@ export interface Setup {
   remaining: number;
 }
 
+// ---- Developers and insights (internal/apikey, internal/webhook, internal/delivery)
+
+/** A domain as the pickers need it (internal/domain Domain, trimmed). */
+export interface DomainRef {
+  id: string;
+  name: string;
+}
+
+/** What a key may touch. Both empty (or null) means everything. */
+export interface Reach {
+  domains: string[] | null;
+  mailboxes: string[] | null;
+}
+
+export interface ApiKey {
+  object: "api_key";
+  id: string;
+  name: string;
+  prefix: string;
+  scopes: string[];
+  reach: Reach;
+  rate_limit_per_minute: number;
+  last_used_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+}
+
+export interface ScopePreset {
+  id: string;
+  label: string;
+  hint: string;
+  scopes: string[];
+}
+
+export interface ScopeLevel {
+  label: string;
+  scopes: string[];
+}
+
+export interface ScopeArea {
+  id: string;
+  label: string;
+  hint: string;
+  levels: ScopeLevel[];
+}
+
+/** GET /api/app/api-keys */
+export interface ApiKeyList {
+  data: ApiKey[];
+  scopes: string[];
+  presets: ScopePreset[];
+  areas: ScopeArea[];
+}
+
+export interface ApiKeyInput {
+  name: string;
+  scopes: string[];
+  reach: { domains: string[]; mailboxes: string[] };
+  rate_limit_per_minute?: number;
+}
+
+export interface Webhook {
+  object: "webhook";
+  id: string;
+  url: string;
+  description: string | null;
+  events: string[];
+  enabled: boolean;
+  mailbox_id: string | null;
+  domain_id: string | null;
+  last_status: number | null;
+  last_delivered_at: string | null;
+  last_error_at: string | null;
+  last_error: string | null;
+  consecutive_failures: number;
+  created_at: string;
+  /** Only on create and rotate. */
+  secret?: string;
+}
+
+export interface WebhookInput {
+  url: string;
+  description: string | null;
+  events: string[];
+  mailbox_id: string | null;
+  domain_id: string | null;
+  enabled?: boolean;
+}
+
+export interface WebhookPatch {
+  url?: string;
+  description?: string | null;
+  events?: string[];
+  enabled?: boolean;
+  rotate_secret?: boolean;
+  mailbox_id?: string | null;
+  domain_id?: string | null;
+}
+
+export interface WebhookDelivery {
+  object: "webhook_delivery";
+  id: string;
+  event_id: string;
+  webhook_id: string;
+  event: string;
+  payload: unknown;
+  attempt: number;
+  status_code: number | null;
+  response_body: string | null;
+  error: string | null;
+  duration_ms: number | null;
+  succeeded: boolean;
+  next_retry_at: string | null;
+  created_at: string;
+}
+
+/** Ping and replay reply (internal/webhook Result). */
+export interface WebhookResult {
+  object: "webhook_ping";
+  webhook_id: string;
+  delivery_id?: string;
+  succeeded: boolean;
+  status_code: number | null;
+  duration_ms: number;
+  response_body: string | null;
+  error: string | null;
+}
+
+export interface DeliveryFilter {
+  webhook_id?: string;
+  event?: string;
+  succeeded?: "true" | "false";
+}
+
+export type DeliveryStatus =
+  | "queued"
+  | "sent"
+  | "delivered"
+  | "bounced"
+  | "complained"
+  | "rejected"
+  | "delayed"
+  | "failed"
+  | "canceled";
+
+/** One row of GET /api/app/logs (internal/delivery LogRow). */
+export interface LogRow {
+  id: string;
+  thread_id: string;
+  subject: string;
+  from: string;
+  to: Address[] | null;
+  status: DeliveryStatus | null;
+  error: string | null;
+  open_count: number;
+  api_key_id: string | null;
+  ses_message_id: string | null;
+  at: string;
+  mailbox: string;
+  mailbox_color: string;
+}
+
+export interface LogFilter {
+  direction: "sending" | "receiving";
+  q?: string;
+  status?: string;
+  days?: number;
+  api_key_id?: string;
+}
+
+/** A delivery event on a message (internal/mail Event). */
+export interface MessageEvent {
+  object: "event";
+  id: string;
+  type: string;
+  recipient: string | null;
+  detail: string | null;
+  occurred_at: string;
+}
+
+/** GET /api/app/messages/{id}: the message with its events. */
+export interface MessageDetail extends Message {
+  events?: MessageEvent[];
+}
+
+export interface MetricsDay {
+  day: string;
+  sent: number;
+  delivered: number;
+  bounced: number;
+  complained: number;
+  opened: number;
+}
+
+export interface MetricsKind {
+  kind: string;
+  count: number;
+  rate: number;
+}
+
+/** GET /api/app/metrics. Rates are 0..1 fractions, null with nothing sent. */
+export interface Metrics {
+  range: number;
+  domain_id?: string;
+  days: MetricsDay[];
+  totals: MetricsDay;
+  deliverability: number | null;
+  bounce_rate: number | null;
+  complaint_rate: number | null;
+  open_rate: number | null;
+  bounces: MetricsKind[];
+  complaints: MetricsKind[];
+}
+
+/** The SES account (internal/ses Account). */
+export interface SesAccount {
+  production_access: boolean;
+  enforcement_status: string;
+  max_24_hour: number;
+  sent_last_24_hours: number;
+  max_send_rate: number;
+}
+
+/** GET /api/app/overview */
+export interface Overview {
+  account: SesAccount | null;
+  error?: string;
+  sent_24h: number;
+  queued: number;
+  failed_7d: number;
+  blocked: number;
+}
+
 /** Body of POST /api/app/send and /api/app/drafts. */
 export interface OutgoingMail {
   from: string;
