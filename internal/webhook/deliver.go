@@ -168,8 +168,11 @@ func (s *Service) DeliverOne(ctx context.Context) (bool, error) {
 		_, err := s.DB.Exec(ctx, `UPDATE webhook_delivery SET error = 'The endpoint is turned off', locked_at = NULL WHERE id = $1`, p.ID)
 		return true, err
 	}
+	// Claimed: finish this attempt and its record even if shutdown began
+	// (attempt has its own timeout).
+	ctx = context.WithoutCancel(ctx)
 	r := s.attempt(ctx, &p)
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	if err := s.record(ctx, &p, r); err != nil {
 		return true, err

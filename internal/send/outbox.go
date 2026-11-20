@@ -98,11 +98,12 @@ func (s *Service) ProcessOne(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("claim job: %w", err)
 	}
 
-	sendCtx, cancel := context.WithTimeout(ctx, sesTimeout)
+	// The job is claimed: shutdown must neither abort the SES call (SES may
+	// have taken the mail, and the retry would send it twice) nor stop the
+	// record, or a restart would send the job again.
+	sendCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), sesTimeout)
 	sesID, sendErr := s.SES.SendRaw(sendCtx, ses.RawEmail{From: j.From, To: j.Recipients, Raw: j.Raw, ConfigurationSet: s.configSet()})
 	cancel()
-	// SES has answered: record it even if shutdown began meanwhile, or a
-	// restart would send the job again.
 	ctx, cancelFin := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancelFin()
 

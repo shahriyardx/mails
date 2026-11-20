@@ -19,6 +19,7 @@ import (
 	"github.com/shahriyardx/mails/internal/mailbox"
 	"github.com/shahriyardx/mails/internal/realtime"
 	"github.com/shahriyardx/mails/internal/send"
+	"github.com/shahriyardx/mails/internal/ses"
 	"github.com/shahriyardx/mails/internal/ses/sesfake"
 	"github.com/shahriyardx/mails/internal/storage"
 )
@@ -396,6 +397,43 @@ func TestStoredMessageIDIsWhatSESSent(t *testing.T) {
 				t.Fatalf("outbox stored %s for ses id %s", stored, sesID)
 			}
 		})
+	}
+}
+
+// cancelOnSend cancels a context the moment SES is called, as a shutdown
+// (or a client hanging up) arriving mid-send would.
+type cancelOnSend struct {
+	*sesfake.Fake
+	cancel context.CancelFunc
+}
+
+func (c cancelOnSend) SendRaw(ctx context.Context, m ses.RawEmail) (string, error) {
+	c.cancel()
+	return c.Fake.SendRaw(ctx, m)
+}
+
+// A claimed job finishes on shutdown: the SES call is not aborted (a retry
+// could send the mail twice) and the outcome is recorded.
+func TestOutboxFinishesJobOnShutdown(t *testing.T) {
+	e := setup(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	e.ses.SendErr = errors.New("throttled")
+	res, err := e.s.Send(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Text: "x"})
+	if err != nil || res.Status != "queued" {
+		t.Fatalf("queue: %+v %v", res, err)
+	}
+	e.ses.SendErr = nil
+	e.s.SES = cancelOnSend{Fake: e.ses, cancel: cancel}
+	e.now = e.now.Add(time.Hour)
+	if worked, err := e.s.ProcessOne(ctx); !worked || err != nil {
+		t.Fatalf("outbox: %v %v", worked, err)
+	}
+	var status, jobStatus string
+	_ = e.pool.QueryRow(context.Background(), `SELECT m.delivery_status::text, j.status::text FROM message m JOIN send_job j ON j.message_id = m.id`).
+		Scan(&status, &jobStatus)
+	if e.ses.SentCount() != 1 || status != "sent" || jobStatus != "sent" {
+		t.Fatalf("sent=%d message=%s job=%s", e.ses.SentCount(), status, jobStatus)
 	}
 }
 
