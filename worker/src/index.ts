@@ -62,6 +62,7 @@ async function storeAttachments(
   env: Env,
   messageKey: string,
   attachments: Attachment[],
+  written: string[],
 ): Promise<StoredAttachment[]> {
   const limit = Number(env.MAX_ATTACHMENT_BYTES ?? 26_214_400);
   const stored: StoredAttachment[] = [];
@@ -76,6 +77,7 @@ async function storeAttachments(
 
     const filename = file.filename || `attachment-${index + 1}`;
     const key = `inbound/${messageKey}/${index}-${filename.replace(/[^\w.\- ]+/g, "_")}`;
+    written.push(key);
 
     await env.ATTACHMENTS.put(key, bytes, {
       httpMetadata: { contentType: file.mimeType || "application/octet-stream" },
@@ -140,70 +142,101 @@ export default {
       value: header.value,
     }));
 
+    // Every R2 key this attempt writes. Each attempt uses new keys, so they
+    // are deleted again whenever the app is known not to have kept them.
+    const written: string[] = [];
+    let rawPut: Promise<unknown> = Promise.resolve();
     let rawKey: string | null = null;
     if (env.STORE_RAW !== "false") {
       rawKey = `raw/${messageKey}.eml`;
-      ctx.waitUntil(
-        env.ATTACHMENTS.put(rawKey, rawBuffer, {
-          httpMetadata: { contentType: "message/rfc822" },
-        }).then(() => undefined),
-      );
+      written.push(rawKey);
+      rawPut = env.ATTACHMENTS.put(rawKey, rawBuffer, {
+        httpMetadata: { contentType: "message/rfc822" },
+      });
+      ctx.waitUntil(rawPut.then(() => undefined));
     }
 
-    const attachments = await storeAttachments(env, messageKey, parsed.attachments ?? []);
-    const { auth, mailedBy, signedBy, tls } = readAuth(headers, {
-      trusted: env.TRUST_AUTH_RESULTS === "true",
-      envelopeFrom: message.from,
-      fromAddress: parsed.from?.address ?? message.from,
-    });
-
-    const payload = {
-      email: {
-        to: message.to.toLowerCase(),
-        recipients: [message.to.toLowerCase()],
-        from: {
-          name: parsed.from?.name || null,
-          address: (parsed.from?.address ?? message.from).toLowerCase(),
-        },
-        toAddresses: toAddresses(parsed.to),
-        ccAddresses: toAddresses(parsed.cc),
-        replyTo: parsed.replyTo?.[0]?.address ?? null,
-        subject: parsed.subject ?? "",
-        text: parsed.text ?? null,
-        html: parsed.html ?? null,
-        messageId: parsed.messageId ?? null,
-        inReplyTo: parsed.inReplyTo ?? null,
-        references: (parsed.references ?? "")
-          .split(/\s+/)
-          .map((value) => value.trim())
-          .filter(Boolean),
-        date: parsed.date ?? new Date().toISOString(),
-        sizeBytes: rawBuffer.byteLength,
-        rawKey,
-        auth,
-        // X-Spam-* headers are written by whoever sent the message and
-        // Cloudflare adds none, so there is no score worth trusting.
-        spamScore: null,
-        mailedBy,
-        signedBy,
-        tls,
-      },
-      attachments,
+    /** Best effort: a failed delete must not hide why the message failed. */
+    const discard = async () => {
+      try {
+        await rawPut.catch(() => undefined);
+        if (written.length > 0) await env.ATTACHMENTS.delete(written);
+      } catch (error) {
+        console.error("could not delete stored copies", error);
+      }
     };
 
-    const body = JSON.stringify(payload);
-    const timestamp = Date.now().toString();
-    const signature = await sign(env.INBOUND_WEBHOOK_SECRET, timestamp, body);
+    // An empty From (`Mailer Daemon`, `<>`) parses as "", so fall back to the envelope.
+    const fromAddress = parsed.from?.address || message.from;
 
-    const response = await fetch(env.APP_INBOUND_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-mail-signature": signature,
-        "x-mail-timestamp": timestamp,
-      },
-      body,
-    });
+    let request: RequestInit;
+    try {
+      const attachments = await storeAttachments(
+        env,
+        messageKey,
+        parsed.attachments ?? [],
+        written,
+      );
+      const { auth, mailedBy, signedBy, tls } = readAuth(headers, {
+        trusted: env.TRUST_AUTH_RESULTS === "true",
+        envelopeFrom: message.from,
+        fromAddress,
+      });
+
+      const payload = {
+        email: {
+          to: message.to.toLowerCase(),
+          recipients: [message.to.toLowerCase()],
+          from: {
+            name: parsed.from?.name || null,
+            address: fromAddress.toLowerCase(),
+          },
+          toAddresses: toAddresses(parsed.to),
+          ccAddresses: toAddresses(parsed.cc),
+          replyTo: parsed.replyTo?.[0]?.address ?? null,
+          subject: parsed.subject ?? "",
+          text: parsed.text ?? null,
+          html: parsed.html ?? null,
+          messageId: parsed.messageId ?? null,
+          inReplyTo: parsed.inReplyTo ?? null,
+          references: (parsed.references ?? "")
+            .split(/\s+/)
+            .map((value) => value.trim())
+            .filter(Boolean),
+          date: parsed.date ?? new Date().toISOString(),
+          sizeBytes: rawBuffer.byteLength,
+          rawKey,
+          auth,
+          // X-Spam-* headers are written by whoever sent the message and
+          // Cloudflare adds none, so there is no score worth trusting.
+          spamScore: null,
+          mailedBy,
+          signedBy,
+          tls,
+        },
+        attachments,
+      };
+
+      const body = JSON.stringify(payload);
+      const timestamp = Date.now().toString();
+      const signature = await sign(env.INBOUND_WEBHOOK_SECRET, timestamp, body);
+
+      request = {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-mail-signature": signature,
+          "x-mail-timestamp": timestamp,
+        },
+        body,
+      };
+    } catch (error) {
+      // Nothing reached the app, so nothing refers to these keys.
+      await discard();
+      throw error;
+    }
+
+    const response = await fetch(env.APP_INBOUND_URL, request);
 
     /*
      * Where this message also goes.
@@ -226,6 +259,7 @@ export default {
     if (response.status === 202) {
       // The app has no mailbox for this address. Forward it if somewhere was
       // configured, rather than bouncing mail we could still deliver.
+      await discard();
       if (forwardTo.length > 0) {
         await forward(message, forwardTo);
         return;
@@ -235,6 +269,10 @@ export default {
     }
 
     if (!response.ok) {
+      // A 4xx is refused before anything is stored. After a 5xx or a dropped
+      // connection the app may have stored the message and a retry would be
+      // a duplicate pointing at these keys, so they are left in place.
+      if (response.status < 500) await discard();
       // Throwing makes Cloudflare retry delivery instead of silently dropping mail.
       const detail = await response.text().catch(() => "");
       throw new Error(`inbound webhook failed ${response.status}: ${detail.slice(0, 300)}`);

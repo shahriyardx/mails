@@ -5011,7 +5011,7 @@ async function sign(secret, timestamp, body) {
   return [...new Uint8Array(signature)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 __name(sign, "sign");
-async function storeAttachments(env2, messageKey, attachments) {
+async function storeAttachments(env2, messageKey, attachments, written) {
   const limit = Number(env2.MAX_ATTACHMENT_BYTES ?? 26214400);
   const stored = [];
   for (const [index, file] of attachments.entries()) {
@@ -5019,6 +5019,7 @@ async function storeAttachments(env2, messageKey, attachments) {
     if (bytes.byteLength > limit) continue;
     const filename = file.filename || `attachment-${index + 1}`;
     const key = `inbound/${messageKey}/${index}-${filename.replace(/[^\w.\- ]+/g, "_")}`;
+    written.push(key);
     await env2.ATTACHMENTS.put(key, bytes, {
       httpMetadata: { contentType: file.mimeType || "application/octet-stream" }
     });
@@ -5063,63 +5064,86 @@ var index_default = {
       key: header.key,
       value: header.value
     }));
+    const written = [];
+    let rawPut = Promise.resolve();
     let rawKey = null;
     if (env2.STORE_RAW !== "false") {
       rawKey = `raw/${messageKey}.eml`;
-      ctx.waitUntil(
-        env2.ATTACHMENTS.put(rawKey, rawBuffer, {
-          httpMetadata: { contentType: "message/rfc822" }
-        }).then(() => void 0)
-      );
+      written.push(rawKey);
+      rawPut = env2.ATTACHMENTS.put(rawKey, rawBuffer, {
+        httpMetadata: { contentType: "message/rfc822" }
+      });
+      ctx.waitUntil(rawPut.then(() => void 0));
     }
-    const attachments = await storeAttachments(env2, messageKey, parsed.attachments ?? []);
-    const { auth, mailedBy, signedBy, tls } = readAuth(headers, {
-      trusted: env2.TRUST_AUTH_RESULTS === "true",
-      envelopeFrom: message.from,
-      fromAddress: parsed.from?.address ?? message.from
-    });
-    const payload = {
-      email: {
-        to: message.to.toLowerCase(),
-        recipients: [message.to.toLowerCase()],
-        from: {
-          name: parsed.from?.name || null,
-          address: (parsed.from?.address ?? message.from).toLowerCase()
+    const discard = /* @__PURE__ */ __name(async () => {
+      try {
+        await rawPut.catch(() => void 0);
+        if (written.length > 0) await env2.ATTACHMENTS.delete(written);
+      } catch (error3) {
+        console.error("could not delete stored copies", error3);
+      }
+    }, "discard");
+    const fromAddress = parsed.from?.address || message.from;
+    let request;
+    try {
+      const attachments = await storeAttachments(
+        env2,
+        messageKey,
+        parsed.attachments ?? [],
+        written
+      );
+      const { auth, mailedBy, signedBy, tls } = readAuth(headers, {
+        trusted: env2.TRUST_AUTH_RESULTS === "true",
+        envelopeFrom: message.from,
+        fromAddress
+      });
+      const payload = {
+        email: {
+          to: message.to.toLowerCase(),
+          recipients: [message.to.toLowerCase()],
+          from: {
+            name: parsed.from?.name || null,
+            address: fromAddress.toLowerCase()
+          },
+          toAddresses: toAddresses(parsed.to),
+          ccAddresses: toAddresses(parsed.cc),
+          replyTo: parsed.replyTo?.[0]?.address ?? null,
+          subject: parsed.subject ?? "",
+          text: parsed.text ?? null,
+          html: parsed.html ?? null,
+          messageId: parsed.messageId ?? null,
+          inReplyTo: parsed.inReplyTo ?? null,
+          references: (parsed.references ?? "").split(/\s+/).map((value) => value.trim()).filter(Boolean),
+          date: parsed.date ?? (/* @__PURE__ */ new Date()).toISOString(),
+          sizeBytes: rawBuffer.byteLength,
+          rawKey,
+          auth,
+          // X-Spam-* headers are written by whoever sent the message and
+          // Cloudflare adds none, so there is no score worth trusting.
+          spamScore: null,
+          mailedBy,
+          signedBy,
+          tls
         },
-        toAddresses: toAddresses(parsed.to),
-        ccAddresses: toAddresses(parsed.cc),
-        replyTo: parsed.replyTo?.[0]?.address ?? null,
-        subject: parsed.subject ?? "",
-        text: parsed.text ?? null,
-        html: parsed.html ?? null,
-        messageId: parsed.messageId ?? null,
-        inReplyTo: parsed.inReplyTo ?? null,
-        references: (parsed.references ?? "").split(/\s+/).map((value) => value.trim()).filter(Boolean),
-        date: parsed.date ?? (/* @__PURE__ */ new Date()).toISOString(),
-        sizeBytes: rawBuffer.byteLength,
-        rawKey,
-        auth,
-        // X-Spam-* headers are written by whoever sent the message and
-        // Cloudflare adds none, so there is no score worth trusting.
-        spamScore: null,
-        mailedBy,
-        signedBy,
-        tls
-      },
-      attachments
-    };
-    const body = JSON.stringify(payload);
-    const timestamp = Date.now().toString();
-    const signature = await sign(env2.INBOUND_WEBHOOK_SECRET, timestamp, body);
-    const response = await fetch(env2.APP_INBOUND_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-mail-signature": signature,
-        "x-mail-timestamp": timestamp
-      },
-      body
-    });
+        attachments
+      };
+      const body = JSON.stringify(payload);
+      const timestamp = Date.now().toString();
+      const signature = await sign(env2.INBOUND_WEBHOOK_SECRET, timestamp, body);
+      request = {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-mail-signature": signature,
+          "x-mail-timestamp": timestamp
+        },
+        body
+      };
+    } catch (error3) {
+      await discard();
+      throw error3;
+    }
+    const response = await fetch(env2.APP_INBOUND_URL, request);
     const told = await readForwardList(response.clone());
     const forwardTo = [
       .../* @__PURE__ */ new Set([
@@ -5128,6 +5152,7 @@ var index_default = {
       ])
     ];
     if (response.status === 202) {
+      await discard();
       if (forwardTo.length > 0) {
         await forward(message, forwardTo);
         return;
@@ -5136,6 +5161,7 @@ var index_default = {
       return;
     }
     if (!response.ok) {
+      if (response.status < 500) await discard();
       const detail = await response.text().catch(() => "");
       throw new Error(`inbound webhook failed ${response.status}: ${detail.slice(0, 300)}`);
     }
