@@ -1094,32 +1094,50 @@ export function staleKeys(event: LiveEvent): QueryKey[] {
   return out;
 }
 
+const RECONNECT_MS = 3_000;
+const RECONNECT_MAX_MS = 60_000;
+
 /**
  * Listens on /api/events (SSE) and refetches what each event touches. After
  * a dropped connection everything is refetched, since events may be missed.
+ * The browser retries a dropped stream itself, but gives up for good on a
+ * non-200 answer (a restart, a 502); then we open a new one after a pause.
  */
 export function useLiveUpdates(enabled: boolean) {
   const client = useQueryClient();
   useEffect(() => {
     if (!enabled) return;
-    const source = new EventSource("/api/events");
+    let source: EventSource;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let delay = RECONNECT_MS;
     let dropped = false;
-    source.onopen = () => {
-      if (dropped) void client.invalidateQueries();
-      dropped = false;
+    const connect = () => {
+      source = new EventSource("/api/events");
+      source.onopen = () => {
+        if (dropped) void client.invalidateQueries();
+        dropped = false;
+        delay = RECONNECT_MS;
+      };
+      source.onerror = () => {
+        dropped = true;
+        if (source.readyState !== EventSource.CLOSED) return;
+        timer = setTimeout(connect, delay);
+        delay = Math.min(delay * 2, RECONNECT_MAX_MS);
+      };
+      source.onmessage = (message) => {
+        let event: LiveEvent;
+        try {
+          event = JSON.parse(message.data);
+        } catch {
+          return;
+        }
+        for (const queryKey of staleKeys(event)) void client.invalidateQueries({ queryKey });
+      };
     };
-    source.onerror = () => {
-      dropped = true;
+    connect();
+    return () => {
+      clearTimeout(timer);
+      source.close();
     };
-    source.onmessage = (message) => {
-      let event: LiveEvent;
-      try {
-        event = JSON.parse(message.data);
-      } catch {
-        return;
-      }
-      for (const queryKey of staleKeys(event)) void client.invalidateQueries({ queryKey });
-    };
-    return () => source.close();
   }, [enabled, client]);
 }
