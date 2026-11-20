@@ -47,12 +47,32 @@ entrypoints/
   background.ts     the alarm, the badge, the notifications
   popup/            the toolbar window, and the same page opened in a tab
   options/          connecting to an instance, and the preferences
-components/         a miniature of the web app's kit, same tokens
+components/         a miniature of the web app's kit, same variants
+assets/tokens.css   a copy of web/src/styles/tokens.css (dark and light)
+public/fonts/       the web app's Material Symbols subset
+public/theme.js     paints the saved theme before first paint
 lib/
   api.ts            the six endpoints this thing calls
   settings.ts       what is stored, and where
+  theme.ts          System / Dark / Light
   sanitize.ts       turning a stranger's HTML into something safe to draw
 ```
+
+### The look
+
+The same as the dashboard (`docs/design.md`): ink background, flat panels,
+one lavender accent, Sora / Inter / JetBrains Mono, Material Symbols Rounded.
+Light and dark follow the system unless Settings picks one.
+
+- **Tokens** are copied, not imported, so the extension still builds from its
+  own folder (store source uploads). `lib/tokens.test.ts` fails when the copy
+  drifts from `web/src/styles/tokens.css`, and checks 4.5:1 contrast in both
+  themes.
+- **Icons**: the font is `web/public/fonts/material-symbols-rounded.woff2`.
+  To add one, add it in `web/scripts/fetch-icons.mjs`, run `pnpm icons` in
+  `web/`, and copy the file to `public/fonts/`.
+- **Avatars** are initials only. The dashboard's picture endpoint needs a
+  session cookie; this extension holds an API key.
 
 MV3 on every target, including Firefox, so there is one background model to
 reason about rather than two.

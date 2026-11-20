@@ -172,7 +172,17 @@ Received mail is untrusted and never shares the app's page:
   styling there (`sanitizeForEditor`).
 
 The browser extension (`packages/extension`) has its own copy of the
-sanitizing rules and has not been moved to the new look yet.
+sanitizing rules.
+
+## Browser extension
+
+`packages/extension` wears the same look: `assets/tokens.css` is a copy of
+`tokens.css` (`lib/tokens.test.ts` fails when they drift and checks
+contrast), the same three fonts, the web's icon subset (copied from
+`web/public/fonts`), and a small kit in `components/kit.tsx` with the web
+kit's variants. Its theme follows the system by default, with System / Dark /
+Light on its settings page (it cannot read the dashboard's preference with
+an API key). Avatars are initials only: the avatar endpoint needs a session.
 
 ## Adding a screen
 
