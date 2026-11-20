@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { errorMessage } from "@/lib/api";
 import { Button } from "./button";
 import {
@@ -10,11 +10,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./dialog";
+import { Input } from "./input";
 import { toast } from "./toast";
 
 /**
  * Asks before something that cannot be undone. Stays open (with a spinner)
- * while onConfirm runs, and shows its error as a toast if it throws.
+ * while onConfirm runs, and shows its error as a toast if it throws. With
+ * `phrase`, the button waits until that exact text is typed.
  */
 export function ConfirmDialog({
   open,
@@ -25,7 +27,13 @@ export function ConfirmDialog({
   confirmLabel = "Confirm",
   destructive = true,
   onConfirm,
+  phrase,
+  children,
 }: {
+  /** Text to type before confirming, for the worst actions. */
+  phrase?: string;
+  /** Extra options above the buttons (e.g. "also delete in SES"). */
+  children?: ReactNode;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: ReactNode;
@@ -37,11 +45,16 @@ export function ConfirmDialog({
   onConfirm: () => Promise<unknown> | unknown;
 }) {
   const [busy, setBusy] = useState(false);
+  const [typed, setTyped] = useState("");
+  const inputId = useId();
+  const ready = !phrase || typed.trim() === phrase;
 
   async function confirm() {
+    if (!ready) return;
     setBusy(true);
     try {
       await onConfirm();
+      setTyped("");
       onOpenChange(false);
     } catch (error) {
       toast.error(errorMessage(error));
@@ -51,18 +64,48 @@ export function ConfirmDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (busy) return;
+        if (!next) setTyped("");
+        onOpenChange(next);
+      }}
+    >
       <DialogContent showClose={false} className="max-w-md">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
         {consequences && <p className="text-sm">{consequences}</p>}
+        {children}
+        {phrase && (
+          <form
+            className="flex flex-col gap-1.5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void confirm();
+            }}
+          >
+            <label htmlFor={inputId} className="text-[13px]">
+              Type <span className="font-mono font-medium">{phrase}</span> to confirm
+            </label>
+            <Input
+              id={inputId}
+              value={typed}
+              onChange={(event) => setTyped(event.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+              className="font-mono"
+            />
+          </form>
+        )}
         <DialogFooter>
           <DialogClose render={<Button variant="ghost" disabled={busy} />}>Cancel</DialogClose>
           <Button
             variant={destructive ? "destructive" : "primary"}
             loading={busy}
+            disabled={!ready}
             onClick={confirm}
           >
             {confirmLabel}

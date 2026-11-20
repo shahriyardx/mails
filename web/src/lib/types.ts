@@ -149,6 +149,8 @@ export interface Mailbox {
   color: string;
   forward_off: boolean;
   created_at: string;
+  /** Only on create, for a mailbox on a subdomain (cloudflare.Receiving). */
+  receiving?: Receiving;
 }
 
 export interface Contact {
@@ -176,6 +178,8 @@ export interface SetupStep {
 
 export interface Setup {
   completed: boolean;
+  completed_at: string | null;
+  brand_name: string | null;
   steps: SetupStep[];
   remaining: number;
 }
@@ -411,6 +415,173 @@ export interface Overview {
   queued: number;
   failed_7d: number;
   blocked: number;
+}
+
+// ---- Settings: internal/domain, mailbox, cloudflare, forwarding, mail
+// filters, delivery suppressions, push ---------------------------------------
+
+export type DomainStatus = "pending" | "verified" | "failed" | "temporary_failure" | "not_started";
+
+/** domain.Record: one DNS record to publish. `name` is the full hostname. */
+export interface DnsRecord {
+  kind: "CNAME" | "TXT" | "MX";
+  name: string;
+  value: string;
+  priority?: number;
+  purpose: string;
+  required: boolean;
+  /** The value is a note, not something to paste (a key set up elsewhere). */
+  informational?: boolean;
+}
+
+export interface Domain {
+  object: "domain";
+  id: string;
+  name: string;
+  region: string;
+  status: DomainStatus;
+  sending_enabled: boolean;
+  dkim_status: DomainStatus;
+  dkim_origin: string | null;
+  mail_from_domain: string | null;
+  mail_from_status: DomainStatus | null;
+  spf_verified: boolean;
+  dmarc_verified: boolean;
+  /** Set for a subdomain that sends on its parent's verification. */
+  inherited_from: string | null;
+  auto_create_mailboxes: boolean;
+  forward_off: boolean;
+  imported: boolean;
+  last_checked_at: string | null;
+  created_at: string;
+  records: DnsRecord[];
+}
+
+export interface DomainImport {
+  imported: number;
+  updated: number;
+  total: number;
+}
+
+/** cloudflare.Receiving: what was done so a new subdomain mailbox receives. */
+export interface Receiving {
+  state: "published" | "already" | "skipped";
+  domain?: string;
+  zone?: string;
+  reason?: string;
+}
+
+/** Body of POST /api/app/mailboxes (mailbox.Input). */
+export interface MailboxInput {
+  address: string;
+  display_name?: string;
+  signature?: string | null;
+  is_catch_all?: boolean;
+  is_default?: boolean;
+  color?: string;
+}
+
+/** Body of PATCH /api/app/mailboxes/{id} (mailbox.Patch). */
+export type MailboxPatch = Partial<
+  Pick<Mailbox, "display_name" | "is_catch_all" | "is_default" | "color" | "forward_off">
+> & { signature?: string | null };
+
+export interface ZoneStatus {
+  id: string;
+  name: string;
+  routing_enabled: boolean;
+  catch_all_to_worker: boolean;
+}
+
+/** cloudflare.Status: GET /api/app/inbound. */
+export interface InboundStatus {
+  connected: boolean;
+  hint?: string;
+  label?: string;
+  account_id?: string;
+  script_name: string;
+  script_bytes: number;
+  deployed: boolean;
+  modified_on?: string;
+  zones: ZoneStatus[];
+  error?: string;
+}
+
+export interface ForwardAddress {
+  id: string;
+  address: string;
+  verified: boolean;
+  in_cloudflare: boolean;
+  uses: number;
+  created_at: string;
+}
+
+export interface ForwardRule {
+  id: string;
+  address_id: string;
+}
+
+/** A domain or mailbox with its forwarding rules (forwarding.Scoped). */
+export interface ForwardScope {
+  id: string;
+  name: string;
+  forward_off: boolean;
+  rules: ForwardRule[];
+}
+
+/** forwarding.View: GET /api/app/forwarding. */
+export interface ForwardingView {
+  connected: boolean;
+  addresses: ForwardAddress[];
+  instance: ForwardRule[];
+  domains: ForwardScope[];
+  mailboxes: ForwardScope[];
+}
+
+export type FilterFolder = "inbox" | "archive" | "spam" | "trash";
+
+/** mail.Filter. POST /api/app/filters creates, PUT /filters/{id} replaces. */
+export interface Filter {
+  id: string;
+  name: string;
+  enabled: boolean;
+  priority: number;
+  match_from: string | null;
+  match_to: string | null;
+  match_subject: string | null;
+  match_body: string | null;
+  action_folder: FilterFolder | null;
+  action_label_id: string | null;
+  action_mark_read: boolean;
+  action_star: boolean;
+  created_at: string;
+}
+
+export type FilterInput = Omit<Filter, "id" | "created_at">;
+
+/** delivery.Suppression: a blocked address. */
+export interface Suppression {
+  object: "suppression";
+  id: string;
+  address: string;
+  reason: string;
+  created_at: string;
+}
+
+/** push.Browser */
+export interface PushBrowser {
+  id: string;
+  label: string | null;
+  endpoint: string;
+  created_at: string;
+  last_seen_at: string;
+}
+
+/** GET /api/app/push. enabled is false when the VAPID keys are not set. */
+export interface PushState {
+  enabled: boolean;
+  public_key: string;
+  browsers: PushBrowser[];
 }
 
 /** Body of POST /api/app/send and /api/app/drafts. */
