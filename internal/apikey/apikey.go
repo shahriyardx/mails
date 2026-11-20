@@ -184,6 +184,19 @@ func (s *Service) Rename(ctx context.Context, keyID, name string) (*Key, error) 
 	return s.Get(ctx, keyID)
 }
 
+// Purge deletes a revoked key's row. Mail it sent keeps going, with its
+// api_key_id cleared. A live key must be revoked first.
+func (s *Service) Purge(ctx context.Context, keyID string) error {
+	tag, err := s.DB.Exec(ctx, `DELETE FROM api_key WHERE id = $1 AND revoked_at IS NOT NULL`, keyID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return httpx.Conflict("Only a revoked key can be deleted. Revoke it first")
+	}
+	return nil
+}
+
 // Revoke stops a key for good. Mail it sent keeps its api_key_id.
 func (s *Service) Revoke(ctx context.Context, keyID string) error {
 	tag, err := s.DB.Exec(ctx, `UPDATE api_key SET revoked_at = coalesce(revoked_at, now()) WHERE id = $1`, keyID)

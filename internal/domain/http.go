@@ -12,7 +12,15 @@ import (
 func Routes(s *Service) http.Handler {
 	r := chi.NewRouter()
 	r.Method("GET", "/", httpx.Handler(func(w http.ResponseWriter, r *http.Request) error {
-		list, warning, err := s.ListFresh(r.Context())
+		// ?light=true skips the SES refresh, for pickers that need names only.
+		var list []*Domain
+		var warning string
+		var err error
+		if r.URL.Query().Get("light") == "true" {
+			list, err = s.List(r.Context())
+		} else {
+			list, warning, err = s.ListFresh(r.Context())
+		}
 		if err != nil {
 			return err
 		}

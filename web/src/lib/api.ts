@@ -450,7 +450,8 @@ export function useDeleteDraft() {
 export function useDomainRefs() {
   return useQuery({
     queryKey: ["domains", "refs"],
-    queryFn: ({ signal }) => api<{ data: DomainRef[] | null }>("/api/app/domains", { signal }),
+    queryFn: ({ signal }) =>
+      api<{ data: DomainRef[] | null }>("/api/app/domains?light=true", { signal }),
     select: (res) => (res.data ?? []).map(({ id, name }) => ({ id, name })),
     staleTime: 5 * 60_000,
   });
@@ -486,6 +487,16 @@ export function useRevokeApiKey() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api<void>(`/api/app/api-keys/${id}`, { method: "DELETE" }),
+    onSettled: () => client.invalidateQueries({ queryKey: ["api-keys"] }),
+  });
+}
+
+/** Removes a revoked key from the list for good. */
+export function usePurgeApiKey() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api<void>(`/api/app/api-keys/${id}?purge=true`, { method: "DELETE" }),
     onSettled: () => client.invalidateQueries({ queryKey: ["api-keys"] }),
   });
 }

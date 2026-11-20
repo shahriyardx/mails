@@ -40,6 +40,7 @@ import {
   useCreateApiKey,
   useDomainRefs,
   useMailboxes,
+  usePurgeApiKey,
   useRenameApiKey,
   useRevokeApiKey,
 } from "@/lib/api";
@@ -71,6 +72,7 @@ export default function ApiKeys() {
   const [renaming, setRenaming] = useState<ApiKey | null>(null);
   const [revoking, setRevoking] = useState<ApiKey | null>(null);
   const revoke = useRevokeApiKey();
+  const purge = usePurgeApiKey();
 
   const list = keys.data?.data ?? [];
   const active = list.filter((k) => !k.revoked_at).length;
@@ -149,7 +151,18 @@ export default function ApiKeys() {
                     </>
                   }
                   action={
-                    !key.revoked_at && (
+                    key.revoked_at ? (
+                      <IconButton
+                        icon="delete"
+                        label={`Remove ${key.name} from the list`}
+                        onClick={() =>
+                          purge.mutate(key.id, {
+                            onSuccess: () => toast.success("Key removed"),
+                            onError: (error) => toast.error(errorMessage(error)),
+                          })
+                        }
+                      />
+                    ) : (
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           render={<IconButton icon="more_vert" label={`Actions for ${key.name}`} />}

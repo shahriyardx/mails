@@ -49,7 +49,11 @@ func Routes(s *Service) http.Handler {
 		return nil
 	}))
 	r.Method("DELETE", "/{id}", httpx.Handler(func(w http.ResponseWriter, r *http.Request) error {
-		if err := s.Revoke(r.Context(), chi.URLParam(r, "id")); err != nil {
+		do := s.Revoke
+		if r.URL.Query().Get("purge") == "true" {
+			do = s.Purge
+		}
+		if err := do(r.Context(), chi.URLParam(r, "id")); err != nil {
 			return err
 		}
 		w.WriteHeader(http.StatusNoContent)

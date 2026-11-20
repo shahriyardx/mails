@@ -72,6 +72,13 @@ func TestKeyLifecycle(t *testing.T) {
 	if got, _ := s.Authenticate(ctx, token); got != nil {
 		t.Fatal("revoked key accepted")
 	}
+	if err := s.Purge(ctx, k.ID); err != nil {
+		t.Fatalf("purge revoked: %v", err)
+	}
+	k2, _, _ := s.Create(ctx, apikey.Input{Name: "live", Scopes: []string{"*"}})
+	if err := s.Purge(ctx, k2.ID); err == nil {
+		t.Fatal("purged a live key")
+	}
 	nothing, _ := apikey.Allowed(ctx, pool, apikey.Reach{MailboxIDs: []string{"mbx_gone"}})
 	if nothing == nil || len(nothing) != 0 {
 		t.Fatalf("restricted-to-nothing = %v, want empty non-nil", nothing)
