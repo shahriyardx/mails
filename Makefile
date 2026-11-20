@@ -1,5 +1,5 @@
 # Common tasks. Needs Go, pnpm and the compose Postgres for tests.
-.PHONY: help dev build web test lint fmt docker push-image clean
+.PHONY: help dev build web test lint fmt docker push-image publish-sdk clean
 
 IMAGE ?= ghcr.io/shahriyardx/mails
 # Version to tag the image with; defaults to the latest git tag (v1.2.3 -> 1.2.3).
@@ -42,6 +42,13 @@ push-image: web ## Build Linux binaries here and push the image to ghcr (run `do
 	docker buildx inspect mails-builder >/dev/null 2>&1 || docker buildx create --name mails-builder --driver docker-container
 	docker buildx build --builder mails-builder --platform linux/amd64,linux/arm64 -f Dockerfile.release \
 		-t $(IMAGE):$(VERSION) -t $(IMAGE):latest --push dist/image
+
+publish-sdk: ## Test and publish the Node SDK to npm at VERSION (run `npm login` first)
+	@test -n "$(VERSION)" || (echo "No version: tag a release or pass VERSION=1.2.3"; exit 1)
+	@npm whoami >/dev/null 2>&1 || (echo "Not logged in to npm: run npm login"; exit 1)
+	cd packages/sdk && pnpm install --frozen-lockfile && pnpm typecheck && pnpm test
+	cd packages/sdk && npm pkg set version=$(VERSION) && npm publish --access public; \
+		status=$$?; git checkout -- package.json; exit $$status
 
 clean: ## Remove build output
 	rm -rf bin dist
