@@ -21,14 +21,26 @@ import type {
   AuthStatus,
   Contact,
   Counts,
+  Domain,
+  DomainImport,
+  Filter,
+  FilterInput,
+  ForwardAddress,
+  ForwardingView,
+  ForwardRule,
+  InboundStatus,
   Label,
   LiveEvent,
   Mailbox,
+  MailboxInput,
+  MailboxPatch,
   OutgoingMail,
   Page,
   Preferences,
+  PushState,
   SendResult,
   Setup,
+  Suppression,
   Thread,
   ThreadChange,
   ThreadFilter,
@@ -396,6 +408,422 @@ export function useSetup() {
     queryKey: keys.setup,
     queryFn: ({ signal }) => api<Setup>("/api/app/setup", { signal }),
     staleTime: 5 * 60_000,
+  });
+}
+
+// ---- Settings pages ------------------------------------------------------
+
+export const settingsKeys = {
+  domains: ["domains"] as const,
+  inbound: ["inbound"] as const,
+  forwarding: ["forwarding"] as const,
+  filters: ["filters"] as const,
+  suppressions: (q?: string) =>
+    q === undefined ? (["suppressions"] as const) : (["suppressions", q] as const),
+  push: ["push"] as const,
+};
+
+function invalidate(client: QueryClient, ...queryKeys: QueryKey[]) {
+  for (const queryKey of queryKeys) void client.invalidateQueries({ queryKey });
+}
+
+type DomainList = { data: Domain[]; warning: string };
+
+/** The domain list, re-synced from SES by the server when stale. */
+export function useDomains() {
+  return useQuery({
+    queryKey: settingsKeys.domains,
+    queryFn: ({ signal }) => api<DomainList>("/api/app/domains", { signal }),
+  });
+}
+
+/** Puts a changed domain back into the cached list. */
+function storeDomain(client: QueryClient, domain: Domain) {
+  client.setQueryData<DomainList>(
+    settingsKeys.domains,
+    (list) => list && { ...list, data: list.data.map((d) => (d.id === domain.id ? domain : d)) },
+  );
+}
+
+/** Adding, importing or removing a domain changes mailboxes' links, setup and forwarding. */
+function afterDomainsChange(client: QueryClient) {
+  invalidate(client, settingsKeys.domains, keys.mailboxes, keys.setup, settingsKeys.forwarding);
+}
+
+export function useAddDomain() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) =>
+      api<Domain>("/api/app/domains", { method: "POST", body: { name } }),
+    onSettled: () => afterDomainsChange(client),
+  });
+}
+
+export function useImportDomains() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<DomainImport>("/api/app/domains/import", { method: "POST" }),
+    onSettled: () => afterDomainsChange(client),
+  });
+}
+
+/** Re-checks SES and DNS now. */
+export function useVerifyDomain() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api<Domain>(`/api/app/domains/${id}/verify`, { method: "POST" }),
+    onSuccess: (domain) => {
+      storeDomain(client, domain);
+      invalidate(client, keys.setup);
+    },
+  });
+}
+
+/** Swaps SES's three DKIM CNAMEs for one TXT record with a key we make. */
+export function useOwnDkim() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api<Domain>(`/api/app/domains/${id}/own-dkim`, { method: "POST" }),
+    onSuccess: (domain) => storeDomain(client, domain),
+  });
+}
+
+/** Flips forward_off in the cached forwarding page; the refetch after settles it. */
+function skipWiderRules(
+  client: QueryClient,
+  kind: "domains" | "mailboxes",
+  id: string,
+  forwardOff: boolean,
+) {
+  client.setQueryData<ForwardingView>(
+    settingsKeys.forwarding,
+    (view) =>
+      view && {
+        ...view,
+        [kind]: view[kind].map((s) => (s.id === id ? { ...s, forward_off: forwardOff } : s)),
+      },
+  );
+}
+
+/** Domain switches (capture every address, skip forwarding), applied at once. */
+export function useUpdateDomain() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...patch
+    }: {
+      id: string;
+      auto_create_mailboxes?: boolean;
+      forward_off?: boolean;
+    }) => api<Domain>(`/api/app/domains/${id}`, { method: "PATCH", body: patch }),
+    onMutate: async ({ id, ...patch }) => {
+      await client.cancelQueries({ queryKey: settingsKeys.domains });
+      const before = client.getQueryData<DomainList>(settingsKeys.domains);
+      if (before) {
+        client.setQueryData<DomainList>(settingsKeys.domains, {
+          ...before,
+          data: before.data.map((d) => (d.id === id ? { ...d, ...patch } : d)),
+        });
+      }
+      if (patch.forward_off !== undefined) {
+        skipWiderRules(client, "domains", id, patch.forward_off);
+      }
+      return before;
+    },
+    onError: (_error, _vars, before) => before && client.setQueryData(settingsKeys.domains, before),
+    onSettled: () => invalidate(client, settingsKeys.domains, settingsKeys.forwarding),
+  });
+}
+
+export function useRemoveDomain() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, deleteInSes }: { id: string; deleteInSes: boolean }) =>
+      api<{ deleted_in_ses: boolean }>(`/api/app/domains/${id}`, {
+        method: "DELETE",
+        query: { delete_in_ses: deleteInSes || undefined },
+      }),
+    onSettled: () => afterDomainsChange(client),
+  });
+}
+
+export function useCreateMailbox() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: MailboxInput) =>
+      api<Mailbox>("/api/app/mailboxes", { method: "POST", body: input }),
+    onSettled: () =>
+      invalidate(client, keys.mailboxes, keys.setup, settingsKeys.forwarding, keys.counts),
+  });
+}
+
+/** Changes a mailbox, applied at once. A new default clears the old one. */
+export function useUpdateMailbox() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: MailboxPatch & { id: string }) =>
+      api<Mailbox>(`/api/app/mailboxes/${id}`, { method: "PATCH", body: patch }),
+    onMutate: async ({ id, ...patch }) => {
+      await client.cancelQueries({ queryKey: keys.mailboxes });
+      const before = client.getQueryData<{ data: Mailbox[] }>(keys.mailboxes);
+      if (before) {
+        client.setQueryData(keys.mailboxes, {
+          data: before.data.map((m) =>
+            m.id === id ? { ...m, ...patch } : patch.is_default ? { ...m, is_default: false } : m,
+          ),
+        });
+      }
+      if (patch.forward_off !== undefined) {
+        skipWiderRules(client, "mailboxes", id, patch.forward_off);
+      }
+      return before;
+    },
+    onError: (_error, _vars, before) => before && client.setQueryData(keys.mailboxes, before),
+    onSettled: () => invalidate(client, keys.mailboxes, settingsKeys.forwarding),
+  });
+}
+
+/** Deletes a mailbox and all its mail. */
+export function useDeleteMailbox() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api(`/api/app/mailboxes/${id}`, { method: "DELETE", query: { confirm: true } }),
+    onSettled: () =>
+      invalidate(
+        client,
+        keys.mailboxes,
+        keys.setup,
+        settingsKeys.forwarding,
+        keys.threads(),
+        keys.counts,
+      ),
+  });
+}
+
+/** Cloudflare: the token, the inbound worker and each zone's routing. */
+export function useInbound() {
+  return useQuery({
+    queryKey: settingsKeys.inbound,
+    queryFn: ({ signal }) => api<InboundStatus>("/api/app/inbound", { signal }),
+  });
+}
+
+/**
+ * Every inbound call answers with the fresh status: connect/disconnect the
+ * token, deploy/remove the worker, route/unroute a zone.
+ */
+export type InboundAction =
+  | { method: "POST"; path: "/connect"; body: { token: string } }
+  | { method: "DELETE"; path: "/connect" | "/worker" }
+  | { method: "POST"; path: "/deploy" | `/zones/${string}/route` }
+  | { method: "POST"; path: `/zones/${string}/unroute`; query?: { disable_routing: true } };
+
+export function useInboundAction() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (action: InboundAction) =>
+      api<InboundStatus>(`/api/app/inbound${action.path}`, {
+        method: action.method,
+        body: "body" in action ? action.body : undefined,
+        query: "query" in action ? action.query : undefined,
+      }),
+    onSuccess: (status) => client.setQueryData(settingsKeys.inbound, status),
+    onSettled: () => invalidate(client, keys.setup, settingsKeys.forwarding),
+  });
+}
+
+export function useForwarding() {
+  return useQuery({
+    queryKey: settingsKeys.forwarding,
+    queryFn: ({ signal }) => api<ForwardingView>("/api/app/forwarding", { signal }),
+  });
+}
+
+function useForwardingMutation<V, R>(fn: (vars: V) => Promise<R>) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSettled: () => invalidate(client, settingsKeys.forwarding),
+  });
+}
+
+/** Cloudflare emails the address a link; rules using it wait for the click. */
+export const useAddForwardAddress = () =>
+  useForwardingMutation((address: string) =>
+    api<ForwardAddress>("/api/app/forwarding/addresses", { method: "POST", body: { address } }),
+  );
+
+/** Pulls verification state (and addresses added by hand) from Cloudflare. */
+export const useRefreshForwarding = () =>
+  useForwardingMutation(() => api("/api/app/forwarding/refresh", { method: "POST" }));
+
+export const useRemoveForwardAddress = () =>
+  useForwardingMutation(({ id, cloudflare }: { id: string; cloudflare: boolean }) =>
+    api(`/api/app/forwarding/addresses/${id}`, {
+      method: "DELETE",
+      query: { cloudflare: cloudflare || undefined },
+    }),
+  );
+
+/** No domain_id and no mailbox_id: the rule covers the whole instance. */
+export const useAddForwardRule = () =>
+  useForwardingMutation((rule: { address_id: string; domain_id?: string; mailbox_id?: string }) =>
+    api<ForwardRule>("/api/app/forwarding/rules", { method: "POST", body: rule }),
+  );
+
+export const useRemoveForwardRule = () =>
+  useForwardingMutation((id: string) =>
+    api(`/api/app/forwarding/rules/${id}`, { method: "DELETE" }),
+  );
+
+/** Renames or recolours a label, applied at once. */
+export function useUpdateLabel() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...input }: { id: string; name?: string; color?: string }) =>
+      api<Label>(`/api/app/labels/${id}`, { method: "PATCH", body: input }),
+    onMutate: async ({ id, ...input }) => {
+      await client.cancelQueries({ queryKey: keys.labels });
+      const before = client.getQueryData<Page<Label>>(keys.labels);
+      if (before) {
+        client.setQueryData(keys.labels, {
+          ...before,
+          data: before.data.map((l) => (l.id === id ? { ...l, ...input } : l)),
+        });
+      }
+      return before;
+    },
+    onError: (_error, _vars, before) => before && client.setQueryData(keys.labels, before),
+    onSettled: () => invalidate(client, keys.labels, keys.threads(), keys.thread()),
+  });
+}
+
+export function useDeleteLabel() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/api/app/labels/${id}`, { method: "DELETE" }),
+    onSettled: () =>
+      invalidate(client, keys.labels, keys.threads(), keys.thread(), settingsKeys.filters),
+  });
+}
+
+export function useFilters() {
+  return useQuery({
+    queryKey: settingsKeys.filters,
+    queryFn: ({ signal }) => api<Page<Filter>>("/api/app/filters", { signal }),
+    select: (page) => page.data,
+  });
+}
+
+/** Creates a filter (no id) or replaces one; an edit shows at once. */
+export function useSaveFilter() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id?: string; input: FilterInput }) =>
+      id
+        ? api<Filter>(`/api/app/filters/${id}`, { method: "PUT", body: input })
+        : api<Filter>("/api/app/filters", { method: "POST", body: input }),
+    onMutate: async ({ id, input }) => {
+      if (!id) return undefined;
+      await client.cancelQueries({ queryKey: settingsKeys.filters });
+      const before = client.getQueryData<Page<Filter>>(settingsKeys.filters);
+      if (before) {
+        client.setQueryData(settingsKeys.filters, {
+          ...before,
+          data: before.data.map((f) => (f.id === id ? { ...f, ...input } : f)),
+        });
+      }
+      return before;
+    },
+    onError: (_error, _vars, before) => before && client.setQueryData(settingsKeys.filters, before),
+    onSettled: () => invalidate(client, settingsKeys.filters),
+  });
+}
+
+export function useDeleteFilter() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/api/app/filters/${id}`, { method: "DELETE" }),
+    onSettled: () => invalidate(client, settingsKeys.filters),
+  });
+}
+
+/** The blocked list, newest first, paged; q matches part of the address. */
+export function useSuppressions(q: string) {
+  return useInfiniteQuery({
+    queryKey: settingsKeys.suppressions(q),
+    queryFn: ({ pageParam, signal }) =>
+      api<Page<Suppression>>("/api/app/suppressions", {
+        query: { q, cursor: pageParam, limit: PAGE_SIZE },
+        signal,
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => (last.has_more ? (last.next_cursor ?? undefined) : undefined),
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useBlockAddress() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { address: string; reason: string }) =>
+      api<Suppression>("/api/app/suppressions", { method: "POST", body: input }),
+    onSettled: () => invalidate(client, settingsKeys.suppressions()),
+  });
+}
+
+export function useUnblockAddress() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/api/app/suppressions/${id}`, { method: "DELETE" }),
+    onSettled: () => invalidate(client, settingsKeys.suppressions()),
+  });
+}
+
+export function usePush() {
+  return useQuery({
+    queryKey: settingsKeys.push,
+    queryFn: ({ signal }) => api<PushState>("/api/app/push", { signal }),
+  });
+}
+
+export function usePushSubscribe() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (sub: {
+      endpoint: string;
+      keys: { p256dh: string; auth: string };
+      label: string;
+    }) => api<void>("/api/app/push/subscribe", { method: "POST", body: sub }),
+    onSettled: () => invalidate(client, settingsKeys.push),
+  });
+}
+
+/** Forgets one browser. An empty endpoint forgets every browser. */
+export function usePushUnsubscribe() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (endpoint: string) =>
+      api<void>("/api/app/push/unsubscribe", { method: "POST", body: { endpoint } }),
+    onSettled: () => invalidate(client, settingsKeys.push),
+  });
+}
+
+export function usePushTest() {
+  return useMutation({
+    mutationFn: () => api<void>("/api/app/push/test", { method: "POST" }),
+  });
+}
+
+/** Sets the brand name and/or marks the setup wizard finished. */
+export function useSaveSetup() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: { brand_name?: string; completed?: boolean }) =>
+      api<Setup>("/api/app/setup", { method: "PATCH", body: patch }),
+    onSuccess: (setup) => client.setQueryData(keys.setup, setup),
   });
 }
 
