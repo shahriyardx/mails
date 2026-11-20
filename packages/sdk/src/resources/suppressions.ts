@@ -34,7 +34,11 @@ export class Suppressions {
     return paginate((cursor) => this.list({ ...params, cursor }, options));
   }
 
-  /** Blocks an address by hand. Blocking one already blocked is not an error. */
+  /**
+   * Blocks an address by hand. Blocking one already blocked is not an error.
+   * A key that reaches only part of the account gets back only
+   * `{ object, address, blocked: true }`, not the entry.
+   */
   create(
     input: { address: string; reason?: string },
     options?: RequestOptions,

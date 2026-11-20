@@ -17,8 +17,10 @@ anything goes out. See [Emails](/docs/api/emails#blocked-recipients).
 Automatic blocking needs delivery reporting, since that is how SES tells Mails
 about bounces. See [Sending domains](/docs/guide/domains).
 
-The list is kept for the whole account. A key's reach does not narrow it —
-only its scope decides.
+The list is kept for the whole account, so it cannot be narrowed to part of
+it. Listing and unblocking need a key that reaches the whole account; a
+restricted key gets a `403`. Blocking only ever stops mail, so any key with
+`suppressions:write` may do that.
 
 ## List
 
@@ -62,6 +64,14 @@ Scope: `suppressions:write`
 
 Returns `201` when it is new and `200` when it was already blocked — blocking
 an already-blocked address is not an error, it is the state you asked for.
+
+A key that reaches only part of the account always gets `200` and a short
+reply instead of the entry, so it cannot use this call to learn what is on the
+list:
+
+```json
+{ "object": "suppression", "address": "unsubscribed@example.net", "blocked": true }
+```
 
 Useful for honouring an unsubscribe from your own application, so the block
 lives in one place rather than two.

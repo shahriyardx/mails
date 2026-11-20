@@ -3,7 +3,9 @@
 ## Labels
 
 The labels threads are filed under. Kept for the whole account, not per
-mailbox, so a key's reach does not narrow them — only its scope decides.
+mailbox. Any key with `labels:read` can list them, but creating, changing or
+deleting one changes every mailbox, so it needs a key that reaches the whole
+account: a restricted key gets a `403`.
 
 ### List
 

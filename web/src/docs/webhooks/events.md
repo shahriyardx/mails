@@ -201,13 +201,21 @@ the web app, and not when a new message arrives.
   "type": "thread.updated",
   "data": {
     "thread": { "object": "thread", "id": "thr_…", "folders": ["archive"], "…": "…" },
-    "changes": { "folder": "archive", "is_read": true }
+    "changes": {
+      "folder": "archive",
+      "is_read": true,
+      "is_starred": null,
+      "add_labels": null,
+      "remove_labels": null
+    }
   }
 }
 ```
 
 `data.thread` is the thread as it now is, without its messages. `data.changes`
-is the body of the `PATCH` that caused it.
+is the body of the `PATCH` that caused it, with all five fields always
+present: one the `PATCH` did not send comes through as `null`, meaning
+"left as it was".
 
 ## webhook.test
 

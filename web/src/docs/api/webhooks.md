@@ -34,7 +34,7 @@ The **secret is never returned on a read**. It is shown once, at creation, and
 once more if you rotate it.
 
 A key that reaches only part of the account sees only endpoints scoped to a
-mailbox it reaches.
+mailbox it reaches or to a domain it holds.
 
 ## Create
 
@@ -233,7 +233,7 @@ set while an attempt is waiting to be made.
 
 A delivery carries the payload of the event it was for, so a key that reaches
 only part of the account sees only deliveries for endpoints scoped to a
-mailbox it reaches.
+mailbox it reaches or to a domain it holds.
 
 ## Replay
 

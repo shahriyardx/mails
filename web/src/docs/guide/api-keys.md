@@ -50,9 +50,10 @@ Picking a whole domain covers addresses added to it in future, which is what
 tighter choice when the set will not grow. A key holds whole domains or named
 addresses, not a mix of both.
 
-Labels and blocked addresses belong to the whole account, so reach does not
-narrow them: a key with `labels:write` or `suppressions:write` changes them
-for everyone.
+Labels and blocked addresses belong to the whole account, so they cannot be
+narrowed. Changing labels, and listing or unblocking blocked addresses, need a
+key that reaches everything. A restricted key may still read labels and block
+an address.
 
 Scopes and reach are fixed when the key is made. A key can be renamed, never
 widened, so it cannot quietly gain power. Make a new key instead.

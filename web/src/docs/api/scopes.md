@@ -83,8 +83,13 @@ Reach is enforced everywhere mail is involved:
 - A key that reaches part of the account must scope a webhook to a mailbox or
   domain it holds, or it would be a way to receive mail the key cannot read.
 
-Labels and blocked addresses are kept for the whole account and reach does
-not narrow them. Only the scope decides.
+Labels and blocked addresses are kept for the whole account, so they cannot
+be narrowed to part of it. Any key with the scope may read labels and add to
+the blocked list, but creating, changing or deleting a label, and listing or
+unblocking blocked addresses, return `403` for a key that is not unrestricted.
+A restricted key that blocks an address gets
+`{ "object": "suppression", "address": …, "blocked": true }` back, the same
+either way, so it cannot learn what was already on the list.
 
 ### Something out of reach is a 404, not a 403
 

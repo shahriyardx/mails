@@ -98,7 +98,9 @@ await mail.suppressions.delete("unsubscribed@example.net"); // id or address
 ```
 
 Blocking an already-blocked address is not an error: you get the existing
-entry back. Unblocking one that hard bounced risks your sending reputation.
+entry back. `list` and `delete` need a key that reaches the whole account, and
+a restricted key's `create` returns only `{ object, address, blocked: true }`,
+not the entry. Unblocking one that hard bounced risks your sending reputation.
 See [Blocked addresses](/docs/api/suppressions).
 
 ## Webhooks
