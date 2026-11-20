@@ -271,6 +271,30 @@ func TestAddSuppressionAgainReturnsExactBlock(t *testing.T) {
 	}
 }
 
+// The daily series has a row per day, so the window is capped at 366 days
+// whichever way it is given.
+func TestStatsWindowIsBounded(t *testing.T) {
+	e := setup(t)
+	k := e.key(t, apikey.Input{Scopes: []string{"*"}})
+	for _, c := range []struct {
+		query string
+		want  int
+	}{
+		{"", 200},
+		{"?days=365", 200},
+		{"?days=366", 422},
+		{"?since=2026-01-01&until=2027-01-02", 200},
+		{"?since=2026-01-01&until=2027-01-03", 422},
+		{"?since=1000-01-01", 422},
+		{"?since=2026-02-01&until=2026-01-01", 422},
+		{"?until=2026-01-01", 200},
+	} {
+		if r := e.call(t, k, "GET", "/stats"+c.query, nil); r.code != c.want {
+			t.Errorf("%s: %d, want %d (%s)", c.query, r.code, c.want, r.raw)
+		}
+	}
+}
+
 func TestDomainKeySeesItsDomainWebhook(t *testing.T) {
 	e := setup(t)
 	dom := e.key(t, apikey.Input{Scopes: []string{"webhooks:write"}, Reach: apikey.Reach{DomainIDs: []string{"dom_a"}}})
