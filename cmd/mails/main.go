@@ -17,10 +17,12 @@ import (
 	"github.com/shahriyardx/mails/internal/db"
 	"github.com/shahriyardx/mails/internal/domain"
 	"github.com/shahriyardx/mails/internal/inbound"
+	"github.com/shahriyardx/mails/internal/mail"
 	"github.com/shahriyardx/mails/internal/mailbox"
 	"github.com/shahriyardx/mails/internal/realtime"
 	"github.com/shahriyardx/mails/internal/server"
 	"github.com/shahriyardx/mails/internal/ses"
+	"github.com/shahriyardx/mails/internal/storage"
 	"github.com/shahriyardx/mails/web"
 )
 
@@ -28,6 +30,22 @@ func main() {
 	if err := run(); err != nil {
 		slog.Error("mails stopped", "err", err)
 		os.Exit(1)
+	}
+}
+
+// every runs fn now and then on each tick until ctx ends, logging failures.
+func every(ctx context.Context, d time.Duration, name string, fn func(context.Context) error) {
+	t := time.NewTicker(d)
+	defer t.Stop()
+	for {
+		if err := fn(ctx); err != nil && ctx.Err() == nil {
+			slog.Error(name+" failed", "err", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
 	}
 }
 
@@ -55,7 +73,15 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	var store storage.Store
+	if cfg.R2AccountID != "" && cfg.R2AccessKeyID != "" {
+		store = storage.NewR2(cfg.R2AccountID, cfg.R2AccessKeyID, cfg.R2SecretAccessKey, cfg.R2Bucket)
+	} else {
+		slog.Warn("R2 is not configured: attachments are kept in memory and lost on restart")
+		store = storage.NewMemory()
+	}
 	hub := realtime.NewHub()
+	mailSvc := &mail.Service{DB: pool, Store: store, Hub: hub}
 	deps := &server.Deps{
 		DB:   pool,
 		Cfg:  cfg,
@@ -67,8 +93,9 @@ func run() error {
 		},
 		Mailboxes: &mailbox.Service{DB: pool},
 		Inbound:   &inbound.Service{DB: pool, Hub: hub, Now: time.Now},
+		Mail:      mailSvc,
 	}
-	// Background workers (outbox, webhook retries) start here with ctx.
+	go every(ctx, time.Hour, "sweep staged uploads", mailSvc.SweepStaged)
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
