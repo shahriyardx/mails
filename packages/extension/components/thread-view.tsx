@@ -7,7 +7,16 @@ import type { Theme } from "@/lib/theme";
 import { type ApiMessage, type ApiThread, VIEW_FOLDER, type View } from "@/lib/types";
 import { useMemo, useState } from "react";
 import { EmailFrame } from "./email-frame";
-import { Avatar, Button, EmptyState, Icon, IconButton, LabelChip, Spinner } from "./kit";
+import {
+  Avatar,
+  Button,
+  DeleteButton,
+  EmptyState,
+  Icon,
+  IconButton,
+  LabelChip,
+  Spinner,
+} from "./kit";
 
 /**
  * A conversation, read.
@@ -128,7 +137,7 @@ export function ThreadView({
               label="Mark as spam"
               onClick={() => onPatch({ folder: "spam" })}
             />
-            <IconButton icon="delete" label="Delete" tone="danger" onClick={onTrash} />
+            <DeleteButton forever={view === "trash"} onDelete={onTrash} />
             <IconButton icon="open_in_new" label="Open in Mails" onClick={inApp} />
           </div>
         </div>

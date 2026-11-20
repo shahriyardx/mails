@@ -1,6 +1,6 @@
 import { cx, displayName, rowPerson, shortTime, threadSubject } from "@/lib/format";
 import type { ApiThread, View } from "@/lib/types";
-import { Avatar, Icon, IconButton, LabelChip } from "./kit";
+import { Avatar, DeleteButton, Icon, IconButton, LabelChip } from "./kit";
 
 /**
  * One conversation in the list, shaped like the web app's row: avatar,
@@ -110,13 +110,7 @@ export function ThreadRow({ thread, view, selected, onOpen, onStar, onArchive, o
           {view !== "archive" && view !== "trash" ? (
             <IconButton icon="archive" label="Archive" onClick={onArchive} className="size-7" />
           ) : null}
-          <IconButton
-            icon={view === "trash" ? "delete_forever" : "delete"}
-            label={view === "trash" ? "Delete forever" : "Delete"}
-            tone="danger"
-            onClick={onTrash}
-            className="size-7"
-          />
+          <DeleteButton forever={view === "trash"} onDelete={onTrash} className="size-7" />
         </div>
       )}
     </div>

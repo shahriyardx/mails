@@ -1,6 +1,6 @@
 import { cx, hueFor, initialsFor } from "@/lib/format";
 import type React from "react";
-import { useId } from "react";
+import { useEffect, useId, useState } from "react";
 
 /**
  * The handful of controls the popup is built from.
@@ -139,6 +139,47 @@ export function IconButton({
     >
       <Icon name={icon} size={18} filled={filled} className={cx(spin && "animate-spin")} />
     </button>
+  );
+}
+
+/** How long a first click on "Delete forever" waits for the second. */
+const CONFIRM_MS = 3000;
+
+/**
+ * Delete, or in Trash "Delete forever". That one cannot be undone, so the
+ * first click only arms it and a second within a few seconds goes through.
+ */
+export function DeleteButton({
+  forever,
+  onDelete,
+  className,
+}: {
+  forever: boolean;
+  onDelete: () => void;
+  className?: string;
+}) {
+  const [armed, setArmed] = useState(false);
+
+  useEffect(() => {
+    if (!armed) return;
+    const timer = window.setTimeout(() => setArmed(false), CONFIRM_MS);
+    return () => window.clearTimeout(timer);
+  }, [armed]);
+
+  const click = () => {
+    if (forever && !armed) return setArmed(true);
+    setArmed(false);
+    onDelete();
+  };
+
+  return (
+    <IconButton
+      icon={forever ? "delete_forever" : "delete"}
+      label={!forever ? "Delete" : armed ? "Click again to delete forever" : "Delete forever"}
+      tone="danger"
+      onClick={click}
+      className={cx(className, armed && "bg-destructive-soft text-destructive")}
+    />
   );
 }
 
