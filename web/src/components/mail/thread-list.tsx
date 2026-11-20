@@ -61,6 +61,8 @@ export function ThreadList({
   const [purging, setPurging] = useState<string[] | null>(null);
   const sentinel = useRef<HTMLLIElement>(null);
   const scroller = useRef<HTMLUListElement>(null);
+  // Scrolled away from the top: the header gets a line and a soft shadow.
+  const [scrolled, setScrolled] = useState(false);
 
   const threads = useMemo(() => query.data?.pages.flatMap((page) => page.data) ?? [], [query.data]);
   const filterKey = JSON.stringify(filter);
@@ -127,10 +129,20 @@ export function ThreadList({
         }}
       />
 
-      {header}
+      <div
+        className={cn(
+          "relative z-10 border-b transition-[border-color,box-shadow] duration-150",
+          scrolled
+            ? "border-border shadow-[0_6px_12px_-8px_rgb(0_0_0/0.45)]"
+            : "border-transparent",
+        )}
+      >
+        {header}
+      </div>
 
       <ul
         ref={scroller}
+        onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 2)}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-1 pb-24 md:pb-6"
       >
         {query.isPending &&
