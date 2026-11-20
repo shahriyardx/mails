@@ -68,7 +68,7 @@ export function Sidebar({
                 active={folder === item && !label}
                 onClick={onNavigate}
                 end={
-                  item !== "trash" && item !== "archive" ? (
+                  item === "inbox" || item === "drafts" || item === "spam" ? (
                     <Count value={counts.data?.folders[item] ?? 0} />
                   ) : null
                 }
@@ -79,55 +79,62 @@ export function Sidebar({
           ))}
         </ul>
 
-        <NavGroup title="Mailboxes">
-          <li>
-            <NavRow
-              to={mailHref("all", folder)}
-              active={scope.kind === "all"}
-              onClick={onNavigate}
-              lead={<Square className="border border-muted-foreground" />}
-            >
-              All mailboxes
-            </NavRow>
-          </li>
-          {domains.map(([domain, boxes]) => (
-            <li key={domain}>
-              {domains.length > 1 && (
-                <NavRow
-                  to={mailHref(domain, folder)}
-                  active={scope.kind === "domain" && scope.domain === domain}
+        {/* One mailbox is the same as all of them: nothing to pick. */}
+        {mailboxes.data?.length !== 1 && (
+          <NavGroup title="Mailboxes">
+            <li>
+              <NavRow
+                to={mailHref("all", folder)}
+                active={scope.kind === "all"}
+                onClick={onNavigate}
+                lead={<Square className="border border-muted-foreground" />}
+              >
+                All mailboxes
+              </NavRow>
+            </li>
+            {domains.map(([domain, boxes]) => (
+              <li key={domain}>
+                {domains.length > 1 && (
+                  <NavRow
+                    to={mailHref(domain, folder)}
+                    active={scope.kind === "domain" && scope.domain === domain}
+                    onClick={onNavigate}
+                    lead={<Square className="border border-muted-foreground" />}
+                  >
+                    {domain}
+                  </NavRow>
+                )}
+                <ul className={cn("space-y-px", domains.length > 1 && "pl-4")}>
+                  {boxes.map((box) => (
+                    <li key={box.id}>
+                      <NavRow
+                        to={mailHref(box.id, folder)}
+                        active={scope.kind === "mailbox" && scope.id === box.id}
+                        onClick={onNavigate}
+                        lead={<Square color={box.color} />}
+                        end={<Count value={unread[box.id] ?? 0} />}
+                      >
+                        {domains.length > 1 ? `${box.address.split("@")[0]}@` : box.address}
+                      </NavRow>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+            {mailboxes.data?.length === 0 && (
+              <li className="px-2.5 py-1.5 text-[13px] text-muted-foreground">
+                None yet.{" "}
+                <Link
+                  to="/settings/mailboxes"
+                  className="text-accent underline"
                   onClick={onNavigate}
-                  lead={<Square className="border border-muted-foreground" />}
                 >
-                  {domain}
-                </NavRow>
-              )}
-              <ul className={cn("space-y-px", domains.length > 1 && "pl-4")}>
-                {boxes.map((box) => (
-                  <li key={box.id}>
-                    <NavRow
-                      to={mailHref(box.id, folder)}
-                      active={scope.kind === "mailbox" && scope.id === box.id}
-                      onClick={onNavigate}
-                      lead={<Square color={box.color} />}
-                      end={<Count value={unread[box.id] ?? 0} />}
-                    >
-                      {domains.length > 1 ? `${box.address.split("@")[0]}@` : box.address}
-                    </NavRow>
-                  </li>
-                ))}
-              </ul>
-            </li>
-          ))}
-          {mailboxes.data?.length === 0 && (
-            <li className="px-2.5 py-1.5 text-[13px] text-muted-foreground">
-              None yet.{" "}
-              <Link to="/settings/mailboxes" className="text-accent underline" onClick={onNavigate}>
-                Add one
-              </Link>
-            </li>
-          )}
-        </NavGroup>
+                  Add one
+                </Link>
+              </li>
+            )}
+          </NavGroup>
+        )}
 
         {(labels.data?.length ?? 0) > 0 && (
           <NavGroup title="Labels">
