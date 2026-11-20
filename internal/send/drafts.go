@@ -22,6 +22,7 @@ func (s *Service) SaveDraft(ctx context.Context, in Input) (*Result, error) {
 	}
 	msgID, threadID := in.DraftID, p.thread
 	var current string // the draft's thread before this save
+	var dropped []string
 	err = pgx.BeginFunc(ctx, s.DB, func(tx pgx.Tx) error {
 		if msgID != "" {
 			err := tx.QueryRow(ctx, `SELECT thread_id FROM message WHERE id = $1 AND is_draft FOR UPDATE`, msgID).Scan(&current)
@@ -69,10 +70,8 @@ func (s *Service) SaveDraft(ctx context.Context, in Input) (*Result, error) {
 				return fmt.Errorf("update draft: %w", err)
 			}
 		}
-		if len(p.staged) > 0 {
-			if _, err := tx.Exec(ctx, `UPDATE attachment SET message_id = $1 WHERE id = ANY($2)`, msgID, p.staged); err != nil {
-				return fmt.Errorf("attach draft files: %w", err)
-			}
+		if err := attachFiles(ctx, tx, msgID, true, p.staged, &dropped); err != nil {
+			return err
 		}
 		// A draft moved to another thread leaves its old one to recount
 		// (Recompute deletes it if nothing is left).
@@ -86,6 +85,7 @@ func (s *Service) SaveDraft(ctx context.Context, in Input) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
+	s.forgetFiles(dropped)
 	s.Hub.Publish(realtime.Event{Type: "thread.updated", Data: map[string]any{"thread_ids": []string{threadID}}})
 	return &Result{ID: msgID, ThreadID: threadID, From: p.box.Address, To: addr.Addresses(in.To), Subject: in.Subject, Status: "draft"}, nil
 }

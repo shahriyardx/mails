@@ -43,7 +43,7 @@ export function Component() {
           variant="primary"
           size="lg"
           block
-          render={<a href="/api/auth/github" />}
+          render={<a href={signInHref(params.get("next"))} />}
           nativeButton={false}
         >
           Continue with GitHub
@@ -51,4 +51,11 @@ export function Component() {
       </Card>
     </main>
   );
+}
+
+/** The GitHub sign-in link, carrying where to return to (the server checks it). */
+function signInHref(next: string | null) {
+  return next?.startsWith("/") && !next.startsWith("//")
+    ? `/api/auth/github?next=${encodeURIComponent(next)}`
+    : "/api/auth/github";
 }

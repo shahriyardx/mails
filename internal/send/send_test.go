@@ -371,3 +371,28 @@ func TestRefusedDraftStaysADraft(t *testing.T) {
 		t.Fatal("refused send left the draft claimed")
 	}
 }
+
+func TestDraftFileListIsAuthoritative(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	m := &mail.Service{DB: e.pool, Store: e.store}
+	a, _ := m.Stage(ctx, "keep.txt", "text/plain", strings.NewReader("K"))
+	b, _ := m.Stage(ctx, "drop.txt", "text/plain", strings.NewReader("D"))
+	d, err := e.s.SaveDraft(ctx, send.Input{From: "me@a.test", Text: "x", AttachmentIDs: []string{a.ID, b.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.s.SaveDraft(ctx, send.Input{From: "me@a.test", Text: "x", DraftID: d.ID, AttachmentIDs: []string{a.ID}}); err != nil {
+		t.Fatal(err)
+	}
+	if e.store.Has(b.R2Key) {
+		t.Fatal("removed file still stored")
+	}
+	if _, err := e.s.Send(ctx, send.Input{From: "me@a.test", To: to("x@b.test"), Text: "x", DraftID: d.ID, AttachmentIDs: []string{a.ID}}); err != nil {
+		t.Fatal(err)
+	}
+	raw := string(e.ses.Sent[0].Raw)
+	if !strings.Contains(raw, "keep.txt") || strings.Contains(raw, "drop.txt") {
+		t.Fatal("sent files do not match the list")
+	}
+}

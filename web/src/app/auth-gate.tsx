@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import { Navigate, Outlet } from "react-router";
+import { Navigate, Outlet, useLocation } from "react-router";
 import { Button, EmptyState, Logo } from "@/components/kit";
 import { ComposerProvider } from "@/components/mail/composer-provider";
 import { errorMessage, useAuthStatus, useLiveUpdates } from "@/lib/api";
@@ -29,6 +29,7 @@ export function Splash() {
  */
 export function AuthGate() {
   const status = useAuthStatus();
+  const location = useLocation();
   const owner = status.data?.owner ?? null;
   useLiveUpdates(Boolean(owner));
 
@@ -47,7 +48,15 @@ export function AuthGate() {
   }
   // ponytail: the page asked for is not carried through sign-in (the Go
   // callback always lands on /); add a ?next round trip if deep links need it.
-  if (!owner) return <Navigate to="/sign-in" replace />;
+  if (!owner) {
+    const next = location.pathname + location.search;
+    return (
+      <Navigate
+        to={next === "/" ? "/sign-in" : `/sign-in?next=${encodeURIComponent(next)}`}
+        replace
+      />
+    );
+  }
   return (
     <OwnerContext.Provider value={owner}>
       <ComposerProvider>

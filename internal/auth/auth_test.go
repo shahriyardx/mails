@@ -84,3 +84,19 @@ func TestResetOwnerLetsNextAccountClaim(t *testing.T) {
 		t.Fatalf("claim after reset: %v", err)
 	}
 }
+
+func TestSafeNext(t *testing.T) {
+	for next, want := range map[string]bool{
+		"/mail/all/inbox?t=thr_1": true,
+		"":                        false,
+		"https://evil.test":       false,
+		"//evil.test":             false,
+		"/\\evil.test":            false,
+		"/\t/evil.test":           false,
+		"/api/auth/github":        false,
+	} {
+		if got := auth.SafeNext(next); got != want {
+			t.Errorf("SafeNext(%q) = %v", next, got)
+		}
+	}
+}

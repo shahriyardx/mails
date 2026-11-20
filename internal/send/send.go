@@ -291,7 +291,7 @@ func (s *Service) prepare(ctx context.Context, in *Input, draft bool) (*prepared
 	if p.thread, err = s.ownThread(ctx, threadID, box.ID); err != nil {
 		return nil, err
 	}
-	if err := s.loadFiles(ctx, p); err != nil {
+	if err := s.loadFiles(ctx, p, draft); err != nil {
 		return nil, err
 	}
 	p.html, p.text = in.HTML, in.Text
@@ -351,7 +351,7 @@ func (s *Service) ownThread(ctx context.Context, threadID, mailboxID string) (st
 // loadFiles reads every file the message carries: inline API uploads,
 // staged uploads, files already on the draft, and files of a message the
 // caller reaches (forwarding).
-func (s *Service) loadFiles(ctx context.Context, p *prepared) error {
+func (s *Service) loadFiles(ctx context.Context, p *prepared, draft bool) error {
 	in := p.in
 	for i, u := range in.Attachments {
 		content := u.Content
@@ -373,16 +373,9 @@ func (s *Service) loadFiles(ctx context.Context, p *prepared) error {
 		MessageID                        *string
 		MailboxID                        *string
 	}
-	var ids []string
-	ids = append(ids, in.AttachmentIDs...)
-	if in.DraftID != "" {
-		rows, _ := s.DB.Query(ctx, `SELECT id FROM attachment WHERE message_id = $1`, in.DraftID)
-		onDraft, err := pgx.CollectRows(rows, pgx.RowTo[string])
-		if err != nil {
-			return fmt.Errorf("draft files: %w", err)
-		}
-		ids = append(ids, onDraft...)
-	}
+	// attachment_ids is the whole list: a file of the draft that is not
+	// named was removed by the composer and is dropped on save or send.
+	ids := in.AttachmentIDs
 	if len(ids) == 0 {
 		return nil
 	}
@@ -407,6 +400,11 @@ func (s *Service) loadFiles(ctx context.Context, p *prepared) error {
 			// (deleting either message must not break the other).
 		default:
 			return httpx.Invalid("attachment_ids", "attachment_ids: One or more files do not exist")
+		}
+		if draft {
+			// A draft only records which files it holds; bytes are read when
+			// it is sent. A forwarded file is copied then too.
+			continue
 		}
 		obj, err := s.Store.Get(ctx, a.R2Key)
 		if err != nil {
@@ -449,6 +447,7 @@ func (s *Service) record(ctx context.Context, p *prepared, status, sesID, reason
 	if status == "sent" {
 		sentAt = &now
 	}
+	var dropped []string
 	err := pgx.BeginFunc(ctx, s.DB, func(tx pgx.Tx) error {
 		if threadID == "" {
 			threadID = id.New("thr")
@@ -482,10 +481,8 @@ func (s *Service) record(ctx context.Context, p *prepared, status, sesID, reason
 			args...); err != nil {
 			return fmt.Errorf("insert message: %w", err)
 		}
-		if len(p.staged) > 0 {
-			if _, err := tx.Exec(ctx, `UPDATE attachment SET message_id = $1 WHERE id = ANY($2)`, msgID, p.staged); err != nil {
-				return fmt.Errorf("attach staged files: %w", err)
-			}
+		if err := attachFiles(ctx, tx, msgID, p.in.DraftID != "", p.staged, &dropped); err != nil {
+			return err
 		}
 		for _, c := range p.copies {
 			if _, err := tx.Exec(ctx, `INSERT INTO attachment (id, message_id, filename, content_type, size_bytes, r2_key, content_id, is_inline)
@@ -517,11 +514,44 @@ func (s *Service) record(ctx context.Context, p *prepared, status, sesID, reason
 		s.dropCopies(p.copies)
 		return nil, err
 	}
+	s.forgetFiles(dropped)
 	s.Hub.Publish(realtime.Event{Type: "thread.updated", Data: map[string]any{"thread_ids": []string{threadID}}})
 	return &Result{
 		ID: msgID, MessageID: "<" + p.rfcID + ">", SESMessageID: sesPtr, ThreadID: threadID, From: p.box.Address,
 		To: addr.Addresses(p.in.To), Subject: p.in.Subject, Status: status, Error: reasonPtr,
 	}, nil
+}
+
+// attachFiles moves staged files onto msgID. For a draft, files it held
+// that are no longer listed are deleted; their stored keys are appended to
+// dropped for removal after commit.
+func attachFiles(ctx context.Context, tx pgx.Tx, msgID string, isDraft bool, keep []string, dropped *[]string) error {
+	if len(keep) > 0 {
+		if _, err := tx.Exec(ctx, `UPDATE attachment SET message_id = $1 WHERE id = ANY($2)`, msgID, keep); err != nil {
+			return fmt.Errorf("attach files: %w", err)
+		}
+	}
+	if !isDraft {
+		return nil
+	}
+	rows, _ := tx.Query(ctx, `DELETE FROM attachment WHERE message_id = $1 AND NOT (id = ANY($2)) RETURNING r2_key`, msgID, nonNil(keep))
+	keys, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return fmt.Errorf("drop removed files: %w", err)
+	}
+	*dropped = append(*dropped, keys...)
+	return nil
+}
+
+// forgetFiles deletes stored files no row points at any more. Best effort:
+// a failure leaves an orphan object, never a broken message.
+func (s *Service) forgetFiles(keys []string) {
+	if len(keys) == 0 {
+		return
+	}
+	if err := s.Store.Delete(context.Background(), keys...); err != nil {
+		slog.Warn("delete removed files", "err", err)
+	}
 }
 
 func (s *Service) dropCopies(copies []storedCopy) {

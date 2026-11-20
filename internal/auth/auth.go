@@ -30,6 +30,7 @@ import (
 const (
 	userKey  = "user_id"
 	stateKey = "oauth_state"
+	nextKey  = "after_sign_in"
 )
 
 // ErrTaken is returned when a GitHub account other than the owner signs in.
@@ -95,6 +96,9 @@ func (a *Auth) Routes() http.Handler {
 func (a *Auth) start(w http.ResponseWriter, r *http.Request) {
 	state := id.Token(16)
 	a.Sessions.Put(r.Context(), stateKey, state)
+	if next := r.URL.Query().Get("next"); SafeNext(next) {
+		a.Sessions.Put(r.Context(), nextKey, next)
+	}
 	http.Redirect(w, r, a.OAuth.AuthCodeURL(state), http.StatusFound)
 }
 
@@ -138,7 +142,19 @@ func (a *Auth) callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.Sessions.Put(ctx, userKey, userID)
-	http.Redirect(w, r, "/", http.StatusFound)
+	next := a.Sessions.PopString(ctx, nextKey)
+	if !SafeNext(next) {
+		next = "/"
+	}
+	http.Redirect(w, r, next, http.StatusFound)
+}
+
+// SafeNext reports whether next is a path on this site to return to after
+// sign-in: it must start with one slash and carry no scheme, host or
+// backslash, so it cannot send the browser elsewhere.
+func SafeNext(next string) bool {
+	return strings.HasPrefix(next, "/") && !strings.HasPrefix(next, "//") &&
+		!strings.ContainsAny(next, "\\\t\r\n") && !strings.HasPrefix(next, "/api/") && len(next) <= 2000
 }
 
 // Claim signs gh in. With no owner yet, gh becomes the owner. With an owner,
