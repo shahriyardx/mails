@@ -573,10 +573,8 @@ func (s *Service) record(ctx context.Context, p *prepared, status, sesID, reason
 				return fmt.Errorf("enqueue: %w", err)
 			}
 		}
-		for _, a := range append(append([]addr.Address{}, p.in.To...), p.in.Cc...) {
-			if err := mail.TouchContact(ctx, tx, a); err != nil {
-				return err
-			}
+		if err := mail.TouchContacts(ctx, tx, append(append([]addr.Address{}, p.in.To...), p.in.Cc...)); err != nil {
+			return err
 		}
 		if p.draftThread != "" && p.draftThread != threadID {
 			if err := mail.Recompute(ctx, tx, p.draftThread); err != nil {
