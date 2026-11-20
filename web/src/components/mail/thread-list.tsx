@@ -83,9 +83,11 @@ export function ThreadList({
     return () => observer.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  const ids = [...selected];
-  const some = selected.size > 0;
-  const all = threads.length > 0 && selected.size === threads.length;
+  // Only threads still in the list: a picked thread can leave it (a row
+  // action, a live update) and must not be hit by a bulk action.
+  const ids = threads.filter((t) => selected.has(t.id)).map((t) => t.id);
+  const some = ids.length > 0;
+  const all = threads.length > 0 && ids.length === threads.length;
   const from = movableFolder(folder);
   const unreadIds =
     folder === "sent" ? [] : threads.filter((t) => t.unread_count > 0).map((t) => t.id);
@@ -234,7 +236,7 @@ export function ThreadList({
             className="mx-2.5"
           />
           <span className="mr-1 font-mono text-xs text-muted-foreground tabular-nums">
-            {selected.size}
+            {ids.length}
           </span>
           <Bulk
             icon="mark_email_read"
