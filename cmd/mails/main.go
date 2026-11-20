@@ -40,6 +40,13 @@ import (
 )
 
 func main() {
+	if handled, err := command(os.Args[1:]); handled {
+		if err != nil {
+			slog.Error("command failed", "err", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if err := run(); err != nil {
 		slog.Error("mails stopped", "err", err)
 		os.Exit(1)

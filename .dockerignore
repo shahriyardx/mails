@@ -1,0 +1,11 @@
+.git
+.env
+.env.*
+**/node_modules
+web/dist/*
+!web/dist/.keep
+packages
+worker/node_modules
+worker/.wrangler
+.claude
+specs
