@@ -181,7 +181,7 @@ function AfterDelete({ mailbox }: { mailbox: Mailbox }) {
     (d) => d.id === mailbox.domain_id || d.name === mailbox.domain,
   );
   return domain?.auto_create_mailboxes
-    ? "Mail sent to this address afterwards goes to the catch-all. Without one, the domain's \"Capture every address\" makes this mailbox again, empty, on the next message."
+    ? 'Mail sent to this address afterwards goes to the catch-all. Without one, the domain\'s "Capture every address" makes this mailbox again, empty, on the next message.'
     : "Mail sent to this address afterwards goes to the catch-all, or is dropped if there is none.";
 }
 

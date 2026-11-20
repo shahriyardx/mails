@@ -90,9 +90,9 @@ describe("edit forms keep the typed edit when the save fails", () => {
     await act(async () => button("Save").click());
 
     expect(update.mutate).toHaveBeenCalledTimes(1);
-    expect(document.querySelector<HTMLInputElement>('input[placeholder="Newsletters"]')?.value).toBe(
-      "Taken",
-    );
+    expect(
+      document.querySelector<HTMLInputElement>('input[placeholder="Newsletters"]')?.value,
+    ).toBe("Taken");
   });
 
   it("mailbox editor", async () => {

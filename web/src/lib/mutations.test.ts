@@ -10,6 +10,21 @@ import type { Preferences } from "./types";
 
 afterEach(() => vi.unstubAllGlobals());
 
+// Renders a hook under client and returns what it gave back.
+function Run({ hook, into }: { hook: () => unknown; into: { current?: unknown } }) {
+  into.current = hook();
+  return null;
+}
+async function mount<T>(client: QueryClient, hook: () => T) {
+  const into: { current?: unknown } = {};
+  await act(async () => {
+    createRoot(document.createElement("div")).render(
+      createElement(QueryClientProvider, { client }, createElement(Run, { hook, into })),
+    );
+  });
+  return into as { current: T };
+}
+
 describe("useSavePreferences", () => {
   it("does not paint an older answer while a newer save is pending", async () => {
     // Each PATCH waits until the test answers it with what it saved.
@@ -31,20 +46,11 @@ describe("useSavePreferences", () => {
     );
     const client = new QueryClient();
     client.setQueryData(keys.preferences, { theme: "dark" } as Preferences);
-    const hook: { current?: ReturnType<typeof useSavePreferences> } = {};
-    function Grab() {
-      hook.current = useSavePreferences();
-      return null;
-    }
-    await act(async () => {
-      createRoot(document.createElement("div")).render(
-        createElement(QueryClientProvider, { client }, createElement(Grab)),
-      );
-    });
+    const hook = await mount(client, useSavePreferences);
     const theme = () => client.getQueryData<Preferences>(keys.preferences)?.theme;
 
-    await act(async () => hook.current!.mutate({ theme: "light" }));
-    await act(async () => hook.current!.mutate({ theme: "dark" }));
+    await act(async () => hook.current.mutate({ theme: "light" }));
+    await act(async () => hook.current.mutate({ theme: "dark" }));
     expect(theme()).toBe("dark");
 
     await act(async () => answers[0]!()); // the first answer: "light"
@@ -56,27 +62,21 @@ describe("useSavePreferences", () => {
 
 describe("deleting a domain or webhook", () => {
   it.each([
-    ["removing a domain (its webhooks go too)", () => useRemoveDomain(), { id: "dom_1" }],
-    ["deleting a webhook", () => useDeleteWebhook(), "wh_1"],
-  ] as const)("%s refreshes webhooks and their deliveries", async (_, use, vars) => {
+    ["removing a domain (its webhooks go too)", useRemoveDomain, { id: "dom_1" }],
+    ["deleting a webhook", useDeleteWebhook, "wh_1"],
+  ] as const)("%s refreshes webhooks and their deliveries", async (_, useHook, vars) => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response(null, { status: 204 })),
     );
     const client = new QueryClient();
     const spy = vi.spyOn(client, "invalidateQueries");
-    const hook: { current?: { mutateAsync: (vars: never) => Promise<unknown> } } = {};
-    function Grab() {
-      hook.current = use() as never;
-      return null;
-    }
+    const hook = await mount(
+      client,
+      useHook as () => { mutateAsync: (vars: never) => Promise<unknown> },
+    );
     await act(async () => {
-      createRoot(document.createElement("div")).render(
-        createElement(QueryClientProvider, { client }, createElement(Grab)),
-      );
-    });
-    await act(async () => {
-      await hook.current!.mutateAsync(vars as never);
+      await hook.current.mutateAsync(vars as never);
     });
     const invalidated = spy.mock.calls.map(([filters]) => filters?.queryKey);
     expect(invalidated).toContainEqual(["webhooks"]);

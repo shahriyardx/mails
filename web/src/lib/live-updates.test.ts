@@ -28,14 +28,15 @@ afterEach(() => {
   FakeSource.all = [];
 });
 
+function Live() {
+  useLiveUpdates(true);
+  return null;
+}
+
 describe("useLiveUpdates", () => {
   it("opens a new stream after the browser gives up on one", async () => {
     vi.useFakeTimers();
     vi.stubGlobal("EventSource", FakeSource);
-    function Live() {
-      useLiveUpdates(true);
-      return null;
-    }
     const root = createRoot(document.createElement("div"));
     await act(async () => {
       root.render(

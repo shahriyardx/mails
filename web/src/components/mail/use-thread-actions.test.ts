@@ -22,13 +22,14 @@ const { useThreadActions } = await import("./use-thread-actions");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+const hook: { current?: ReturnType<typeof useThreadActions> } = {};
+function Grab() {
+  hook.current = useThreadActions();
+  return null;
+}
+
 describe("useThreadActions", () => {
   it("keeps every toast when actions overlap", async () => {
-    const hook: { current?: ReturnType<typeof useThreadActions> } = {};
-    function Grab() {
-      hook.current = useThreadActions();
-      return null;
-    }
     await act(async () => {
       createRoot(document.createElement("div")).render(
         createElement(QueryClientProvider, { client: new QueryClient() }, createElement(Grab)),
