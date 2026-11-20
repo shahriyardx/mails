@@ -2,6 +2,7 @@ package mail_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -434,5 +435,25 @@ func TestSharedFilesSurviveDeletingOneCopy(t *testing.T) {
 				t.Fatal("files not deleted after the last copy went")
 			}
 		})
+	}
+}
+
+// A single message always carries its file and event lists, empty or not,
+// as the API docs show.
+func TestMessageListsSerializeEmpty(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	th := e.receive(t, "one@a.test", "x@b.test", "hi")
+	var id string
+	_ = e.pool.QueryRow(ctx, `SELECT id FROM message WHERE thread_id = $1`, th).Scan(&id)
+	m, err := e.s.GetMessage(ctx, nil, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(m)
+	for _, want := range []string{`"attachments":[]`, `"events":[]`} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("message JSON lacks %s: %s", want, b)
+		}
 	}
 }
