@@ -125,10 +125,6 @@ function Connect() {
 
   return (
     <div className="space-y-10">
-      <p className="text-[13px] leading-relaxed text-soft-foreground">
-        Mail reaches Mails through a Cloudflare Email Worker. With an API token, Mails deploys the
-        worker and points your domains at it. No wrangler needed.
-      </p>
       <Section
         title="1. Create a token with these permissions"
         action={
@@ -150,7 +146,6 @@ function Connect() {
         <form onSubmit={submit} className="flex flex-col gap-2 sm:flex-row sm:items-start">
           <Field
             className="flex-1"
-            label={<span className="sr-only">API token</span>}
             description="Encrypted before it is stored. Revoke it in Cloudflare any time."
           >
             <Input
@@ -158,6 +153,7 @@ function Connect() {
               value={token}
               onChange={(event) => setToken(event.target.value)}
               placeholder="Cloudflare API token"
+              aria-label="API token"
               autoComplete="off"
               className="font-mono"
             />

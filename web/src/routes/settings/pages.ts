@@ -26,7 +26,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
   {
     path: "domains",
     title: "Domains",
-    description: "The domains you send from, as Amazon SES identities, and their DNS records.",
+    description: "Domains you send from.",
     icon: "language",
     group: "Sending",
     load: () => import("./domains"),
@@ -34,7 +34,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
   {
     path: "mailboxes",
     title: "Mailboxes",
-    description: "The addresses that send and receive mail, with their names and signatures.",
+    description: "Addresses that send and receive mail.",
     icon: "alternate_email",
     group: "Sending",
     load: () => import("./mailboxes"),
@@ -42,7 +42,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
   {
     path: "inbound",
     title: "Inbound",
-    description: "How mail reaches Mails: the Cloudflare Email Worker and its routing.",
+    description: "Receive mail through Cloudflare.",
     icon: "move_to_inbox",
     group: "Receiving",
     load: () => import("./inbound"),
@@ -50,7 +50,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
   {
     path: "forwarding",
     title: "Forwarding",
-    description: "Copies of incoming mail sent on to other inboxes.",
+    description: "Send copies of incoming mail elsewhere.",
     icon: "forward_to_inbox",
     group: "Receiving",
     load: () => import("./forwarding"),
@@ -58,7 +58,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
   {
     path: "labels",
     title: "Labels",
-    description: "Tags you put on conversations to find them again.",
+    description: "Tags for conversations.",
     icon: "label",
     group: "Mail",
     load: () => import("./labels"),
@@ -66,7 +66,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
   {
     path: "filters",
     title: "Filters",
-    description: "Rules that sort incoming mail as it arrives.",
+    description: "Sort incoming mail automatically.",
     icon: "filter_alt",
     group: "Mail",
     load: () => import("./filters"),
@@ -74,7 +74,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
   {
     path: "notifications",
     title: "Notifications",
-    description: "Push notifications for new mail on this device.",
+    description: "New mail alerts on this device.",
     icon: "notifications",
     group: "Alerts",
     load: () => import("./notifications"),
@@ -82,7 +82,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
   {
     path: "reporting",
     title: "Reporting",
-    description: "Delivery, bounce and complaint events from Amazon SES.",
+    description: "Delivery and bounce events from SES.",
     icon: "bar_chart",
     group: "Alerts",
     load: () => import("./reporting"),
@@ -90,7 +90,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
   {
     path: "blocked",
     title: "Blocked addresses",
-    description: "Addresses Mails will not send to after a bounce or complaint.",
+    description: "Addresses Mails will not send to.",
     icon: "block",
     group: "Alerts",
     load: () => import("./blocked"),
@@ -98,7 +98,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
   {
     path: "api-keys",
     title: "API keys",
-    description: "Keys for the REST API and the Node SDK, each with its own scopes.",
+    description: "Keys for the API and SDK.",
     icon: "key",
     group: "Developers",
     load: () => import("./api-keys"),
@@ -106,7 +106,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
   {
     path: "webhooks",
     title: "Webhooks",
-    description: "Signed HTTP calls to your endpoints when mail events happen.",
+    description: "Get told when mail events happen.",
     icon: "webhook",
     group: "Developers",
     load: () => import("./webhooks"),
@@ -114,7 +114,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
   {
     path: "logs",
     title: "Logs",
-    description: "Every message sent and every delivery event, newest first.",
+    description: "Every send and delivery event.",
     icon: "list_alt",
     group: "Developers",
     load: () => import("./logs"),
@@ -122,7 +122,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
   {
     path: "overview",
     title: "Overview",
-    description: "How sending is going at a glance.",
+    description: "Sending at a glance.",
     icon: "dashboard",
     group: "Insights",
     load: () => import("./overview"),
@@ -130,7 +130,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
   {
     path: "metrics",
     title: "Metrics",
-    description: "Sends, deliveries, bounces and opens over time.",
+    description: "Sends and bounces over time.",
     icon: "monitoring",
     group: "Insights",
     load: () => import("./metrics"),
@@ -138,7 +138,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
   {
     path: "account",
     title: "Account",
-    description: "The GitHub account that owns this Mails, and your sessions.",
+    description: "Your GitHub sign-in and sessions.",
     icon: "account_circle",
     group: "You",
     load: () => import("./account"),
@@ -146,7 +146,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
   {
     path: "appearance",
     title: "Preferences",
-    description: "Theme, density and how conversations open.",
+    description: "Theme and layout.",
     icon: "palette",
     group: "You",
     load: () => import("./appearance"),
@@ -154,7 +154,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
   {
     path: "setup",
     title: "Setup",
-    description: "The first-run checklist: what is done and what is left.",
+    description: "What is set up and what is left.",
     icon: "done_all",
     group: "You",
     load: () => import("./setup"),
