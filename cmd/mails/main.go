@@ -15,6 +15,7 @@ import (
 	"github.com/shahriyardx/mails/internal/auth"
 	"github.com/shahriyardx/mails/internal/config"
 	"github.com/shahriyardx/mails/internal/db"
+	"github.com/shahriyardx/mails/internal/delivery"
 	"github.com/shahriyardx/mails/internal/domain"
 	"github.com/shahriyardx/mails/internal/inbound"
 	"github.com/shahriyardx/mails/internal/mail"
@@ -101,6 +102,8 @@ func run() error {
 		Inbound:   &inbound.Service{DB: pool, Hub: hub, Now: time.Now},
 		Mail:      mailSvc,
 		Send:      sender,
+		Delivery:  &delivery.Service{DB: pool, SES: sesClient, Hub: hub, Now: time.Now},
+		SNS:       &delivery.Verifier{HTTP: &http.Client{Timeout: 10 * time.Second}},
 	}
 	go every(ctx, time.Hour, "sweep staged uploads", mailSvc.SweepStaged)
 	if cfg.OutboxWorker {

@@ -23,6 +23,7 @@ import (
 
 	"github.com/shahriyardx/mails/internal/auth"
 	"github.com/shahriyardx/mails/internal/config"
+	"github.com/shahriyardx/mails/internal/delivery"
 	"github.com/shahriyardx/mails/internal/domain"
 	"github.com/shahriyardx/mails/internal/httpx"
 	"github.com/shahriyardx/mails/internal/inbound"
@@ -44,6 +45,8 @@ type Deps struct {
 	Inbound   *inbound.Service
 	Mail      *mail.Service
 	Send      *send.Service
+	Delivery  *delivery.Service
+	SNS       *delivery.Verifier
 }
 
 // New builds the router. web is the built React app (web/dist).
@@ -58,7 +61,7 @@ func New(d *Deps, web fs.FS) http.Handler {
 
 		// Machine callers: no session cookie involved.
 		api.Method("POST", "/inbound", inbound.Handler(d.Inbound, d.Cfg.InboundSecret))
-		// api.Post("/ses/events", ...)   delivery.SNSHandler
+		api.Method("POST", "/ses/events", delivery.SNSHandler(d.Delivery, d.SNS, d.Cfg.SESSNSTopicARN))
 
 		// Everything that reads or writes the session cookie.
 		api.Group(func(s chi.Router) {
@@ -75,7 +78,7 @@ func New(d *Deps, web fs.FS) http.Handler {
 					}))
 					app.Mount("/domains", domain.Routes(d.Domains))
 					app.Mount("/mailboxes", mailbox.Routes(d.Mailboxes))
-					app.Mount("/", chiJoin(mail.Routes(d.Mail), send.Routes(d.Send)))
+					app.Mount("/", chiJoin(mail.Routes(d.Mail), send.Routes(d.Send), delivery.Routes(d.Delivery)))
 				})
 			})
 			// api.Mount("/v1", apiv1.Routes(d))  API key or owner session
