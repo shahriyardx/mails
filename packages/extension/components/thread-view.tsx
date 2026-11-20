@@ -252,9 +252,9 @@ function MessagePanel({
   const prepared = useMemo(() => {
     if (message.html?.trim()) return prepareEmail(message.html, { showRemoteImages: showImages });
     if (message.text?.trim()) {
-      return { html: textToHtml(message.text), remoteImages: 0, blockedImages: 0 };
+      return { html: textToHtml(message.text), blockedImages: 0 };
     }
-    return { html: "", remoteImages: 0, blockedImages: 0 };
+    return { html: "", blockedImages: 0 };
   }, [message.html, message.text, showImages]);
 
   const attachments = (message.attachments ?? []).filter((file) => !file.is_inline);
@@ -321,7 +321,7 @@ function MessagePanel({
           ) : null}
 
           {prepared.html ? (
-            <EmailFrame html={prepared.html} dark={dark} />
+            <EmailFrame html={prepared.html} dark={dark} allowRemote={showImages} />
           ) : (
             <div className="text-[12.5px] italic text-muted-foreground">
               This message has no body.

@@ -1,12 +1,5 @@
 import PostalMime, { type Address, type Attachment } from "postal-mime";
-import {
-  headerValues,
-  parseAuthResults,
-  parseMailedBy,
-  parseSignedBy,
-  parseSpamScore,
-  parseTls,
-} from "./headers";
+import { readAuth } from "./headers";
 
 export interface Env {
   ATTACHMENTS: R2Bucket;
@@ -24,6 +17,12 @@ export interface Env {
    * Routing.
    */
   FORWARD_TO?: string;
+  /**
+   * "true" only after checking (raw .eml in R2) that this zone's Email
+   * Routing stamps "Authentication-Results: mx.cloudflare.net" on top of
+   * every message. Otherwise auth, mailedBy, signedBy and tls are all null.
+   */
+  TRUST_AUTH_RESULTS?: string;
 }
 
 interface StoredAttachment {
@@ -152,7 +151,11 @@ export default {
     }
 
     const attachments = await storeAttachments(env, messageKey, parsed.attachments ?? []);
-    const auth = parseAuthResults(headerValues(headers, "authentication-results"));
+    const { auth, mailedBy, signedBy, tls } = readAuth(headers, {
+      trusted: env.TRUST_AUTH_RESULTS === "true",
+      envelopeFrom: message.from,
+      fromAddress: parsed.from?.address ?? message.from,
+    });
 
     const payload = {
       email: {
@@ -178,10 +181,12 @@ export default {
         sizeBytes: rawBuffer.byteLength,
         rawKey,
         auth,
-        spamScore: parseSpamScore(headers),
-        mailedBy: parseMailedBy(headers),
-        signedBy: parseSignedBy(headers, parsed.from?.address ?? message.from),
-        tls: parseTls(headers),
+        // X-Spam-* headers are written by whoever sent the message and
+        // Cloudflare adds none, so there is no score worth trusting.
+        spamScore: null,
+        mailedBy,
+        signedBy,
+        tls,
       },
       attachments,
     };
