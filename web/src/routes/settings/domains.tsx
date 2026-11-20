@@ -261,7 +261,7 @@ function DomainItem({ domain, nested }: { domain: Domain; nested?: boolean }) {
         onOpenChange={setRemoving}
         title={`Remove ${domain.name}?`}
         description="Mail can no longer be sent from any address on it."
-        consequences="Mailboxes on this domain and their mail are kept, but they stop sending. API sends from it start failing."
+        consequences="Mailboxes on this domain and their mail are kept, but they stop sending. API sends from it start failing. Webhooks for this domain are deleted."
         phrase={domain.name}
         confirmLabel="Remove domain"
         onConfirm={async () => {

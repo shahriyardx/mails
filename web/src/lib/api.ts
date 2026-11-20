@@ -581,7 +581,11 @@ export function useRemoveDomain() {
         method: "DELETE",
         query: { delete_in_ses: deleteInSes || undefined },
       }),
-    onSettled: () => afterDomainsChange(client),
+    onSettled: () => {
+      afterDomainsChange(client);
+      // The domain's webhooks (and their deliveries) go with it.
+      invalidate(client, ["webhooks"], ["webhook-deliveries"]);
+    },
   });
 }
 
@@ -986,7 +990,7 @@ export function useDeleteWebhook() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api(`/api/app/webhooks/${id}`, { method: "DELETE" }),
-    onSettled: () => client.invalidateQueries({ queryKey: ["webhooks"] }),
+    onSettled: () => invalidate(client, ["webhooks"], ["webhook-deliveries"]),
   });
 }
 

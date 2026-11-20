@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { keys, useSavePreferences } from "./api";
+import { keys, useDeleteWebhook, useRemoveDomain, useSavePreferences } from "./api";
 import type { Preferences } from "./types";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -51,5 +51,35 @@ describe("useSavePreferences", () => {
     expect(theme()).toBe("dark");
     await act(async () => answers[1]!());
     expect(theme()).toBe("dark");
+  });
+});
+
+describe("deleting a domain or webhook", () => {
+  it.each([
+    ["removing a domain (its webhooks go too)", () => useRemoveDomain(), { id: "dom_1" }],
+    ["deleting a webhook", () => useDeleteWebhook(), "wh_1"],
+  ] as const)("%s refreshes webhooks and their deliveries", async (_, use, vars) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(null, { status: 204 })),
+    );
+    const client = new QueryClient();
+    const spy = vi.spyOn(client, "invalidateQueries");
+    const hook: { current?: { mutateAsync: (vars: never) => Promise<unknown> } } = {};
+    function Grab() {
+      hook.current = use() as never;
+      return null;
+    }
+    await act(async () => {
+      createRoot(document.createElement("div")).render(
+        createElement(QueryClientProvider, { client }, createElement(Grab)),
+      );
+    });
+    await act(async () => {
+      await hook.current!.mutateAsync(vars as never);
+    });
+    const invalidated = spy.mock.calls.map(([filters]) => filters?.queryKey);
+    expect(invalidated).toContainEqual(["webhooks"]);
+    expect(invalidated).toContainEqual(["webhook-deliveries"]);
   });
 });
