@@ -60,20 +60,22 @@ export function ThreadList({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [purging, setPurging] = useState<string[] | null>(null);
   const sentinel = useRef<HTMLLIElement>(null);
+  const scroller = useRef<HTMLUListElement>(null);
 
   const threads = useMemo(() => query.data?.pages.flatMap((page) => page.data) ?? [], [query.data]);
   const filterKey = JSON.stringify(filter);
   // biome-ignore lint/correctness/useExhaustiveDependencies: a new view starts with nothing picked
   useEffect(() => setSelected(new Set()), [filterKey]);
 
-  // Infinite scroll: load the next page as the end comes into view.
+  // Infinite scroll: load the next page when the end is within 600px of
+  // the list's own scroll box (the root, so the margin counts there).
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
   useEffect(() => {
     const node = sentinel.current;
     if (!node || !hasNextPage) return;
     const observer = new IntersectionObserver(
       ([entry]) => entry?.isIntersecting && !isFetchingNextPage && fetchNextPage(),
-      { rootMargin: "400px" },
+      { root: scroller.current, rootMargin: "600px" },
     );
     observer.observe(node);
     return () => observer.disconnect();
@@ -127,7 +129,10 @@ export function ThreadList({
 
       {header}
 
-      <ul className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-1 pb-24 md:pb-6">
+      <ul
+        ref={scroller}
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-1 pb-24 md:pb-6"
+      >
         {query.isPending &&
           Array.from({ length: 8 }, (_, i) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
