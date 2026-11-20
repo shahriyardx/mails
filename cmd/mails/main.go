@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -166,6 +167,9 @@ func run() error {
 		defer cancel()
 		_ = srv.Shutdown(shutdown)
 	}()
+	// Start-up (migrations, client setup) leaves garbage behind; hand it
+	// back now so an idle instance stays small.
+	debug.FreeOSMemory()
 	slog.Info("listening", "addr", cfg.Addr, "url", cfg.AppURL)
 	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return err
