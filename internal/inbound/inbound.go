@@ -262,7 +262,7 @@ func (s *Service) store(ctx context.Context, box *mailboxRow, deliveredTo string
 	r = Received{MailboxID: box.ID, Mailbox: box.Address, DeliveredTo: deliveredTo, From: p.From, Subject: subject}
 	err = pgx.BeginFunc(ctx, s.DB, func(tx pgx.Tx) error {
 		if p.MessageID != nil && *p.MessageID != "" {
-			err := tx.QueryRow(ctx, `SELECT id, thread_id FROM message WHERE mailbox_id = $1 AND rfc_message_id = $2`,
+			err := tx.QueryRow(ctx, `SELECT id, thread_id FROM message WHERE mailbox_id = $1 AND rfc_message_id = $2 AND NOT is_outbound`,
 				box.ID, *p.MessageID).Scan(&r.MessageID, &r.ThreadID)
 			if err == nil {
 				dup = true
@@ -300,7 +300,7 @@ func (s *Service) store(ctx context.Context, box *mailboxRow, deliveredTo string
 				from_name, from_address, to_addrs, cc_addrs, reply_to, subject, snippet, text_body, html_body, folder,
 				is_read, is_starred, spf, dkim, dmarc, spam_score, mailed_by, signed_by, tls, size_bytes, raw_key, sent_at, received_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $28)
-			ON CONFLICT (mailbox_id, rfc_message_id) DO NOTHING`,
+			ON CONFLICT (mailbox_id, rfc_message_id, is_outbound) DO NOTHING`,
 			r.MessageID, r.ThreadID, box.ID, p.MessageID, p.InReplyTo, nonNil(p.References),
 			fromName, p.From.Address, nonNilAddrs(p.ToAddresses), nonNilAddrs(p.CcAddresses), p.ReplyTo, subject,
 			addr.Snippet(text, html), p.Text, p.HTML, act.folder, act.markRead, act.star,
@@ -339,7 +339,7 @@ func (s *Service) store(ctx context.Context, box *mailboxRow, deliveredTo string
 	})
 	if dup && err == nil && r.MessageID == "" {
 		// Lost the race inside the transaction: report the stored copy.
-		err = s.DB.QueryRow(ctx, `SELECT id, thread_id FROM message WHERE mailbox_id = $1 AND rfc_message_id = $2`,
+		err = s.DB.QueryRow(ctx, `SELECT id, thread_id FROM message WHERE mailbox_id = $1 AND rfc_message_id = $2 AND NOT is_outbound`,
 			box.ID, *p.MessageID).Scan(&r.MessageID, &r.ThreadID)
 	}
 	return r, dup, err

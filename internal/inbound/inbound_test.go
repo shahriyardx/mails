@@ -347,3 +347,26 @@ func TestSubjectThreadingTakesBackslashLiterally(t *testing.T) {
 		})
 	}
 }
+
+// Mail to yourself comes back with the Message-ID its sent copy stores; it
+// still lands in the inbox, and a second delivery is still a duplicate.
+func TestMailToSelfReachesInbox(t *testing.T) {
+	s, pool, _ := setup(t)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO thread (id, mailbox_id, subject) VALUES ('thr_self', 'mbx_hi', 'Note to self');
+		INSERT INTO message (id, thread_id, mailbox_id, from_address, subject, folder, is_outbound, is_read, rfc_message_id)
+			VALUES ('msg_self', 'thr_self', 'mbx_hi', 'hi@a.test', 'Note to self', 'sent', true, true, '<0100self@email.amazonses.com>');`); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if _, err := s.Ingest(ctx, msg("hi@a.test", "<0100self@email.amazonses.com>", "Note to self"), nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var inbox int
+	_ = pool.QueryRow(ctx, `SELECT count(*) FROM message WHERE mailbox_id = 'mbx_hi' AND folder = 'inbox' AND NOT is_outbound`).Scan(&inbox)
+	if inbox != 1 {
+		t.Fatalf("inbox copies = %d, want 1", inbox)
+	}
+}
