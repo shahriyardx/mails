@@ -51,14 +51,32 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
   const [draft, setDraft] = useState<(ComposerDraft & { key: number }) | null>(null);
   // The open composer's save, so opening another never drops unsaved text.
   const flush = useRef<(() => Promise<boolean>) | null>(null);
+  // The open composer's saved draft id; null when none is open.
+  const openId = useRef<string | undefined | null>(null);
+  const returnFocus = useRef<Element | null>(null);
   const open = useCallback((next?: ComposerDraft) => {
+    // Already open on this draft: reopening would load an older copy over
+    // the newer text in the composer.
+    if (next?.draftId && next.draftId === openId.current) return;
+    // What had focus before the first composer opened gets it back on close.
+    if (openId.current === null) returnFocus.current = document.activeElement;
     void (async () => {
       // Not saved (the reason is toasted): the open composer stays, text and all.
       if (flush.current && !(await flush.current())) return;
+      openId.current = next?.draftId;
       setDraft({ ...next, key: Date.now() });
     })();
   }, []);
-  const close = useCallback(() => setDraft(null), []);
+  const close = useCallback(() => {
+    openId.current = null;
+    setDraft(null);
+    const target = returnFocus.current;
+    returnFocus.current = null;
+    if (target instanceof HTMLElement && target.isConnected) target.focus();
+  }, []);
+  const saved = useCallback((id: string) => {
+    if (openId.current !== null) openId.current = id;
+  }, []);
   const api = useMemo(() => ({ open, close, isOpen: draft !== null }), [open, close, draft]);
 
   return (
@@ -66,7 +84,15 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
       {children}
       <Suspense>
         <AnimatePresence>
-          {draft && <Composer key={draft.key} draft={draft} onClose={close} flushRef={flush} />}
+          {draft && (
+            <Composer
+              key={draft.key}
+              draft={draft}
+              onClose={close}
+              onSaved={saved}
+              flushRef={flush}
+            />
+          )}
         </AnimatePresence>
       </Suspense>
     </Context.Provider>

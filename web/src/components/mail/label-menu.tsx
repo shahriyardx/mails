@@ -48,10 +48,10 @@ export function LabelMenu({
   const [color, setColor] = useState<string>(PALETTE[0]);
 
   function toggle(id: string, on: boolean) {
-    change.mutate(
-      { ids: threadIds, change: on ? { add_labels: [id] } : { remove_labels: [id] } },
-      { onSuccess: onDone, onError: (e) => toast.error(errorMessage(e)) },
-    );
+    // mutateAsync, not mutate options: those run only for the latest call.
+    change
+      .mutateAsync({ ids: threadIds, change: on ? { add_labels: [id] } : { remove_labels: [id] } })
+      .then(onDone, (e) => toast.error(errorMessage(e)));
   }
 
   function submit() {

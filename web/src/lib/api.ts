@@ -238,22 +238,22 @@ export function useCounts(scope: { mailbox?: string; domain?: string } = {}) {
 type ThreadPages = InfiniteData<Page<Thread>>;
 
 /** Applies fn to every cached thread list, keeping a snapshot to roll back. */
-function editLists(client: QueryClient, fn: (t: Thread) => Thread | null) {
+function editLists(client: QueryClient, fn: (t: Thread, filter: ThreadFilter) => Thread | null) {
   const snapshot = client.getQueriesData<ThreadPages>({ queryKey: keys.threads() });
-  client.setQueriesData<ThreadPages>({ queryKey: keys.threads() }, (data) =>
-    data
-      ? {
-          ...data,
-          pages: data.pages.map((page) => ({
-            ...page,
-            data: page.data.flatMap((t) => {
-              const next = fn(t);
-              return next ? [next] : [];
-            }),
-          })),
-        }
-      : data,
-  );
+  for (const [key, data] of snapshot) {
+    if (!data) continue;
+    const filter = (key[1] ?? {}) as ThreadFilter;
+    client.setQueryData<ThreadPages>(key, {
+      ...data,
+      pages: data.pages.map((page) => ({
+        ...page,
+        data: page.data.flatMap((t) => {
+          const next = fn(t, filter);
+          return next ? [next] : [];
+        }),
+      })),
+    });
+  }
   return () => {
     for (const [key, data] of snapshot) client.setQueryData(key, data);
   };
@@ -276,21 +276,36 @@ export function useChangeThreads() {
       api<{ ids: string[] }>("/api/app/threads", { method: "PATCH", body: { ids, ...change } }),
     onMutate: async ({ ids, change }) => {
       await client.cancelQueries({ queryKey: keys.threads() });
-      const set = new Set(ids);
-      return editLists(client, (t) => {
-        if (!set.has(t.id)) return t;
-        if (change.folder) return null;
-        return {
-          ...t,
-          ...(change.is_read !== undefined && {
-            unread_count: change.is_read ? 0 : Math.max(1, t.unread_count),
-          }),
-          ...(change.is_starred !== undefined && { is_starred: change.is_starred }),
-        };
-      });
+      return changeLists(client, ids, change);
     },
     onError: (_error, _vars, rollback) => rollback?.(),
     onSettled: (_data, _error, { ids }) => refreshThreads(client, ids),
+  });
+}
+
+const MOVED_OUT = new Set(["inbox", "archive", "spam", "trash"]);
+
+/**
+ * The optimistic part of useChangeThreads. A moved thread leaves only the
+ * Inbox, Archive, Spam or Trash list it is moving out of; Starred, Sent,
+ * Drafts and label views keep it (the server keeps it there too, or the
+ * refetch says otherwise). Read/star flip in place. Returns the rollback.
+ */
+export function changeLists(client: QueryClient, ids: string[], change: ThreadChange) {
+  const set = new Set(ids);
+  return editLists(client, (t, filter) => {
+    if (!set.has(t.id)) return t;
+    if (change.folder) {
+      const leaves = MOVED_OUT.has(filter.folder ?? "") && filter.folder !== change.folder;
+      return leaves ? null : t;
+    }
+    return {
+      ...t,
+      ...(change.is_read !== undefined && {
+        unread_count: change.is_read ? 0 : Math.max(1, t.unread_count),
+      }),
+      ...(change.is_starred !== undefined && { is_starred: change.is_starred }),
+    };
   });
 }
 
@@ -407,6 +422,7 @@ export function usePreferences() {
 export function useSavePreferences() {
   const client = useQueryClient();
   return useMutation({
+    mutationKey: keys.preferences,
     mutationFn: (patch: Partial<Preferences>) =>
       api<Preferences>("/api/app/preferences", { method: "PATCH", body: patch }),
     onMutate: (patch) => {
@@ -415,7 +431,12 @@ export function useSavePreferences() {
       return before;
     },
     onError: (_error, _patch, before) => client.setQueryData(keys.preferences, before),
-    onSuccess: (saved) => client.setQueryData(keys.preferences, saved),
+    onSuccess: (saved) => {
+      // A newer save is still on its way: this answer is already out of date
+      // (quick theme flips would otherwise paint each old answer in turn).
+      if (client.isMutating({ mutationKey: keys.preferences }) > 1) return;
+      client.setQueryData(keys.preferences, saved);
+    },
   });
 }
 
@@ -560,7 +581,11 @@ export function useRemoveDomain() {
         method: "DELETE",
         query: { delete_in_ses: deleteInSes || undefined },
       }),
-    onSettled: () => afterDomainsChange(client),
+    onSettled: () => {
+      afterDomainsChange(client);
+      // The domain's webhooks (and their deliveries) go with it.
+      invalidate(client, ["webhooks"], ["webhook-deliveries"]);
+    },
   });
 }
 
@@ -965,7 +990,7 @@ export function useDeleteWebhook() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api(`/api/app/webhooks/${id}`, { method: "DELETE" }),
-    onSettled: () => client.invalidateQueries({ queryKey: ["webhooks"] }),
+    onSettled: () => invalidate(client, ["webhooks"], ["webhook-deliveries"]),
   });
 }
 
@@ -1079,32 +1104,50 @@ export function staleKeys(event: LiveEvent): QueryKey[] {
   return out;
 }
 
+const RECONNECT_MS = 3_000;
+const RECONNECT_MAX_MS = 60_000;
+
 /**
  * Listens on /api/events (SSE) and refetches what each event touches. After
  * a dropped connection everything is refetched, since events may be missed.
+ * The browser retries a dropped stream itself, but gives up for good on a
+ * non-200 answer (a restart, a 502); then we open a new one after a pause.
  */
 export function useLiveUpdates(enabled: boolean) {
   const client = useQueryClient();
   useEffect(() => {
     if (!enabled) return;
-    const source = new EventSource("/api/events");
+    let source: EventSource;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let delay = RECONNECT_MS;
     let dropped = false;
-    source.onopen = () => {
-      if (dropped) void client.invalidateQueries();
-      dropped = false;
+    const connect = () => {
+      source = new EventSource("/api/events");
+      source.onopen = () => {
+        if (dropped) void client.invalidateQueries();
+        dropped = false;
+        delay = RECONNECT_MS;
+      };
+      source.onerror = () => {
+        dropped = true;
+        if (source.readyState !== EventSource.CLOSED) return;
+        timer = setTimeout(connect, delay);
+        delay = Math.min(delay * 2, RECONNECT_MAX_MS);
+      };
+      source.onmessage = (message) => {
+        let event: LiveEvent;
+        try {
+          event = JSON.parse(message.data);
+        } catch {
+          return;
+        }
+        for (const queryKey of staleKeys(event)) void client.invalidateQueries({ queryKey });
+      };
     };
-    source.onerror = () => {
-      dropped = true;
+    connect();
+    return () => {
+      clearTimeout(timer);
+      source.close();
     };
-    source.onmessage = (message) => {
-      let event: LiveEvent;
-      try {
-        event = JSON.parse(message.data);
-      } catch {
-        return;
-      }
-      for (const queryKey of staleKeys(event)) void client.invalidateQueries({ queryKey });
-    };
-    return () => source.close();
   }, [enabled, client]);
 }

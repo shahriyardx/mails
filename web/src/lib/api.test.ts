@@ -1,5 +1,16 @@
+import { QueryClient } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, api, errorMessage, keys, queryClient, staleKeys, withQuery } from "./api";
+import {
+  ApiError,
+  api,
+  changeLists,
+  errorMessage,
+  keys,
+  queryClient,
+  staleKeys,
+  withQuery,
+} from "./api";
+import type { ThreadFilter } from "./types";
 
 function respond(status: number, body?: string, type = "application/json") {
   const fetch = vi.fn(
@@ -97,5 +108,38 @@ describe("live updates", () => {
     expect(staleKeys({ type: "message.updated", data: { message_id: "msg_1" } })).toContainEqual([
       "thread",
     ]);
+  });
+});
+
+describe("optimistic moves", () => {
+  it("drop the thread only from the folder lists it leaves", () => {
+    const client = new QueryClient();
+    const lists: ThreadFilter[] = [
+      { folder: "inbox" },
+      { folder: "archive" },
+      { folder: "starred" },
+      { folder: "sent" },
+      { label: "lbl_1" },
+    ];
+    for (const filter of lists) {
+      client.setQueryData(keys.threads(filter), {
+        pages: [{ data: [{ id: "thr_1" }, { id: "thr_2" }] }],
+        pageParams: [undefined],
+      });
+    }
+    const ids = (filter: ThreadFilter) =>
+      client
+        .getQueryData<{ pages: { data: { id: string }[] }[] }>(keys.threads(filter))!
+        .pages[0]!.data.map((t) => t.id);
+
+    const rollback = changeLists(client, ["thr_1"], { folder: "archive" });
+    expect(ids({ folder: "inbox" })).toEqual(["thr_2"]);
+    expect(ids({ folder: "archive" })).toEqual(["thr_1", "thr_2"]);
+    expect(ids({ folder: "starred" })).toEqual(["thr_1", "thr_2"]);
+    expect(ids({ folder: "sent" })).toEqual(["thr_1", "thr_2"]);
+    expect(ids({ label: "lbl_1" })).toEqual(["thr_1", "thr_2"]);
+
+    rollback();
+    expect(ids({ folder: "inbox" })).toEqual(["thr_1", "thr_2"]);
   });
 });

@@ -9,7 +9,9 @@ const count = (ids: string[]) =>
 /**
  * Every thread action the screens offer, with one toast style and an Undo
  * wherever the action can be taken back. Lists update before the server
- * answers (see useChangeThreads).
+ * answers (see useChangeThreads). Callbacks hang off mutateAsync: TanStack
+ * runs per-call mutate() callbacks only for the latest call, so a quick
+ * second action would swallow the first one's Undo or error toast.
  */
 export function useThreadActions() {
   const change = useChangeThreads();
@@ -22,31 +24,25 @@ export function useThreadActions() {
 
     /** Moves to a folder. `from` (a movable folder) enables Undo. */
     move(ids: string[], folder: Folder, from?: Folder) {
-      change.mutate(
-        { ids, change: { folder } },
-        {
-          onError: fail,
-          onSuccess: () =>
-            toast(`${count(ids)} moved to ${FOLDER_META[folder].label}`, {
-              action: from
-                ? { label: "Undo", onClick: () => change.mutate({ ids, change: { folder: from } }) }
-                : undefined,
-            }),
-        },
+      change.mutateAsync({ ids, change: { folder } }).then(
+        () =>
+          toast(`${count(ids)} moved to ${FOLDER_META[folder].label}`, {
+            action: from
+              ? { label: "Undo", onClick: () => change.mutate({ ids, change: { folder: from } }) }
+              : undefined,
+          }),
+        fail,
       );
     },
 
     /** Moves to Trash, undoable. */
     trash(ids: string[]) {
-      remove.mutate(
-        { ids },
-        {
-          onError: fail,
-          onSuccess: () =>
-            toast(`${count(ids)} moved to Trash`, {
-              action: { label: "Undo", onClick: () => restore.mutate(ids) },
-            }),
-        },
+      remove.mutateAsync({ ids }).then(
+        () =>
+          toast(`${count(ids)} moved to Trash`, {
+            action: { label: "Undo", onClick: () => restore.mutate(ids) },
+          }),
+        fail,
       );
     },
 
@@ -56,15 +52,15 @@ export function useThreadActions() {
     },
 
     restore(ids: string[]) {
-      restore.mutate(ids, { onError: fail, onSuccess: () => toast(`${count(ids)} put back`) });
+      restore.mutateAsync(ids).then(() => toast(`${count(ids)} put back`), fail);
     },
 
     setRead(ids: string[], is_read: boolean) {
-      change.mutate({ ids, change: { is_read } }, { onError: fail });
+      change.mutateAsync({ ids, change: { is_read } }).catch(fail);
     },
 
     setStarred(ids: string[], is_starred: boolean) {
-      change.mutate({ ids, change: { is_starred } }, { onError: fail });
+      change.mutateAsync({ ids, change: { is_starred } }).catch(fail);
     },
   };
 }

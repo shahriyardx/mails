@@ -51,7 +51,7 @@ export function ConfirmDialog({
   const ready = !phrase || typed.trim() === phrase;
 
   async function confirm() {
-    if (!ready) return;
+    if (!ready || busy) return;
     setBusy(true);
     try {
       await onConfirm();
