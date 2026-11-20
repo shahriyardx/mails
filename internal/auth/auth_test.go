@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/shahriyardx/mails/internal/auth"
+	"github.com/shahriyardx/mails/internal/config"
 	"github.com/shahriyardx/mails/internal/db/dbtest"
 )
 
@@ -98,5 +99,26 @@ func TestSafeNext(t *testing.T) {
 		if got := auth.SafeNext(next); got != want {
 			t.Errorf("SafeNext(%q) = %v", next, got)
 		}
+	}
+}
+
+func TestMintNeedsOwner(t *testing.T) {
+	pool := dbtest.New(t)
+	ctx := context.Background()
+	a := auth.New(pool, &config.Config{AppURL: "http://localhost"})
+	if _, err := a.Mint(ctx); err == nil {
+		t.Fatal("minted a session with no owner")
+	}
+	if _, err := auth.Claim(ctx, pool, auth.GitHubUser{ID: 1, Login: "o"}); err != nil {
+		t.Fatal(err)
+	}
+	token, err := a.Mint(ctx)
+	if err != nil || token == "" {
+		t.Fatalf("mint: %q %v", token, err)
+	}
+	var n int
+	_ = pool.QueryRow(ctx, `SELECT count(*) FROM sessions WHERE token = $1`, token).Scan(&n)
+	if n != 1 {
+		t.Fatal("session not stored")
 	}
 }

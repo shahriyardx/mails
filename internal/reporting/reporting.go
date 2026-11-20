@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/shahriyardx/mails/internal/httpx"
+	"github.com/shahriyardx/mails/internal/ses"
 )
 
 // DefaultName is the configuration set and topic name used when none is set.
@@ -109,7 +110,7 @@ func (s *Service) Status(ctx context.Context) (*Status, error) {
 		EnvManaged: s.EnvConfigSet != "" || s.EnvTopicARN != ""}
 	dest, exists, err := s.AWS.Destination(ctx, st.Name)
 	if err != nil {
-		st.Error = err.Error()
+		st.Error = ses.Explain(err)
 		return st, nil
 	}
 	st.ConfigurationSet = exists
@@ -121,7 +122,7 @@ func (s *Service) Status(ctx context.Context) (*Status, error) {
 	}
 	if st.TopicARN != "" {
 		if st.Subscription, err = s.AWS.Subscription(ctx, st.TopicARN, st.Endpoint); err != nil {
-			st.Error = err.Error()
+			st.Error = ses.Explain(err)
 		}
 	}
 	st.Active = s.ConfigSet() != "" && s.TopicARN() != "" && st.Destination
@@ -212,7 +213,7 @@ func withRequired(types []string) []string {
 }
 
 func upstream(err error) error {
-	return &httpx.Error{Status: 502, Code: "upstream_error", Message: "AWS said: " + err.Error()}
+	return &httpx.Error{Status: 502, Code: "upstream_error", Message: ses.Explain(err)}
 }
 
 func deref(s *string) string {

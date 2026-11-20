@@ -234,3 +234,20 @@ func Status(v string) string {
 		return "pending"
 	}
 }
+
+// Explain turns an AWS error into a sentence the owner can act on. The raw
+// error stays in the logs.
+func Explain(err error) string {
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "no EC2 IMDS role found"), strings.Contains(msg, "failed to refresh cached credentials"),
+		strings.Contains(msg, "failed to retrieve credentials"), strings.Contains(msg, "no valid providers in chain"):
+		return "AWS keys are not set. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, then restart Mails."
+	case strings.Contains(msg, "InvalidClientTokenId"), strings.Contains(msg, "UnrecognizedClient"),
+		strings.Contains(msg, "SignatureDoesNotMatch"):
+		return "AWS refused the keys. Check AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY."
+	case strings.Contains(msg, "AccessDenied"), strings.Contains(msg, "not authorized to perform"):
+		return "The AWS keys are not allowed to do this. " + msg
+	}
+	return msg
+}

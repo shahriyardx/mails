@@ -12,6 +12,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/shahriyardx/mails/internal/auth"
+	"github.com/shahriyardx/mails/internal/config"
 	"github.com/shahriyardx/mails/internal/db"
 	"github.com/shahriyardx/mails/internal/reporting"
 	"github.com/shahriyardx/mails/internal/seed"
@@ -41,13 +43,16 @@ func command(args []string) (bool, error) {
 		return true, sesSetupEvents()
 	case "seed-demo":
 		return true, seedDemo(args[1:])
+	case "session":
+		return true, session()
 	case "help", "-h", "--help":
 		fmt.Println(`mails            run the server
 mails migrate    apply database migrations and exit
 mails reset-owner  remove the owner and every session; the next GitHub sign-in claims the instance (mail and settings stay)
 mails vapid-keys print a new VAPID key pair for web push
 mails ses-setup-events  set up SES delivery reporting (SNS topic, configuration set, subscription); same as Settings -> Reporting
-mails seed-demo [--mailbox=ADDRESS] [--remove]  add (or remove) demo mail for trying the dashboard`)
+mails seed-demo [--mailbox=ADDRESS] [--remove]  add (or remove) demo mail for trying the dashboard
+mails session    print a session cookie (mails_session) for the owner, for scripts such as web/scripts/shots.mjs`)
 		return true, nil
 	default:
 		return true, fmt.Errorf("unknown command %q (try: mails help)", args[0])
@@ -166,4 +171,19 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func session() error {
+	ctx := context.Background()
+	pool, err := openDB(ctx)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	token, err := auth.New(pool, &config.Config{AppURL: os.Getenv("APP_URL")}).Mint(ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Println(token)
+	return nil
 }

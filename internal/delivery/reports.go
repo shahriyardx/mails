@@ -277,7 +277,7 @@ type Overview struct {
 func (s *Service) GetOverview(ctx context.Context) (*Overview, error) {
 	o := &Overview{}
 	if a, err := s.SES.Account(ctx); err != nil {
-		o.Error = err.Error()
+		o.Error = ses.Explain(err)
 	} else {
 		o.Account = a
 	}

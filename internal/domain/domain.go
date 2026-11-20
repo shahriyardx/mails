@@ -391,7 +391,7 @@ func (s *Service) ListFresh(ctx context.Context) (list []*Domain, warning string
 	}
 	if _, syncErr := s.Import(ctx); syncErr != nil {
 		slog.Warn("domain sync failed", "err", syncErr)
-		return list, "Could not reach SES: " + syncErr.Error(), nil
+		return list, "Could not reach SES: " + ses.Explain(syncErr), nil
 	}
 	list, err = s.List(ctx)
 	return list, "", err

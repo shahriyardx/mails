@@ -10,7 +10,8 @@
     "lint": "biome check src",
     "format": "biome check --write src",
     "test": "vitest run",
-    "icons": "node scripts/fetch-icons.mjs"
+    "icons": "node scripts/fetch-icons.mjs",
+    "shots": "node scripts/shots.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -40,6 +41,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",
     "jsdom": "^31.0.1",
+    "playwright-core": "^1.65.1",
     "tailwindcss": "^4.3.5",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",

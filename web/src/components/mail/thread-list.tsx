@@ -346,7 +346,7 @@ function Row({
   }
 
   return (
-    <li className="relative">
+    <li className="relative" data-thread-id={thread.id}>
       {swipe && (
         <div
           aria-hidden

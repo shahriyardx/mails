@@ -47,7 +47,7 @@ export default function Reporting() {
 
   return (
     <div className="space-y-4">
-      {st.error && <Notice tone="danger">AWS could not be reached: {st.error}</Notice>}
+      {st.error && <Notice tone="danger">{st.error}</Notice>}
 
       <Card>
         <CardHeader>

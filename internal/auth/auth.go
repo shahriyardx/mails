@@ -149,6 +149,27 @@ func (a *Auth) callback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, next, http.StatusFound)
 }
 
+// Mint starts a session for the owner without GitHub, for tools run by
+// whoever already holds the database (the screenshot script). It returns
+// the cookie value.
+func (a *Auth) Mint(ctx context.Context) (string, error) {
+	var userID string
+	err := a.DB.QueryRow(ctx, `SELECT id FROM app_user LIMIT 1`).Scan(&userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", errors.New("no owner yet: sign in with GitHub once first")
+	}
+	if err != nil {
+		return "", err
+	}
+	sctx, err := a.Sessions.Load(ctx, "")
+	if err != nil {
+		return "", err
+	}
+	a.Sessions.Put(sctx, userKey, userID)
+	token, _, err := a.Sessions.Commit(sctx)
+	return token, err
+}
+
 // SafeNext reports whether next is a path on this site to return to after
 // sign-in: it must start with one slash and carry no scheme, host or
 // backslash, so it cannot send the browser elsewhere.
