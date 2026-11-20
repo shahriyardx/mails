@@ -13,6 +13,7 @@ import (
 	"time"
 
 	cf "github.com/cloudflare/cloudflare-go/v6"
+	"github.com/cloudflare/cloudflare-go/v6/accounts"
 	"github.com/cloudflare/cloudflare-go/v6/dns"
 	"github.com/cloudflare/cloudflare-go/v6/email_routing"
 	"github.com/cloudflare/cloudflare-go/v6/option"
@@ -53,7 +54,10 @@ var EmailRoutingMX = []MX{{"route1.mx.cloudflare.net", 91}, {"route2.mx.cloudfla
 
 // API is what Mails asks of Cloudflare, bound to one token.
 type API interface {
-	VerifyToken(ctx context.Context) error
+	// VerifyToken checks the token. A user token passes the user check; an
+	// account-owned token (Account API tokens page) only passes the account
+	// check, so it needs the account id (from Zones). "" means user only.
+	VerifyToken(ctx context.Context, accountID string) error
 	Zones(ctx context.Context) ([]Zone, error)
 	WorkerModified(ctx context.Context, account, script string) (*time.Time, error) // nil: not deployed
 	UploadWorker(ctx context.Context, account, script string, code []byte, compatDate string, flags []string, bindings []Binding) error
@@ -121,8 +125,11 @@ func wrap(err error) error {
 	return err
 }
 
-func (a *api) VerifyToken(ctx context.Context) error {
+func (a *api) VerifyToken(ctx context.Context, accountID string) error {
 	_, err := a.c.User.Tokens.Verify(ctx)
+	if err != nil && accountID != "" {
+		_, err = a.c.Accounts.Tokens.Verify(ctx, accounts.TokenVerifyParams{AccountID: cf.F(accountID)})
+	}
 	return wrap(err)
 }
 

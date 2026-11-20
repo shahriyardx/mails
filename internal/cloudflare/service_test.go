@@ -29,6 +29,17 @@ func code(err error) int {
 	return 0
 }
 
+// Tokens made on the Account API tokens page fail Cloudflare's user check;
+// Connect verifies them against their account instead.
+func TestConnectAcceptsAccountToken(t *testing.T) {
+	s, fake := setup(t)
+	fake.AccountToken = true
+	st, err := s.Connect(context.Background(), "tok-account-0001")
+	if err != nil || !st.Connected || st.AccountID != "acct" {
+		t.Fatalf("status = %+v %v", st, err)
+	}
+}
+
 func TestConnectStoresTokenSealed(t *testing.T) {
 	s, fake := setup(t)
 	ctx := context.Background()

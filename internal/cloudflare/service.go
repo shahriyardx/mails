@@ -84,12 +84,17 @@ func (s *Service) Connect(ctx context.Context, token string) (*Status, error) {
 		return nil, httpx.Invalid("token", "token: Required")
 	}
 	api := s.NewAPI(token)
-	if err := api.VerifyToken(ctx); err != nil {
+	// Zones first: an account-owned token is verified against its account.
+	zones, zerr := api.Zones(ctx)
+	account := ""
+	if zerr == nil && len(zones) > 0 {
+		account = zones[0].AccountID
+	}
+	if err := api.VerifyToken(ctx, account); err != nil {
 		return nil, explain(err, "to be a valid API token")
 	}
-	zones, err := api.Zones(ctx)
-	if err != nil {
-		return nil, explain(err, "Zone -> Read")
+	if zerr != nil {
+		return nil, explain(zerr, "Zone -> Read")
 	}
 	if len(zones) == 0 || zones[0].AccountID == "" {
 		return nil, httpx.Invalid("token", "That token works but sees no zones. Give it Zone -> Read on your zones.")
@@ -99,7 +104,7 @@ func (s *Service) Connect(ctx context.Context, token string) (*Status, error) {
 		label += "s"
 	}
 	hint := "…" + token[max(0, len(token)-4):]
-	_, err = s.DB.Exec(ctx, `INSERT INTO integration (id, provider, secret, hint, label, account_id, verified_at)
+	_, err := s.DB.Exec(ctx, `INSERT INTO integration (id, provider, secret, hint, label, account_id, verified_at)
 		VALUES ($1, $2, $3, $4, $5, $6, now())
 		ON CONFLICT (provider) DO UPDATE SET secret = excluded.secret, hint = excluded.hint, label = excluded.label,
 			account_id = excluded.account_id, verified_at = now()`,

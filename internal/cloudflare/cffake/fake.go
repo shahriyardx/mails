@@ -24,6 +24,9 @@ type Fake struct {
 	Script   []byte
 	WorkerAt *time.Time
 	Tokens   []string
+	// AccountToken makes the user token check fail, as Cloudflare does for
+	// tokens made on the Account API tokens page.
+	AccountToken bool
 }
 
 func New(zones ...cloudflare.Zone) *Fake {
@@ -45,7 +48,12 @@ func (f *Fake) check() error {
 	return nil
 }
 
-func (f *Fake) VerifyToken(context.Context) error { return f.check() }
+func (f *Fake) VerifyToken(_ context.Context, accountID string) error {
+	if f.AccountToken && accountID == "" {
+		return &cloudflare.Error{Codes: []int{1000}, Message: "Invalid API Token"}
+	}
+	return f.check()
+}
 
 func (f *Fake) Zones(context.Context) ([]cloudflare.Zone, error) { return f.ZoneList, f.check() }
 
