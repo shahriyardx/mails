@@ -101,7 +101,7 @@ function Report({ m }: { m: MetricsData }) {
         />
       </Stats>
 
-      <Section title="Per day" description="Outbound mail by the UTC day it was sent.">
+      <Section title="Per day" description="By UTC day.">
         <div className={cn(PANEL, "p-5")}>
           {m.totals.sent === 0 ? (
             <p className="py-10 text-center text-muted-foreground">
@@ -119,7 +119,7 @@ function Report({ m }: { m: MetricsData }) {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        What the rates mean, and how to bring them down:{" "}
+        What the rates mean:{" "}
         <Link to="/docs/guide/metrics" className="text-accent underline underline-offset-2">
           Metrics guide
         </Link>

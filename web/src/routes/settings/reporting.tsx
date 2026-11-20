@@ -66,25 +66,24 @@ export default function Reporting() {
         </Button>
       </PageAction>
 
-      <Section
-        title="Delivery reports"
-        description="Without them Mails knows a message left, but not whether it arrived, bounced or was marked as spam, and bounced addresses are never blocked."
-      >
+      <div className="space-y-3">
+        {!st.active && (
+          <p className="text-[13px] text-muted-foreground">
+            Until reporting is on, bounces go unseen and bounced addresses are not blocked.
+          </p>
+        )}
         {st.error && <Notice tone="danger">{st.error}</Notice>}
         <Steps st={st} />
         <CopyValue value={st.endpoint} label="Copy the events endpoint" />
         {st.env_managed && (
           <Notice>
-            SES_CONFIGURATION_SET or SES_SNS_TOPIC_ARN is set in the environment, and those win over
-            what is set up here.
+            SES_CONFIGURATION_SET or SES_SNS_TOPIC_ARN in the environment wins over this page.
           </Notice>
         )}
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          Setting up creates an SNS topic only SES in your account may publish to, a configuration
-          set named <span className="font-mono">{st.name}</span>, and a subscription that calls this
-          app. The app must be reachable on a public https address.
+        <p className="text-xs text-muted-foreground">
+          Mails must be reachable on a public https address.
         </p>
-      </Section>
+      </div>
 
       {st.destination && <EventChoices st={st} />}
     </div>
@@ -92,25 +91,16 @@ export default function Reporting() {
 }
 
 function Steps({ st }: { st: ReportingStatus }) {
-  const rows: { label: string; done: boolean; waiting?: boolean; detail: string }[] = [
+  // The status word says the state; the detail line only names what was made.
+  const rows: { label: string; done: boolean; waiting?: boolean; detail?: string }[] = [
     { label: "Configuration set", done: st.configuration_set, detail: st.name },
-    { label: "Events go to SNS", done: st.destination, detail: st.topic_arn || "No topic yet" },
+    { label: "Events go to SNS", done: st.destination, detail: st.topic_arn || undefined },
     {
       label: "Subscription",
       done: st.subscription === "confirmed",
       waiting: st.subscription === "pending",
-      detail:
-        st.subscription === "pending"
-          ? "Waiting for AWS to confirm"
-          : st.subscription === "confirmed"
-            ? "Confirmed"
-            : "Not subscribed",
     },
-    {
-      label: "Used by this app",
-      done: st.active,
-      detail: st.active ? "Sending with it" : "Not yet",
-    },
+    { label: "Used by this app", done: st.active },
   ];
   return (
     <ul className="divide-y divide-border rounded-[14px] border border-border bg-surface">
@@ -118,12 +108,14 @@ function Steps({ st }: { st: ReportingStatus }) {
         <li key={row.label} className="flex items-center gap-3 px-4 py-3">
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-semibold">{row.label}</span>
-            <span className="block truncate font-mono text-xs text-muted-foreground">
-              {row.detail}
-            </span>
+            {row.detail && (
+              <span className="block font-mono text-xs break-all text-muted-foreground">
+                {row.detail}
+              </span>
+            )}
           </span>
           <StatusDot tone={row.done ? "ok" : row.waiting ? "pending" : "off"}>
-            {row.done ? "Done" : row.waiting ? "Waiting" : "Missing"}
+            {row.done ? "Done" : row.waiting ? "Waiting for AWS" : "Missing"}
           </StatusDot>
         </li>
       ))}
@@ -140,7 +132,7 @@ function EventChoices({ st }: { st: ReportingStatus }) {
     });
   };
   return (
-    <Section title="What SES reports" description="The first five are always on: Mails needs them.">
+    <Section title="What SES reports" description="The first five are always on.">
       <ul className="divide-y divide-border rounded-[14px] border border-border bg-surface">
         {[...st.required, ...st.optional].map((type) => (
           <li key={type} className="px-4 py-3">

@@ -1,4 +1,3 @@
-import { Link } from "react-router";
 import { Button, ProgressBar, Skeleton, Stat, Stats } from "@/components/kit";
 import { useOverview } from "@/lib/api";
 import { formatCount } from "@/lib/reports";
@@ -37,14 +36,13 @@ export default function Overview() {
         </Button>
       </PageAction>
 
-      <Section title="Amazon SES" description="The account this instance sends through.">
+      <Section title="Amazon SES">
         {o.account && !o.account.production_access && (
           <Notice tone="warning">
             <p className="font-medium">Your SES account is in the sandbox</p>
             <p className="text-muted-foreground">
-              Amazon only lets it send to addresses and domains you have verified, with a small
-              daily quota. Ask AWS for production access in the SES console before sending to anyone
-              else.
+              It can only send to addresses you have verified. Ask AWS for production access in the
+              SES console.
             </p>
           </Notice>
         )}
@@ -60,7 +58,7 @@ export default function Overview() {
 
       <Section title="Sending">
         <Stats>
-          <Stat label="Sent today" value={formatCount(o.sent_24h)} hint="Last 24 hours" />
+          <Stat label="Sent" value={formatCount(o.sent_24h)} hint="Last 24 hours" />
           <Stat label="In the queue" value={formatCount(o.queued)} hint="Waiting or sending" />
           <Stat
             label="Failed"
@@ -73,26 +71,6 @@ export default function Overview() {
           />
           <Stat label="Blocked" value={formatCount(o.blocked)} hint="Addresses never sent to" />
         </Stats>
-        <div className="flex flex-wrap gap-2">
-          {(
-            [
-              ["list_alt", "/settings/logs", "Logs"],
-              ["monitoring", "/settings/metrics", "Metrics"],
-              ["block", "/settings/blocked", "Blocked addresses"],
-            ] as const
-          ).map(([icon, to, text]) => (
-            <Button
-              key={to}
-              variant="ghost"
-              size="sm"
-              icon={icon}
-              render={<Link to={to} />}
-              nativeButton={false}
-            >
-              {text}
-            </Button>
-          ))}
-        </div>
       </Section>
     </div>
   );
@@ -104,9 +82,8 @@ function Account({ account: a }: { account: SesAccount }) {
   return (
     <div className="rounded-[14px] border border-border bg-surface">
       <div className="flex flex-wrap gap-x-5 gap-y-2 px-5 py-4">
-        <StatusDot tone={a.production_access ? "ok" : "pending"}>
-          {a.production_access ? "Production access" : "Sandbox"}
-        </StatusDot>
+        {/* Sandbox has its own warning above. */}
+        {a.production_access && <StatusDot tone="ok">Production access</StatusDot>}
         <StatusDot tone={healthy ? "ok" : "bad"}>
           {healthy ? "Healthy" : `Status: ${a.enforcement_status.toLowerCase() || "unknown"}`}
         </StatusDot>

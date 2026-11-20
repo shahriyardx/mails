@@ -18,10 +18,7 @@ export default function Appearance() {
 
   return (
     <div className="space-y-10">
-      <Section
-        title={<span id="theme">Theme</span>}
-        description="Dark is easy on the eyes for long reading; light suits bright rooms. The switch beside the brand flips it too."
-      >
+      <Section title={<span id="theme">Theme</span>}>
         <Choices
           name="theme"
           labelledBy="theme"
@@ -29,16 +26,13 @@ export default function Appearance() {
           onChange={theme.setChoice}
           columns={3}
           options={[
-            { value: "system", icon: "contrast", title: "System", body: "Follows this device." },
-            { value: "dark", icon: "dark_mode", title: "Dark", body: "Ink background." },
-            { value: "light", icon: "light_mode", title: "Light", body: "Paper background." },
+            { value: "system", icon: "contrast", title: "System" },
+            { value: "dark", icon: "dark_mode", title: "Dark" },
+            { value: "light", icon: "light_mode", title: "Light" },
           ]}
         />
       </Section>
-      <Section
-        title={<span id="density">Density</span>}
-        description="How much room each conversation takes in the list."
-      >
+      <Section title={<span id="density">Density</span>}>
         <Choices
           name="density"
           labelledBy="density"
@@ -49,20 +43,20 @@ export default function Appearance() {
               value: "comfortable",
               icon: "density_medium",
               title: "Comfortable",
-              body: "Roomier rows with large avatars and a snippet.",
+              body: "Avatars and a snippet.",
             },
             {
               value: "compact",
               icon: "density_small",
               title: "Compact",
-              body: "Tighter rows, so more fit on screen.",
+              body: "More rows on screen.",
             },
           ]}
         />
       </Section>
       <Section
         title={<span id="reading">Reading</span>}
-        description="Where a conversation opens on a wide screen. Narrow windows and phones always show one at a time."
+        description="On wide screens. Phones always show one at a time."
       >
         <Choices
           name="reading_layout"
@@ -74,13 +68,13 @@ export default function Appearance() {
               value: "split",
               icon: "vertical_split",
               title: "Side by side",
-              body: "The list stays on the left, the conversation opens beside it.",
+              body: "The list on the left, the conversation beside it.",
             },
             {
               value: "stacked",
               icon: "view_agenda",
               title: "One at a time",
-              body: "The conversation takes the whole width; back returns to the list.",
+              body: "The conversation takes the full width.",
             },
           ]}
         />
@@ -102,7 +96,7 @@ function Choices<T extends string>({
   labelledBy: string;
   value: T;
   onChange: (value: T) => void;
-  options: { value: T; icon: string; title: string; body: string }[];
+  options: { value: T; icon: string; title: string; body?: string }[];
   columns?: 2 | 3;
 }) {
   return (
@@ -137,9 +131,11 @@ function Choices<T extends string>({
             />
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-semibold">{option.title}</span>
-              <span className="block text-xs leading-relaxed text-muted-foreground">
-                {option.body}
-              </span>
+              {option.body && (
+                <span className="block text-xs leading-relaxed text-muted-foreground">
+                  {option.body}
+                </span>
+              )}
             </span>
           </label>
         );

@@ -26,29 +26,26 @@ import {
 
 const TOKEN_URL = "https://dash.cloudflare.com/profile/api-tokens";
 
-/** The permissions the server's Cloudflare calls need (internal/cloudflare). */
-const REQUIRED = [
-  ["Account", "Workers Scripts", "Edit", "Upload and remove the inbound worker."],
-  ["Account", "Workers R2 Storage", "Edit", "Give the worker its attachments bucket."],
-  ["Zone", "Zone", "Read", "List your domains."],
-  [
-    "Zone",
-    "Zone Settings",
-    "Edit",
-    "Turn Email Routing on. Easy to miss: Cloudflare puts it here.",
-  ],
-  ["Zone", "Email Routing Rules", "Edit", "Point each domain's catch-all at the worker."],
-  ["Zone", "DNS", "Edit", "Publish MX records (Email Routing, and new subdomain mailboxes)."],
-] as const;
+/**
+ * The permissions the server's Cloudflare calls need (internal/cloudflare).
+ * A note only where the permission is easy to get wrong.
+ */
+type Permission = { perm: string; note?: string };
+const REQUIRED: Permission[] = [
+  { perm: "Account → Workers Scripts → Edit" },
+  { perm: "Account → Workers R2 Storage → Edit" },
+  { perm: "Zone → Zone → Read" },
+  { perm: "Zone → Zone Settings → Edit", note: "Easy to miss: it turns Email Routing on." },
+  { perm: "Zone → Email Routing Rules → Edit" },
+  { perm: "Zone → DNS → Edit" },
+];
 
-const OPTIONAL = [
-  [
-    "Account",
-    "Email Routing Addresses",
-    "Edit",
-    "Forwarding: add and verify the addresses copies go to. The account permission, not the zone one with a similar name.",
-  ],
-] as const;
+const OPTIONAL: Permission[] = [
+  {
+    perm: "Account → Email Routing Addresses → Edit",
+    note: "For forwarding. The account one, not the zone one with a similar name.",
+  },
+];
 
 /** Cloudflare: the token, the inbound worker and which domains receive. */
 export default function Inbound() {
@@ -87,20 +84,18 @@ function useRun() {
   return { call, run, pending: action.isPending, variables: action.variables };
 }
 
-function Permissions({ list }: { list: readonly (readonly [string, string, string, string])[] }) {
+function Permissions({ list }: { list: Permission[] }) {
   return (
     <List>
-      {list.map(([scope, name, level, why]) => (
+      {list.map(({ perm, note }) => (
         <ListRow
-          key={name}
+          key={perm}
           className="min-h-0"
           title={
-            <span className="font-mono text-[13px] whitespace-normal break-words">
-              {scope} → {name} → {level}
-            </span>
+            <span className="font-mono text-[13px] whitespace-normal break-words">{perm}</span>
           }
         >
-          <p className="text-xs text-muted-foreground">{why}</p>
+          {note && <p className="text-xs text-muted-foreground">{note}</p>}
         </ListRow>
       ))}
     </List>
@@ -144,10 +139,7 @@ function Connect() {
       </Section>
       <Section title="2. Paste it here">
         <form onSubmit={submit} className="flex flex-col gap-2 sm:flex-row sm:items-start">
-          <Field
-            className="flex-1"
-            description="Encrypted before it is stored. Revoke it in Cloudflare any time."
-          >
+          <Field className="flex-1" description="Stored encrypted.">
             <Input
               type="password"
               value={token}
@@ -172,17 +164,7 @@ function Worker({ status }: { status: InboundStatus }) {
   const deploying = pending && variables?.path === "/deploy";
 
   return (
-    <Section
-      title="Worker"
-      description="Receives your mail at Cloudflare, stores attachments in R2 and hands each message to Mails. Redeploy after updating Mails, so the worker matches this version."
-      action={
-        status.deployed ? (
-          <StatusDot tone="ok">Deployed</StatusDot>
-        ) : (
-          <StatusDot tone="off">Not deployed</StatusDot>
-        )
-      }
-    >
+    <Section title="Worker" description="Redeploy after updating Mails.">
       <PageAction>
         <Button
           variant="primary"
@@ -215,20 +197,8 @@ function Fact({ term, children }: { term: string; children: ReactNode }) {
 }
 
 function Zones({ status }: { status: InboundStatus }) {
-  const receiving = status.zones.filter((z) => z.catch_all_to_worker).length;
   return (
-    <Section
-      title="Receiving domains"
-      description={
-        <>
-          <span className="font-mono">
-            {receiving} of {status.zones.length}
-          </span>{" "}
-          receive here. Turning a domain on enables Email Routing, publishes Cloudflare's MX records
-          and sends every address to the worker.
-        </>
-      }
-    >
+    <Section title="Receiving domains">
       <List>
         {status.zones.map((zone) => (
           <ZoneRow key={zone.id} zone={zone} deployed={status.deployed} />
@@ -332,7 +302,7 @@ function Connection({ status }: { status: InboundStatus }) {
   return (
     <Section
       title="Cloudflare connection"
-      description="Added permissions to this token in Cloudflare? Nothing to do here. To switch to a new token, disconnect below, then connect the new one."
+      description="To use a new token, disconnect below, then connect it."
     >
       <dl className="grid grid-cols-2 gap-4 rounded-[14px] border border-border bg-surface px-5 py-4 sm:grid-cols-3">
         <Fact term="Token">{status.hint}</Fact>

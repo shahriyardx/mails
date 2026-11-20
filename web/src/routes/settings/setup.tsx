@@ -1,6 +1,6 @@
 import { type FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { Button, Field, Input, List, ListRow, ProgressBar, toast } from "@/components/kit";
+import { Button, Field, Input, List, ListRow, toast } from "@/components/kit";
 import { errorMessage, useSaveSetup, useSetup } from "@/lib/api";
 import type { Setup as SetupState } from "@/lib/types";
 import { LoadError, PageAction, PageLoading, Section, StatusDot } from "./parts";
@@ -17,36 +17,24 @@ export default function Setup() {
     <div className="space-y-10">
       {!completed && (
         <PageAction>
-          <FinishButton />
+          <FinishButton ready={remaining === 0} />
         </PageAction>
       )}
 
       <Section
         title="Checklist"
-        description={
-          remaining === 0
-            ? "Everything is in place. Mail can be sent and received."
-            : "Each step opens the page that does it; come back here after."
-        }
+        description={remaining === 0 ? "Everything is in place." : undefined}
         action={
           <span className="font-mono text-xs text-muted-foreground tabular-nums">
             {done}/{steps.length} done
           </span>
         }
       >
-        <ProgressBar value={(done / Math.max(steps.length, 1)) * 100} label="Setup progress" />
         <List>
           {steps.map((step) => (
             <Step key={step.key} step={step} />
           ))}
         </List>
-        <p className="text-xs text-muted-foreground">
-          {completed
-            ? "Setup is marked finished, so the inbox no longer shows the checklist."
-            : remaining === 0
-              ? "Finish setup hides the checklist from the inbox."
-              : "Finish setup hides the checklist from the inbox now. The steps left stay here."}
-        </p>
       </Section>
 
       <Brand setup={setup.data} />
@@ -60,13 +48,16 @@ function Step({ step }: { step: SetupState["steps"][number] }) {
       title={step.title}
       action={
         <>
-          <StatusDot tone={step.done ? "ok" : "pending"} className="w-14">
-            {step.done ? "Done" : "To do"}
-          </StatusDot>
+          {/* Only finished steps are marked; the rest show their Open button. */}
+          {step.done ? (
+            <StatusDot tone="ok">Done</StatusDot>
+          ) : (
+            <span className="sr-only">To do</span>
+          )}
           {step.href && (
             <Button
               size="sm"
-              variant={step.done ? "ghost" : "outline"}
+              variant="outline"
               render={<Link to={step.href} />}
               nativeButton={false}
               aria-label={`Open ${step.title}`}
@@ -99,10 +90,11 @@ function Brand({ setup }: { setup: SetupState }) {
   }
 
   return (
-    <Section title="Name this instance" description='Optional. Leave it empty to keep "Mails".'>
+    <Section title="Name this instance">
       <form className="flex flex-col gap-2 sm:flex-row sm:items-end" onSubmit={submit}>
-        <Field label="Name" className="flex-1">
+        <Field className="flex-1">
           <Input
+            aria-label="Instance name"
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Mails"
@@ -117,12 +109,12 @@ function Brand({ setup }: { setup: SetupState }) {
   );
 }
 
-function FinishButton() {
+function FinishButton({ ready }: { ready: boolean }) {
   const save = useSaveSetup();
   const navigate = useNavigate();
   return (
     <Button
-      variant="primary"
+      variant={ready ? "primary" : "tonal"}
       icon="done_all"
       loading={save.isPending}
       onClick={() =>
