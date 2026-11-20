@@ -3,9 +3,11 @@ package domain_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/shahriyardx/mails/internal/apikey"
 	"github.com/shahriyardx/mails/internal/db/dbtest"
 	"github.com/shahriyardx/mails/internal/domain"
 	"github.com/shahriyardx/mails/internal/httpx"
@@ -128,6 +130,69 @@ func TestSubdomainOfVerifiedIsInherited(t *testing.T) {
 	if len(fake.Deleted) != 0 {
 		t.Fatalf("deleted identities = %v", fake.Deleted)
 	}
+}
+
+// A mailbox is filed under the closest domain covering it, which is what
+// an API key scoped to a domain reaches. Adding or removing a domain
+// re-files the mailboxes it changes.
+func TestMailboxesFollowClosestDomain(t *testing.T) {
+	s, _, _ := newService(t)
+	ctx := context.Background()
+	parent, err := s.Add(ctx, "a.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.DB.Exec(ctx, `INSERT INTO mailbox (id, address, domain, domain_id, display_name) VALUES
+		('mbx_top', 'x@a.test', 'a.test', $1, 'X'), ('mbx_sub', 'x@sub.a.test', 'sub.a.test', $1, 'X')`, parent.ID); err != nil {
+		t.Fatal(err)
+	}
+	reach := func(domainID string) []string {
+		t.Helper()
+		ids, err := apikey.Allowed(ctx, s.DB, apikey.Reach{DomainIDs: []string{domainID}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		slices.Sort(ids)
+		return ids
+	}
+	check := func(step, domainID string, want ...string) {
+		t.Helper()
+		if got := reach(domainID); !slices.Equal(got, want) {
+			t.Errorf("%s: key on %s reaches %v, want %v", step, domainID, got, want)
+		}
+	}
+
+	sub, err := s.Add(ctx, "sub.a.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	check("subdomain added", parent.ID, "mbx_top")
+	check("subdomain added", sub.ID, "mbx_sub")
+
+	if _, _, err := s.Remove(ctx, "sub.a.test", false); err != nil {
+		t.Fatal(err)
+	}
+	check("subdomain removed", parent.ID, "mbx_sub", "mbx_top")
+
+	// Removing the parent leaves both unfiled; adding it back files both.
+	if _, _, err := s.Remove(ctx, "a.test", false); err != nil {
+		t.Fatal(err)
+	}
+	sub, err = s.Add(ctx, "sub.a.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	check("only subdomain", sub.ID, "mbx_sub")
+	parent, err = s.Add(ctx, "a.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	check("parent re-added", parent.ID, "mbx_top")
+	check("parent re-added", sub.ID, "mbx_sub")
+	if _, _, err := s.Remove(ctx, "sub.a.test", false); err != nil {
+		t.Fatal(err)
+	}
+	check("subdomain removed again", parent.ID, "mbx_sub", "mbx_top")
 }
 
 func TestRefreshMissingIdentityFails(t *testing.T) {

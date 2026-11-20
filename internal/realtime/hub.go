@@ -18,11 +18,17 @@ type Event struct {
 }
 
 type Hub struct {
-	mu   sync.Mutex
-	subs map[chan []byte]struct{}
+	mu        sync.Mutex
+	subs      map[chan []byte]struct{}
+	done      chan struct{}
+	closeOnce sync.Once
 }
 
-func NewHub() *Hub { return &Hub{subs: map[chan []byte]struct{}{}} }
+func NewHub() *Hub { return &Hub{subs: map[chan []byte]struct{}{}, done: make(chan struct{})} }
+
+// Close ends every open stream, so a graceful server shutdown does not wait
+// on tabs that would never hang up.
+func (h *Hub) Close() { h.closeOnce.Do(func() { close(h.done) }) }
 
 // Publish sends e to every connected tab. A slow tab drops the event rather
 // than blocking the sender; it refetches on its next event anyway.
@@ -69,6 +75,8 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-r.Context().Done():
+			return
+		case <-h.done:
 			return
 		case <-ping.C:
 			fmt.Fprint(w, ": ping\n\n")

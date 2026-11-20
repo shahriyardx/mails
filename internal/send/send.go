@@ -49,7 +49,10 @@ type Service struct {
 	// ConfigSet returns the SES configuration set to send with ("" for
 	// none). It is read per send, so setting up reporting needs no restart.
 	ConfigSet func() string
-	Now       func() time.Time
+	// Region is the SES region; it names the host of the Message-ID SES
+	// puts on the mail it sends.
+	Region string
+	Now    func() time.Time
 
 	once sync.Once
 	wake chan struct{}
@@ -160,7 +163,9 @@ func (s *Service) Send(ctx context.Context, in Input) (*Result, error) {
 		return nil, err
 	}
 	status, sesID, reason := "sent", "", ""
-	sendCtx, cancel := context.WithTimeout(ctx, sesTimeout)
+	// A client hanging up must not abort the call: SES may have the mail
+	// already, and queueing it would send it twice.
+	sendCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), sesTimeout)
 	sesID, err = s.SES.SendRaw(sendCtx, ses.RawEmail{From: p.box.Address, To: p.envelop, Raw: p.raw, ConfigurationSet: s.configSet()})
 	cancel()
 	if err != nil {
@@ -181,6 +186,9 @@ func (s *Service) Send(ctx context.Context, in Input) (*Result, error) {
 		// out and a retry by the caller would send it twice.
 		if status == "sent" {
 			slog.Error("message sent but not recorded", "ses_message_id", sesID, "err", err)
+		} else if uerr := s.claimDraft(recCtx, p.in.DraftID, false); uerr != nil {
+			// Nothing went out: give the draft back, or it is stuck claimed.
+			slog.Error("release draft after failed record", "draft", p.in.DraftID, "err", uerr)
 		}
 		return nil, err
 	}
@@ -190,6 +198,12 @@ func (s *Service) Send(ctx context.Context, in Input) (*Result, error) {
 		s.emitEmail(recCtx, "email.sent", res.ID)
 	}
 	return res, nil
+}
+
+// wireID is the Message-ID recipients see: SES replaces the one we wrote
+// with its own, so replies point at this one.
+func (s *Service) wireID(sesID string) string {
+	return "<" + sesID + "@" + ses.MessageIDHost(s.Region) + ">"
 }
 
 func (s *Service) configSet() string {
@@ -332,10 +346,12 @@ func (s *Service) prepare(ctx context.Context, in *Input, draft bool) (*prepared
 		return nil, err
 	}
 	if len(p.raw) > maxRaw {
-		return nil, &httpx.Error{Status: 413, Code: "payload_too_large", Message: "The message is over SES's 40 MB limit"}
+		return nil, errTooLarge
 	}
 	return p, nil
 }
+
+var errTooLarge = &httpx.Error{Status: 413, Code: "payload_too_large", Message: "The message is over SES's 40 MB limit"}
 
 func (s *Service) checkSuppressed(ctx context.Context, recipients []string) error {
 	rows, _ := s.DB.Query(ctx, `SELECT address FROM suppression WHERE address = ANY($1) ORDER BY address`, recipients)
@@ -390,6 +406,7 @@ func (s *Service) loadFiles(ctx context.Context, p *prepared, draft bool) error 
 		ContentID                        *string
 		MessageID                        *string
 		MailboxID                        *string
+		Size                             int
 	}
 	// attachment_ids is the whole list: a file of the draft that is not
 	// named was removed by the composer and is dropped on save or send.
@@ -397,7 +414,7 @@ func (s *Service) loadFiles(ctx context.Context, p *prepared, draft bool) error 
 	if len(ids) == 0 {
 		return nil
 	}
-	rows, _ := s.DB.Query(ctx, `SELECT a.id, a.filename, a.content_type, a.r2_key, a.content_id, a.message_id, m.mailbox_id
+	rows, _ := s.DB.Query(ctx, `SELECT a.id, a.filename, a.content_type, a.r2_key, a.content_id, a.message_id, m.mailbox_id, a.size_bytes
 		FROM attachment a LEFT JOIN message m ON m.id = a.message_id WHERE a.id = ANY($1)`, dedupe(ids))
 	found, err := pgx.CollectRows(rows, pgx.RowToStructByPos[row])
 	if err != nil {
@@ -405,6 +422,10 @@ func (s *Service) loadFiles(ctx context.Context, p *prepared, draft bool) error 
 	}
 	if len(found) != len(dedupe(ids)) {
 		return httpx.Invalid("attachment_ids", "attachment_ids: One or more files do not exist")
+	}
+	total := 0
+	for _, f := range p.files {
+		total += len(f.Data)
 	}
 	for _, a := range found {
 		switch {
@@ -419,10 +440,19 @@ func (s *Service) loadFiles(ctx context.Context, p *prepared, draft bool) error 
 		default:
 			return httpx.Invalid("attachment_ids", "attachment_ids: One or more files do not exist")
 		}
+		total += a.Size
+	}
+	// Every file passed its access check (so a size says nothing about
+	// files the caller cannot reach); refuse an oversized message before
+	// reading any of them.
+	if !draft && total > maxRaw {
+		return errTooLarge
+	}
+	for _, a := range found {
 		if draft {
 			// A draft only records which files it holds; bytes are read when
 			// it is sent. A forwarded file is copied then too.
-			continue
+			break
 		}
 		obj, err := s.Store.Get(ctx, a.R2Key)
 		if err != nil {
@@ -455,8 +485,10 @@ func (s *Service) record(ctx context.Context, p *prepared, status, sesID, reason
 	}
 	threadID := p.thread
 	var sesPtr, reasonPtr *string
+	rfcID := "<" + p.rfcID + ">"
 	if sesID != "" {
 		sesPtr = &sesID
+		rfcID = s.wireID(sesID)
 	}
 	if reason != "" {
 		reasonPtr = &reason
@@ -474,7 +506,7 @@ func (s *Service) record(ctx context.Context, p *prepared, status, sesID, reason
 				return fmt.Errorf("insert thread: %w", err)
 			}
 		}
-		args := []any{msgID, threadID, p.box.ID, "<" + p.rfcID + ">", nilIfEmpty(p.in.InReplyTo), nonNil(p.in.References),
+		args := []any{msgID, threadID, p.box.ID, rfcID, nilIfEmpty(p.in.InReplyTo), nonNil(p.in.References),
 			p.from.Name, p.box.Address, addrs(p.in.To), addrs(p.in.Cc), addrs(p.in.Bcc), nilIfEmpty(p.in.ReplyTo), p.in.Subject,
 			addr.Snippet(p.text, p.html), nilIfEmpty(p.text), nilIfEmpty(p.html), sesPtr, status, reasonPtr,
 			nilIfEmpty(p.in.APIKeyID), len(p.raw), sentAt, now}
@@ -535,7 +567,7 @@ func (s *Service) record(ctx context.Context, p *prepared, status, sesID, reason
 	s.forgetFiles(dropped)
 	s.Hub.Publish(realtime.Event{Type: "thread.updated", Data: map[string]any{"thread_ids": []string{threadID}}})
 	return &Result{
-		ID: msgID, MessageID: "<" + p.rfcID + ">", SESMessageID: sesPtr, ThreadID: threadID, From: p.box.Address,
+		ID: msgID, MessageID: rfcID, SESMessageID: sesPtr, ThreadID: threadID, From: p.box.Address,
 		To: addr.Addresses(p.in.To), Subject: p.in.Subject, Status: status, Error: reasonPtr,
 	}, nil
 }

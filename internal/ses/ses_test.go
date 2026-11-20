@@ -6,6 +6,18 @@ import (
 	"testing"
 )
 
+func TestMessageIDHost(t *testing.T) {
+	for region, want := range map[string]string{
+		"us-east-1": "email.amazonses.com",
+		"":          "email.amazonses.com",
+		"eu-west-1": "eu-west-1.amazonses.com",
+	} {
+		if got := MessageIDHost(region); got != want {
+			t.Errorf("MessageIDHost(%q) = %q, want %q", region, got, want)
+		}
+	}
+}
+
 func TestExplain(t *testing.T) {
 	for raw, want := range map[string]string{
 		"get credentials: failed to refresh cached credentials, no EC2 IMDS role found":         "AWS keys are not set",

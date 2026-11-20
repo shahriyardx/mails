@@ -207,6 +207,16 @@ func (c *client) Account(ctx context.Context) (*Account, error) {
 	return a, nil
 }
 
+// MessageIDHost is the host of the Message-ID SES writes on mail it sends
+// (<id@host>): email.amazonses.com in us-east-1, <region>.amazonses.com
+// elsewhere.
+func MessageIDHost(region string) string {
+	if region == "" || region == "us-east-1" {
+		return "email.amazonses.com"
+	}
+	return region + ".amazonses.com"
+}
+
 // Permanent reports whether a send error will fail the same way on retry
 // (bad address, rejected content, unverified sender), so the job should stop.
 func Permanent(err error) bool {

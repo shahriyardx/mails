@@ -383,3 +383,56 @@ func TestParticipantsStartWithSender(t *testing.T) {
 		t.Fatalf("participants[0] = %s, want the sender", first)
 	}
 }
+
+func TestSharedFilesSurviveDeletingOneCopy(t *testing.T) {
+	keys := []string{"inbound/s/0-a.pdf", "inbound/s/raw.eml"}
+	for _, purge := range []string{"delete", "empty trash"} {
+		t.Run(purge, func(t *testing.T) {
+			e := setup(t)
+			ctx := context.Background()
+			for _, k := range keys {
+				_ = e.store.Put(ctx, k, strings.NewReader("x"), "application/octet-stream")
+			}
+			// One inbound payload for two mailboxes: both copies point at
+			// the same stored attachment and raw message.
+			text := "shared"
+			res, err := e.in.Ingest(ctx, &inbound.Payload{
+				To: "one@a.test", Recipients: []string{"one@a.test", "two@a.test"}, From: addr.Address{Address: "x@out.test"},
+				ToAddresses: []addr.Address{{Address: "one@a.test"}, {Address: "two@a.test"}},
+				Subject:     "Shared", Text: &text, RawKey: ptr("inbound/s/raw.eml"),
+			}, []inbound.Attachment{{Filename: "a.pdf", ContentType: "application/pdf", SizeBytes: 1, R2Key: "inbound/s/0-a.pdf"}})
+			if err != nil || len(res.Stored) != 2 {
+				t.Fatalf("ingest: %+v %v", res, err)
+			}
+			gone := func(mbx, address string) {
+				t.Helper()
+				var th string
+				_ = e.pool.QueryRow(ctx, `SELECT id FROM thread WHERE mailbox_id = $1`, mbx).Scan(&th)
+				if _, err := e.s.DeleteThreads(ctx, nil, []string{th}, purge == "delete"); err != nil {
+					t.Fatal(err)
+				}
+				if purge == "empty trash" {
+					if _, err := e.s.EmptyTrash(ctx, nil, address, ""); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			stored := func() bool { return e.store.Has(keys[0]) || e.store.Has(keys[1]) }
+			gone("mbx_1", "one@a.test")
+			time.Sleep(200 * time.Millisecond) // forget runs in the background
+			for _, k := range keys {
+				if !e.store.Has(k) {
+					t.Fatalf("%s deleted while mbx_2 still holds it", k)
+				}
+			}
+			gone("mbx_2", "two@a.test")
+			deadline := time.Now().Add(2 * time.Second)
+			for stored() && time.Now().Before(deadline) {
+				time.Sleep(10 * time.Millisecond)
+			}
+			if stored() {
+				t.Fatal("files not deleted after the last copy went")
+			}
+		})
+	}
+}

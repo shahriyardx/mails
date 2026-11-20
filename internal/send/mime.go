@@ -113,7 +113,8 @@ func Build(m Mail) ([]byte, error) {
 		opts := []gomail.FileOption{gomail.WithFileContentType(gomail.ContentType(nonEmpty(f.ContentType, "application/octet-stream")))}
 		var err error
 		if f.ContentID != "" {
-			opts = append(opts, gomail.WithFileContentID(f.ContentID))
+			// RFC 2392 wants <id>; the API takes it with or without.
+			opts = append(opts, gomail.WithFileContentID("<"+strings.Trim(f.ContentID, "<>")+">"))
 			err = msg.EmbedReader(f.Name, bytes.NewReader(f.Data), opts...)
 		} else {
 			err = msg.AttachReader(f.Name, bytes.NewReader(f.Data), opts...)

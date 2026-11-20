@@ -19,6 +19,7 @@ import (
 	"github.com/shahriyardx/mails/internal/mailbox"
 	"github.com/shahriyardx/mails/internal/realtime"
 	"github.com/shahriyardx/mails/internal/send"
+	"github.com/shahriyardx/mails/internal/ses"
 	"github.com/shahriyardx/mails/internal/ses/sesfake"
 	"github.com/shahriyardx/mails/internal/storage"
 )
@@ -353,6 +354,106 @@ func TestReplyToReceivedMail(t *testing.T) {
 	}
 }
 
+// SES writes its own Message-ID, whose host depends on the region. The
+// stored id must be that one, so replies to our mail thread for recipients.
+func TestStoredMessageIDIsWhatSESSent(t *testing.T) {
+	for region, host := range map[string]string{"us-east-1": "email.amazonses.com", "eu-west-1": "eu-west-1.amazonses.com"} {
+		t.Run(region, func(t *testing.T) {
+			e := setup(t)
+			e.s.Region = region
+			ctx := context.Background()
+			// Sent at once.
+			res, err := e.s.Send(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Subject: "Now", Text: "x"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := "<" + *res.SESMessageID + "@" + host + ">"
+			var stored string
+			_ = e.pool.QueryRow(ctx, `SELECT rfc_message_id FROM message WHERE id = $1`, res.ID).Scan(&stored)
+			if res.MessageID != want || stored != want {
+				t.Fatalf("message id = %s, stored %s, want %s", res.MessageID, stored, want)
+			}
+			// A reply to our own message points at that id.
+			if _, err := e.s.Reply(ctx, res.ThreadID, send.ReplyInput{Text: "again"}); err != nil {
+				t.Fatal(err)
+			}
+			if raw := string(e.ses.Sent[1].Raw); !strings.Contains(raw, "In-Reply-To: "+want) {
+				t.Fatalf("reply does not point at %s", want)
+			}
+			// Sent later by the outbox.
+			e.ses.SendErr = errors.New("throttled")
+			queued, err := e.s.Send(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Subject: "Later", Text: "x"})
+			if err != nil || queued.Status != "queued" {
+				t.Fatalf("queue: %+v %v", queued, err)
+			}
+			e.ses.SendErr = nil
+			e.now = e.now.Add(time.Hour)
+			if worked, err := e.s.ProcessOne(ctx); !worked || err != nil {
+				t.Fatalf("outbox: %v %v", worked, err)
+			}
+			var sesID string
+			_ = e.pool.QueryRow(ctx, `SELECT rfc_message_id, ses_message_id FROM message WHERE id = $1`, queued.ID).Scan(&stored, &sesID)
+			if stored != "<"+sesID+"@"+host+">" {
+				t.Fatalf("outbox stored %s for ses id %s", stored, sesID)
+			}
+		})
+	}
+}
+
+// cancelOnSend cancels a context the moment SES is called, as a shutdown
+// (or a client hanging up) arriving mid-send would.
+type cancelOnSend struct {
+	*sesfake.Fake
+	cancel context.CancelFunc
+}
+
+func (c cancelOnSend) SendRaw(ctx context.Context, m ses.RawEmail) (string, error) {
+	c.cancel()
+	return c.Fake.SendRaw(ctx, m)
+}
+
+// A claimed job finishes on shutdown: the SES call is not aborted (a retry
+// could send the mail twice) and the outcome is recorded.
+func TestOutboxFinishesJobOnShutdown(t *testing.T) {
+	e := setup(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	e.ses.SendErr = errors.New("throttled")
+	res, err := e.s.Send(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Text: "x"})
+	if err != nil || res.Status != "queued" {
+		t.Fatalf("queue: %+v %v", res, err)
+	}
+	e.ses.SendErr = nil
+	e.s.SES = cancelOnSend{Fake: e.ses, cancel: cancel}
+	e.now = e.now.Add(time.Hour)
+	if worked, err := e.s.ProcessOne(ctx); !worked || err != nil {
+		t.Fatalf("outbox: %v %v", worked, err)
+	}
+	var status, jobStatus string
+	_ = e.pool.QueryRow(context.Background(), `SELECT m.delivery_status::text, j.status::text FROM message m JOIN send_job j ON j.message_id = m.id`).
+		Scan(&status, &jobStatus)
+	if e.ses.SentCount() != 1 || status != "sent" || jobStatus != "sent" {
+		t.Fatalf("sent=%d message=%s job=%s", e.ses.SentCount(), status, jobStatus)
+	}
+}
+
+// The caller hanging up mid-send must not turn a send into a queued retry
+// (which would send the mail twice).
+func TestClientHangUpDoesNotQueueResend(t *testing.T) {
+	e := setup(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	e.s.SES = cancelOnSend{Fake: e.ses, cancel: cancel}
+	res, err := e.s.Send(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Text: "x"})
+	if err != nil || res.Status != "sent" {
+		t.Fatalf("send: %+v %v", res, err)
+	}
+	var jobs int
+	_ = e.pool.QueryRow(context.Background(), `SELECT count(*) FROM send_job`).Scan(&jobs)
+	if e.ses.SentCount() != 1 || jobs != 0 {
+		t.Fatalf("sent=%d jobs=%d", e.ses.SentCount(), jobs)
+	}
+}
+
 func TestBackoff(t *testing.T) {
 	for attempt, want := range map[int]time.Duration{1: 30 * time.Second, 2: time.Minute, 6: 15 * time.Minute, 40: 15 * time.Minute} {
 		got := send.Backoff(attempt)
@@ -399,6 +500,94 @@ func TestRefusedDraftStaysADraft(t *testing.T) {
 	_ = e.pool.QueryRow(ctx, `SELECT is_draft FROM message WHERE id = $1`, d.ID).Scan(&isDraft)
 	if !isDraft {
 		t.Fatal("refused send left the draft claimed")
+	}
+}
+
+func TestQueuedDraftComesBackWhenRecordFails(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	d, _ := e.s.SaveDraft(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Text: "x"})
+	// SES says try later, then the queue write fails.
+	_, err := e.pool.Exec(ctx, `
+		CREATE FUNCTION fail_job() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'boom'; END $$;
+		CREATE TRIGGER fail_job BEFORE INSERT ON send_job FOR EACH ROW EXECUTE FUNCTION fail_job();`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.ses.SendErr = errors.New("throttled")
+	if _, err := e.s.Send(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Text: "x", DraftID: d.ID}); err == nil {
+		t.Fatal("send succeeded with a failing queue")
+	}
+	var isDraft bool
+	_ = e.pool.QueryRow(ctx, `SELECT is_draft FROM message WHERE id = $1`, d.ID).Scan(&isDraft)
+	if !isDraft {
+		t.Fatal("failed record left the draft claimed")
+	}
+	if _, err := e.s.SaveDraft(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Text: "y", DraftID: d.ID}); err != nil {
+		t.Fatalf("save after failed send: %v", err)
+	}
+}
+
+// A draft claimed by a send still talking to SES is not a draft any more:
+// deleting it would leave sent mail with no record.
+func TestClaimedDraftCannotBeDeleted(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	d, _ := e.s.SaveDraft(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Text: "x"})
+	if _, err := e.pool.Exec(ctx, `UPDATE message SET is_draft = false WHERE id = $1`, d.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.s.DeleteDraft(ctx, nil, d.ID); code(err) != 404 {
+		t.Fatalf("delete claimed draft: %v, want 404", err)
+	}
+}
+
+func TestOversizedFilesRefusedBeforeReading(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	m := &mail.Service{DB: e.pool, Store: e.store}
+	a, _ := m.Stage(ctx, "a.bin", "application/octet-stream", strings.NewReader("A"))
+	b, _ := m.Stage(ctx, "b.bin", "application/octet-stream", strings.NewReader("B"))
+	// Two files of 25 MB each, by their recorded size.
+	if _, err := e.pool.Exec(ctx, `UPDATE attachment SET size_bytes = 25 << 20`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := e.s.Send(ctx, send.Input{From: "me@a.test", To: to("x@b.test"), Text: "x", AttachmentIDs: []string{a.ID, b.ID}})
+	if code(err) != 413 {
+		t.Fatalf("err = %v, want 413", err)
+	}
+	if e.ses.SentCount() != 0 {
+		t.Fatal("oversized message went out")
+	}
+}
+
+// A size check must not tell a restricted key anything about files it
+// cannot reach: a foreign oversized file reads like a foreign small one.
+func TestForeignFileSizeStaysHidden(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	for _, q := range []string{
+		`INSERT INTO mailbox (id, address, domain, domain_id, display_name) VALUES ('mbx_2', 'other@a.test', 'a.test', 'dom_a', 'O')`,
+		`INSERT INTO thread (id, mailbox_id, subject) VALUES ('thr_2', 'mbx_2', 'x')`,
+		`INSERT INTO message (id, thread_id, mailbox_id, from_address, subject) VALUES ('msg_2', 'thr_2', 'mbx_2', 'z@b.test', 'x')`,
+		`INSERT INTO attachment (id, message_id, filename, size_bytes, r2_key) VALUES
+			('att_small', 'msg_2', 's.bin', 1, 'k/s'), ('att_big', 'msg_2', 'b.bin', 50 << 20, 'k/b')`,
+	} {
+		if _, err := e.pool.Exec(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var msgs []string
+	for _, att := range []string{"att_small", "att_big"} {
+		_, err := e.s.Send(ctx, send.Input{From: "me@a.test", To: to("x@b.test"), Text: "x", AttachmentIDs: []string{att},
+			APIKeyID: "key_1", Allowed: []string{"mbx_1"}})
+		if code(err) != 422 {
+			t.Fatalf("%s: err = %v, want 422", att, err)
+		}
+		msgs = append(msgs, err.Error())
+	}
+	if msgs[0] != msgs[1] {
+		t.Fatalf("responses differ: %q vs %q", msgs[0], msgs[1])
 	}
 }
 

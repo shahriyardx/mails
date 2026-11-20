@@ -55,17 +55,30 @@ func (a *API) stats(_ http.ResponseWriter, r *http.Request, c *caller) (int, any
 	if days < 1 || days > 365 {
 		return 0, nil, httpx.Invalid("days", "days: 1 to 365")
 	}
-	since := until.AddDate(0, 0, -days)
-	for name, dst := range map[string]*time.Time{"since": &since, "until": &until} {
-		if v := q.Get(name); v != "" {
-			t, err := time.Parse(time.RFC3339, v)
-			if err != nil {
-				if t, err = time.Parse("2006-01-02", v); err != nil {
-					return 0, nil, httpx.Invalid(name, name+": An ISO 8601 date")
-				}
-			}
-			*dst = t
+	parse := func(name string, dst *time.Time) error {
+		v := q.Get(name)
+		if v == "" {
+			return nil
 		}
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			if t, err = time.Parse("2006-01-02", v); err != nil {
+				return httpx.Invalid(name, name+": An ISO 8601 date")
+			}
+		}
+		*dst = t
+		return nil
+	}
+	if err := parse("until", &until); err != nil {
+		return 0, nil, err
+	}
+	since := until.AddDate(0, 0, -days) // without since: days long, ending at until
+	if err := parse("since", &since); err != nil {
+		return 0, nil, err
+	}
+	// The daily series has a row per day: keep it to about a year.
+	if since.After(until) || until.Sub(since) > 366*24*time.Hour {
+		return 0, nil, httpx.Invalid("since", "since: At most 366 days before until, and not after it")
 	}
 	allowed, err := a.reach(ctx, c)
 	if err != nil {

@@ -102,7 +102,11 @@ func (f *Fake) SetMailFrom(_ context.Context, domain, mailFrom string) error {
 	return nil
 }
 
-func (f *Fake) SendRaw(_ context.Context, m ses.RawEmail) (string, error) {
+// SendRaw fails like the AWS client when ctx is already done.
+func (f *Fake) SendRaw(ctx context.Context, m ses.RawEmail) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", fmt.Errorf("ses send: %w", err)
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.SendErr != nil {

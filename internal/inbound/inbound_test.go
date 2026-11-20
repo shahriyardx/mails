@@ -104,27 +104,33 @@ func TestIngestThreadsAndDedupes(t *testing.T) {
 }
 
 func TestReplyToOurSentMailThreadsBySESID(t *testing.T) {
-	s, pool, _ := setup(t)
-	ctx := context.Background()
-	_, err := pool.Exec(ctx, `
+	// SES's Message-ID host is email.amazonses.com in us-east-1 and
+	// <region>.amazonses.com elsewhere.
+	for _, ref := range []string{"<0100abc@email.amazonses.com>", "<0100abc@eu-west-1.amazonses.com>"} {
+		t.Run(ref, func(t *testing.T) {
+			s, pool, _ := setup(t)
+			ctx := context.Background()
+			_, err := pool.Exec(ctx, `
 		INSERT INTO thread (id, mailbox_id, subject) VALUES ('thr_sent', 'mbx_hi', 'Quote');
 		INSERT INTO message (id, thread_id, mailbox_id, from_address, to_addrs, subject, folder, is_outbound, is_read, ses_message_id, rfc_message_id)
 			VALUES ('msg_sent', 'thr_sent', 'mbx_hi', 'hi@a.test', '[{"name":null,"address":"ada@sender.test"}]', 'Quote', 'sent', true, true, '0100abc', '<ours@a.test>');`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := mail.Recompute(ctx, pool, "thr_sent"); err != nil {
-		t.Fatal(err)
-	}
-	p := msg("hi@a.test", "<r@sender.test>", "unrelated")
-	p.References = []string{"<0100abc@email.amazonses.com>"}
-	if _, err := s.Ingest(ctx, p, nil); err != nil {
-		t.Fatal(err)
-	}
-	var folders string
-	_ = pool.QueryRow(ctx, `SELECT folders::text FROM thread WHERE id = 'thr_sent'`).Scan(&folders)
-	if folders != "{inbox,sent}" {
-		t.Fatalf("folders = %s", folders)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := mail.Recompute(ctx, pool, "thr_sent"); err != nil {
+				t.Fatal(err)
+			}
+			p := msg("hi@a.test", "<r@sender.test>", "unrelated")
+			p.References = []string{ref}
+			if _, err := s.Ingest(ctx, p, nil); err != nil {
+				t.Fatal(err)
+			}
+			var folders string
+			_ = pool.QueryRow(ctx, `SELECT folders::text FROM thread WHERE id = 'thr_sent'`).Scan(&folders)
+			if folders != "{inbox,sent}" {
+				t.Fatalf("folders = %s", folders)
+			}
+		})
 	}
 }
 
@@ -319,5 +325,25 @@ func TestHighestPriorityFilterPicksFolder(t *testing.T) {
 	_ = pool.QueryRow(ctx, `SELECT folder::text FROM message WHERE id = $1`, res.Stored[0]).Scan(&folder)
 	if folder != "archive" {
 		t.Fatalf("folder = %s, want the high-priority rule's archive", folder)
+	}
+}
+
+func TestSubjectThreadingTakesBackslashLiterally(t *testing.T) {
+	for _, subject := range []string{`Path C:\`, `a\b report`, `100% done_now`} {
+		t.Run(subject, func(t *testing.T) {
+			s, pool, _ := setup(t)
+			ctx := context.Background()
+			if _, err := s.Ingest(ctx, msg("hi@a.test", "<1@sender.test>", subject), nil); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.Ingest(ctx, msg("hi@a.test", "<2@sender.test>", "Re: "+subject), nil); err != nil {
+				t.Fatal(err)
+			}
+			var threads int
+			_ = pool.QueryRow(ctx, `SELECT count(*) FROM thread`).Scan(&threads)
+			if threads != 1 {
+				t.Fatalf("threads = %d, want 1", threads)
+			}
+		})
 	}
 }

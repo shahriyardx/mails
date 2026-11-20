@@ -273,6 +273,10 @@ func (s *Service) Remove(ctx context.Context, idOrName string, inSES bool) (*Dom
 	if _, err := s.DB.Exec(ctx, `DELETE FROM domain WHERE id = $1`, d.ID); err != nil {
 		return nil, false, fmt.Errorf("delete domain: %w", err)
 	}
+	// Its mailboxes fall back to a parent domain, if one is left.
+	if err := s.linkMailboxes(ctx); err != nil {
+		return nil, false, err
+	}
 	return d, deleted, nil
 }
 
@@ -404,14 +408,50 @@ func (s *Service) afterChange(ctx context.Context, domainID string) (*Domain, er
 	return s.Get(ctx, domainID)
 }
 
-// linkMailboxes points mailboxes at their domain row once it exists.
+// linkMailboxes files every mailbox under the closest domain covering it
+// (addr.Covering, the rule API key reach uses), or none. Adding sub.a.test
+// moves x@sub.a.test off a.test; removing it moves them back.
 func (s *Service) linkMailboxes(ctx context.Context) error {
-	_, err := s.DB.Exec(ctx, `UPDATE mailbox m SET domain_id = d.id FROM domain d
-		WHERE m.domain_id IS NULL AND d.name = m.domain`)
-	if err != nil {
-		return fmt.Errorf("link mailboxes: %w", err)
-	}
-	return nil
+	return pgx.BeginFunc(ctx, s.DB, func(tx pgx.Tx) error {
+		type dom struct{ ID, Name string }
+		type box struct {
+			ID, Address string
+			DomainID    *string
+		}
+		rows, _ := tx.Query(ctx, `SELECT id, name FROM domain`)
+		domains, err := pgx.CollectRows(rows, pgx.RowToStructByPos[dom])
+		if err != nil {
+			return fmt.Errorf("link mailboxes: %w", err)
+		}
+		names := make([]string, len(domains))
+		for i, d := range domains {
+			names[i] = d.Name
+		}
+		rows, _ = tx.Query(ctx, `SELECT id, address, domain_id FROM mailbox FOR UPDATE`)
+		boxes, err := pgx.CollectRows(rows, pgx.RowToStructByPos[box])
+		if err != nil {
+			return fmt.Errorf("link mailboxes: %w", err)
+		}
+		var ids []string
+		var to []*string
+		for _, b := range boxes {
+			var want *string
+			if i := addr.Covering(b.Address, names); i >= 0 {
+				want = &domains[i].ID
+			}
+			if (want == nil) != (b.DomainID == nil) || (want != nil && *want != *b.DomainID) {
+				ids, to = append(ids, b.ID), append(to, want)
+			}
+		}
+		if len(ids) == 0 {
+			return nil
+		}
+		if _, err := tx.Exec(ctx, `UPDATE mailbox m SET domain_id = u.domain_id
+			FROM unnest($1::text[], $2::text[]) AS u(id, domain_id) WHERE m.id = u.id`, ids, to); err != nil {
+			return fmt.Errorf("link mailboxes: %w", err)
+		}
+		return nil
+	})
 }
 
 // probe checks whether SPF (including amazonses.com) and DMARC resolve.

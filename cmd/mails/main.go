@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"sync"
 	"syscall"
 	"time"
 
@@ -128,7 +129,7 @@ func run() error {
 	mailboxes := &mailbox.Service{DB: pool, Receiving: func(ctx context.Context, d string) any { return cf.EnsureSubdomainReceiving(ctx, d) }}
 	sender := &send.Service{
 		DB: pool, SES: sesClient, Store: store, Mailboxes: mailboxes, Mail: mailSvc, Hub: hub,
-		ConfigSet: reports.ConfigSet, Now: time.Now, Events: hooks,
+		ConfigSet: reports.ConfigSet, Region: cfg.AWSRegion, Now: time.Now, Events: hooks,
 	}
 	deps := &server.Deps{
 		DB:   pool,
@@ -160,11 +161,14 @@ func run() error {
 		DB: pool, Keys: deps.Keys, Domains: deps.Domains, Mailboxes: mailboxes, Mail: mailSvc, Send: sender,
 		Delivery: deps.Delivery, Webhooks: hooks, Idem: idem, Events: hooks, BaseURL: cfg.AppURL + "/api/v1",
 	}
-	go every(ctx, time.Hour, "sweep staged uploads", mailSvc.SweepStaged)
-	go every(ctx, time.Hour, "sweep idempotency keys", idem.Sweep)
-	go hooks.Run(ctx)
+	// Background workers stop claiming work when ctx ends but finish the job
+	// in hand; run waits for them before closing the pool.
+	var workers sync.WaitGroup
+	workers.Go(func() { every(ctx, time.Hour, "sweep staged uploads", mailSvc.SweepStaged) })
+	workers.Go(func() { every(ctx, time.Hour, "sweep idempotency keys", idem.Sweep) })
+	workers.Go(func() { hooks.Run(ctx) })
 	if cfg.OutboxWorker {
-		go sender.RunOutbox(ctx)
+		workers.Go(func() { sender.RunOutbox(ctx) })
 	}
 
 	srv := &http.Server{
@@ -172,20 +176,32 @@ func run() error {
 		Handler:           server.New(deps, web.Dist()),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
+	srv.RegisterOnShutdown(hub.Close)
+	shutdownDone := make(chan struct{})
 	go func() {
+		defer close(shutdownDone)
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		_ = srv.Shutdown(shutdown)
+		if err := srv.Shutdown(shutdown); err != nil {
+			slog.Warn("shutdown", "err", err)
+		}
 	}()
 	// Start-up (migrations, client setup) leaves garbage behind; hand it
 	// back now so an idle instance stays small.
 	debug.FreeOSMemory()
 	slog.Info("listening", "addr", cfg.Addr, "url", cfg.AppURL)
-	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-		return err
+	err = srv.ListenAndServe()
+	// ListenAndServe returns as soon as shutdown starts (or at once if it
+	// could not listen): wait for in-flight requests and workers before
+	// the deferred pool.Close.
+	stop()
+	<-shutdownDone
+	workers.Wait()
+	if errors.Is(err, http.ErrServerClosed) {
+		return nil
 	}
-	return nil
+	return err
 }
 
 // avatarClient fetches sender pictures. Site icons often redirect
