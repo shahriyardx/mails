@@ -17,6 +17,33 @@ the UI system are decided there. Do not re-ask the owner about them.
 - Wants well-known, maintained libraries instead of hand-rolled code.
 - Wants the least RAM possible. Today the binary idles at ~22 MB.
 
+## Engineering bar
+
+Work like a senior engineer on a Google-quality codebase:
+
+- **Design systems:** use the best-in-class, maintained design system and
+  libraries for each job. Never hand-roll what a well-known library does.
+- **Structure:** package by feature (`internal/<feature>`), not by layer. Each
+  package has one job and a small exported surface. Handlers stay thin; logic
+  lives in service functions that take plain inputs and return plain values.
+- **DRY:** one source of truth for each rule (scopes, folder moves, address
+  parsing, error shapes, serialization). `/api/app` and `/api/v1` call the
+  same service functions. UI parts come from one kit.
+- **Testable:** dependencies come in through interfaces or constructor
+  arguments (SES sender, R2 store, clock, HTTP client), so tests use fakes,
+  never real AWS or Cloudflare. Table-driven tests. Every branch that moves
+  money, mail or permissions has a test.
+- **Performance and RAM:** small pool, no per-request goroutine leaks, stream
+  large bodies (attachments, raw MIME) instead of buffering, index every
+  query path, paginate with cursors, no N+1 queries.
+- **Scalability:** stateless HTTP handlers; background work through the DB
+  queue (`send_job`, webhook retries) with `FOR UPDATE SKIP LOCKED`, so a
+  second process could run later without changes.
+- **Errors and logs:** wrap errors with context (`fmt.Errorf("...: %w")`),
+  `log/slog` structured logs, never log secrets or mail bodies.
+- **Security:** validate at every trust boundary (worker, SNS, API keys,
+  session), constant-time secret compares, sanitize mail HTML before render.
+
 ## Reference implementation
 
 `/home/shahriyar/dev/next/mail` is Mailroom, the full Next.js app this is cut
