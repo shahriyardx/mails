@@ -325,11 +325,8 @@ func (a *API) addSuppression(_ http.ResponseWriter, r *http.Request, c *caller) 
 		return 200, map[string]any{"object": "suppression", "address": strings.ToLower(strings.TrimSpace(in.Address)), "blocked": true}, nil
 	}
 	if errors.As(err, &he) && he.Status == 409 {
-		list, err := a.Delivery.ListSuppressions(r.Context(), in.Address, page.Params{Limit: 1})
-		if err != nil || len(list.Data) == 0 {
-			return 0, nil, err
-		}
-		return 200, list.Data[0], nil
+		x, err := a.Delivery.GetSuppression(r.Context(), in.Address)
+		return 200, x, err
 	}
 	return 201, x, err
 }

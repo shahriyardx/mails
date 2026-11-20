@@ -49,6 +49,22 @@ func (s *Service) ListSuppressions(ctx context.Context, q string, p page.Params)
 	return page.Build(list, p.Limit, func(x *Suppression) (int64, string) { return x.CreatedAt.UnixMicro(), x.ID }), nil
 }
 
+// GetSuppression returns the block on exactly this address.
+func (s *Service) GetSuppression(ctx context.Context, address string) (*Suppression, error) {
+	// Normalized as Suppress stores it.
+	rows, _ := s.DB.Query(ctx, `SELECT id, address, reason, created_at FROM suppression WHERE address = $1`,
+		strings.ToLower(strings.TrimSpace(address)))
+	x, err := pgx.CollectExactlyOneRow(rows, pgx.RowToAddrOfStructByName[Suppression])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, httpx.NotFound("That address is not blocked")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get suppression: %w", err)
+	}
+	x.Object = "suppression"
+	return x, nil
+}
+
 // Suppress blocks an address by hand. Blocking one already blocked is a 409.
 func (s *Service) Suppress(ctx context.Context, address, reason string) (*Suppression, error) {
 	address = strings.ToLower(strings.TrimSpace(address))

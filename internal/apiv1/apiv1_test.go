@@ -253,6 +253,24 @@ func TestRateLimitAndSuppressions(t *testing.T) {
 	}
 }
 
+// Blocking an address already blocked returns that exact block, not one
+// that merely contains it, and spacing does not matter.
+func TestAddSuppressionAgainReturnsExactBlock(t *testing.T) {
+	e := setup(t)
+	k := e.key(t, apikey.Input{Scopes: []string{"*"}})
+	for _, a := range []string{"a@b.test", "xa@b.test"} {
+		if r := e.call(t, k, "POST", "/suppressions", map[string]string{"address": a}); r.code != 201 {
+			t.Fatalf("block %s: %d %s", a, r.code, r.raw)
+		}
+	}
+	for _, again := range []string{"a@b.test", " A@b.test "} {
+		r := e.call(t, k, "POST", "/suppressions", map[string]string{"address": again})
+		if r.code != 200 || r.body["address"] != "a@b.test" {
+			t.Errorf("block %q again: %d %s", again, r.code, r.raw)
+		}
+	}
+}
+
 func TestDomainKeySeesItsDomainWebhook(t *testing.T) {
 	e := setup(t)
 	dom := e.key(t, apikey.Input{Scopes: []string{"webhooks:write"}, Reach: apikey.Reach{DomainIDs: []string{"dom_a"}}})
