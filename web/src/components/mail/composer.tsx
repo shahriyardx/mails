@@ -95,6 +95,7 @@ export default function Composer({
   const draftId = useRef(draft.draftId);
   const dirty = useRef(false);
   const saving = useRef<Promise<unknown> | null>(null);
+  const sending = useRef(false);
 
   const mailbox = pickMailbox(mailboxes.data ?? [], mailboxId || draft.mailboxId);
   const mailboxItems = useMemo(
@@ -210,23 +211,27 @@ export default function Composer({
   }
 
   async function submit() {
-    if (send.isPending || uploading) return;
+    // Set before the first await: a second click while the draft is still
+    // saving would otherwise send the mail twice.
+    if (sending.current || uploading) return;
     const mail = message(true);
     if (!mail) return toast.error("Add a mailbox to send from first.");
     if (!mail.to?.length) return toast.error("Add at least one recipient.");
+    sending.current = true;
     dirty.current = false;
     await saving.current;
     mail.draft_id = draftId.current;
-    send.mutate(mail, {
-      onSuccess: (res) => {
+    await send.mutateAsync(mail).then(
+      (res) => {
         toast.success(res.status === "queued" ? "Queued. It keeps trying until it sends." : "Sent");
         onClose();
       },
-      onError: (error) => {
+      (error) => {
+        sending.current = false;
         dirty.current = true; // not sent: Close saves it again
         toast.error(errorMessage(error));
       },
-    });
+    );
   }
 
   async function attach(list: FileList | null) {

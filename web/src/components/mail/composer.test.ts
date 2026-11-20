@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OutgoingMail } from "@/lib/types";
 
 const api = vi.hoisted(() => ({
-  mutate: vi.fn(),
+  mutateAsync: vi.fn(),
   saveDraft: vi.fn(),
 }));
 
@@ -19,7 +19,7 @@ vi.mock("@/lib/api", () => ({
     data: [{ id: "mbx_1", address: "me@example.test", is_default: true, signature: null }],
     isPending: false,
   }),
-  useSend: () => ({ isPending: false, mutate: api.mutate }),
+  useSend: () => ({ isPending: false, mutateAsync: api.mutateAsync }),
 }));
 vi.mock("@/lib/hooks", () => ({ useIsPhone: () => false }));
 
@@ -70,10 +70,10 @@ async function click(label: string) {
   });
 }
 
-const sent = () => api.mutate.mock.calls.at(-1)?.[0] as OutgoingMail | undefined;
+const sent = () => api.mutateAsync.mock.calls.at(-1)?.[0] as OutgoingMail | undefined;
 
 beforeEach(() => {
-  api.mutate.mockReset();
+  api.mutateAsync.mockReset().mockResolvedValue({ status: "sent" });
   api.saveDraft.mockReset().mockResolvedValue({ id: "drf_1" });
   onClose.mockReset();
 });
@@ -104,9 +104,8 @@ describe("Composer", () => {
     await key(field("To"), { key: "Enter" });
     await type(field("Subject"), "Hello");
 
+    api.mutateAsync.mockRejectedValue(new Error("SES said no"));
     await click("Send");
-    const options = api.mutate.mock.calls[0]![1] as { onError: (error: unknown) => void };
-    await act(async () => options.onError(new Error("SES said no")));
 
     await click("Close (saves a draft)");
     expect(api.saveDraft).toHaveBeenCalledTimes(1);
@@ -115,6 +114,28 @@ describe("Composer", () => {
       to: ["bob@example.test"],
     });
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("a second Send while the draft is still saving sends once", async () => {
+    let finishSave!: (value: { id: string }) => void;
+    api.saveDraft.mockReturnValue(new Promise((resolve) => (finishSave = resolve)));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await render();
+    await type(field("To"), "bob@example.test");
+    await key(field("To"), { key: "Enter" });
+    await type(field("Subject"), "Hello");
+    // Autosave starts and hangs; both clicks wait on it.
+    await act(async () => vi.advanceTimersByTimeAsync(3000));
+
+    await click("Send");
+    await click("Send");
+    await act(async () => finishSave({ id: "drf_1" }));
+
+    vi.useRealTimers();
+
+    expect(api.saveDraft).toHaveBeenCalledTimes(1);
+    expect(api.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("registers a flush that saves unsaved text before the composer is replaced", async () => {
