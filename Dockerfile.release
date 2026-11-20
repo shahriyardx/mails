@@ -5,7 +5,7 @@
 # Dockerfile builds everything from source instead (compose, self-builds).
 FROM gcr.io/distroless/static-debian12:nonroot
 ARG TARGETARCH
-COPY linux-${TARGETARCH}/mails /mails
+COPY --chmod=0755 linux-${TARGETARCH}/mails /mails
 EXPOSE 3000
 ENV ADDR=":3000"
 USER nonroot:nonroot
