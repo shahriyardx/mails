@@ -7,9 +7,11 @@ import { RouterProvider } from "react-router/dom";
 import { Toaster, TooltipProvider } from "@/components/kit";
 import { installSpringVars } from "@/components/kit/motion";
 import { queryClient } from "@/lib/api";
+import { watchSystemTheme } from "@/lib/theme";
 import { router } from "./router";
 
 installSpringVars();
+watchSystemTheme();
 
 // Web push needs a service worker; the Notifications settings page subscribes.
 if ("serviceWorker" in navigator && import.meta.env.PROD) {

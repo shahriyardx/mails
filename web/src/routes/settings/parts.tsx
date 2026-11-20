@@ -1,9 +1,122 @@
 // Small pieces the settings pages share. Everything visual still comes from
 // the kit; these only compose it.
-import { type ReactNode, useId } from "react";
+import { createContext, type ReactNode, useContext, useId } from "react";
+import { createPortal } from "react-dom";
 import { Button, Card, EmptyState, Icon, Skeleton, Switch, toast } from "@/components/kit";
 import { errorMessage } from "@/lib/api";
 import { cn } from "@/lib/cn";
+
+/** Where the settings layout puts a page's primary action (right of the title). */
+export const PageActionSlot = createContext<HTMLElement | null>(null);
+
+/**
+ * The page's primary action, shown on the title row:
+ * <PageAction><Button variant="primary" icon="add">Add domain</Button></PageAction>
+ */
+export function PageAction({ children }: { children: ReactNode }) {
+  const slot = useContext(PageActionSlot);
+  return slot ? createPortal(children, slot) : null;
+}
+
+const DOT = {
+  ok: "bg-[#5fbf8a]",
+  pending: "bg-[#d9a54a]",
+  bad: "bg-destructive",
+  off: "bg-muted-foreground",
+} as const;
+
+/** A status as a small coloured dot and a word: Verified, Pending, Failing. */
+export function StatusDot({
+  tone,
+  children,
+  className,
+}: {
+  tone: keyof typeof DOT;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1.5 text-xs font-medium",
+        tone === "bad" ? "text-destructive" : "text-soft-foreground",
+        className,
+      )}
+    >
+      <span aria-hidden className={cn("size-1.75 rounded-full", DOT[tone])} />
+      {children}
+    </span>
+  );
+}
+
+/** A titled part of a page: a heading and a muted line, no box around it. */
+export function Section({
+  title,
+  description,
+  action,
+  children,
+  className,
+}: {
+  title: ReactNode;
+  description?: ReactNode;
+  action?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={cn("space-y-3", className)}>
+      <div className="flex items-end gap-3">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-base font-semibold">{title}</h2>
+          {description && (
+            <p className="mt-0.5 text-[13px] leading-relaxed text-muted-foreground">
+              {description}
+            </p>
+          )}
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** The last card on a page, for what cannot be undone. */
+export function DangerZone({
+  title = "Danger zone",
+  children,
+}: {
+  title?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-[14px] border border-[color-mix(in_srgb,var(--destructive)_45%,var(--border))] bg-surface p-5">
+      <h2 className="text-base font-semibold text-destructive">{title}</h2>
+      <div className="mt-3 space-y-3">{children}</div>
+    </section>
+  );
+}
+
+/** One thing in the danger zone: what it does, and the button that does it. */
+export function DangerRow({
+  title,
+  description,
+  action,
+}: {
+  title: ReactNode;
+  description: ReactNode;
+  action: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold">{title}</p>
+        <p className="text-[13px] text-muted-foreground">{description}</p>
+      </div>
+      {action}
+    </div>
+  );
+}
 
 /** Copies text, saying so in a toast either way. */
 export function copyText(text: string) {
@@ -33,7 +146,7 @@ export function CopyValue({
       aria-label={`${label}: ${copy ?? value}`}
       onClick={() => copyText(copy ?? value)}
       className={cn(
-        "group flex w-full min-w-0 items-start gap-2 rounded-xl bg-field px-3 py-2 text-left font-mono text-[13px] outline-none hover:bg-field-box focus-visible:outline-2 focus-visible:outline-ring",
+        "group flex w-full min-w-0 items-start gap-2 rounded-lg border border-border bg-background px-3 py-2 text-left font-mono text-[13px] outline-none transition-colors hover:border-input focus-visible:outline-2 focus-visible:outline-ring",
         className,
       )}
     >
@@ -58,8 +171,12 @@ export function Notice({
     <div
       role={tone === "info" ? undefined : "alert"}
       className={cn(
-        "flex items-start gap-2.5 rounded-2xl px-3.5 py-3 text-[13px] leading-relaxed",
-        tone === "danger" ? "bg-destructive-soft text-destructive" : "bg-box",
+        "flex items-start gap-2.5 rounded-[10px] border px-3.5 py-3 text-[13px] leading-relaxed",
+        tone === "danger"
+          ? "border-transparent bg-destructive-soft text-destructive"
+          : tone === "warning"
+            ? "border-[color-mix(in_srgb,#d9a54a_45%,var(--border))] bg-surface"
+            : "border-border bg-surface",
         className,
       )}
     >
@@ -118,8 +235,8 @@ export function SwitchRow({
 export function PageLoading() {
   return (
     <div className="space-y-3" aria-busy="true">
-      <Skeleton className="h-32 rounded-3xl" />
-      <Skeleton className="h-48 rounded-3xl" />
+      <Skeleton className="h-32 rounded-[14px]" />
+      <Skeleton className="h-48 rounded-[14px]" />
     </div>
   );
 }

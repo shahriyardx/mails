@@ -42,7 +42,7 @@ export const DialogTrigger = BaseDialog.Trigger;
 export const DialogClose = BaseDialog.Close;
 
 const backdrop =
-  "fixed inset-0 z-50 bg-black/50 [transition:opacity_var(--spring-effects)] data-starting-style:opacity-0 data-ending-style:opacity-0";
+  "fixed inset-0 z-50 bg-black/45 [transition:opacity_var(--spring-effects)] data-starting-style:opacity-0 data-ending-style:opacity-0";
 
 export function DialogContent({
   className,
@@ -75,7 +75,7 @@ export function DialogContent({
         <Drawer.Viewport className="fixed inset-0 z-50 flex items-end justify-center">
           <Drawer.Popup
             className={cn(
-              "relative flex max-h-[90dvh] w-full flex-col overflow-y-auto overscroll-contain rounded-t-3xl bg-surface-high px-5 pt-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] outline-none",
+              "relative flex max-h-[90dvh] w-full flex-col overflow-y-auto overscroll-contain rounded-t-2xl border-t border-border bg-surface-high px-5 pt-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] outline-none",
               "[transform:translateY(var(--drawer-swipe-movement-y))] [transition:transform_var(--spring-spatial)]",
               "data-starting-style:[transform:translateY(100%)] data-ending-style:[transform:translateY(100%)] data-swiping:select-none",
               className,
@@ -95,7 +95,7 @@ export function DialogContent({
       <BaseDialog.Viewport className="fixed inset-0 z-50 grid place-items-center p-6">
         <BaseDialog.Popup
           className={cn(
-            "popup-spring relative flex max-h-[calc(100dvh-3rem)] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-3xl bg-surface-high p-6 shadow-[0_24px_64px_rgb(0_0_0/0.45)] outline-none",
+            "popup-spring relative flex max-h-[calc(100dvh-3rem)] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-2xl border border-border bg-surface-high p-6 shadow-[0_24px_64px_var(--shadow)] outline-none",
             className,
           )}
         >
@@ -112,7 +112,12 @@ export function DialogHeader({ className, ...props }: ComponentProps<"div">) {
 }
 
 export function DialogTitle({ className, ...props }: ComponentProps<"h2">) {
-  return <BaseDialog.Title className={cn("text-lg font-medium", className)} {...props} />;
+  return (
+    <BaseDialog.Title
+      className={cn("font-display text-lg font-semibold tracking-[-0.02em]", className)}
+      {...props}
+    />
+  );
 }
 
 export function DialogDescription({ className, ...props }: ComponentProps<"p">) {

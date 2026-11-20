@@ -4,14 +4,12 @@ import { cn } from "@/lib/cn";
 
 export const Tabs = BaseTabs.Root;
 
-/** A pill track whose indicator slides between tabs. */
+/** Underlined tabs on a hairline; the lavender indicator slides between them. */
 export function TabsList({ className, children }: { className?: string; children: ReactNode }) {
   return (
-    <BaseTabs.List
-      className={cn("relative z-0 inline-flex gap-1 rounded-full bg-surface p-1", className)}
-    >
+    <BaseTabs.List className={cn("relative z-0 flex gap-1 border-b border-border", className)}>
       {children}
-      <BaseTabs.Indicator className="absolute top-1/2 left-0 -z-10 h-(--active-tab-height) w-(--active-tab-width) translate-x-(--active-tab-left) -translate-y-1/2 rounded-full bg-tonal-hover [transition:translate_var(--spring-spatial),width_var(--spring-spatial)]" />
+      <BaseTabs.Indicator className="absolute -bottom-px left-0 h-0.5 w-(--active-tab-width) translate-x-(--active-tab-left) rounded-full bg-primary [transition:translate_var(--spring-spatial),width_var(--spring-spatial)]" />
     </BaseTabs.List>
   );
 }
@@ -23,7 +21,7 @@ export function TabsTab({
   return (
     <BaseTabs.Tab
       className={cn(
-        "h-8 rounded-full px-4 text-[13px] font-medium text-muted-foreground outline-none transition-colors data-active:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
+        "flex h-10 items-center gap-1.5 rounded-t-md px-3 text-[13px] font-medium text-muted-foreground outline-none transition-colors hover:text-soft-foreground data-active:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
         className,
       )}
       {...props}

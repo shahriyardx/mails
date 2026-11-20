@@ -1,25 +1,26 @@
 @import "tailwindcss";
 @import "./tokens.css";
 
-/* Fonts, self-hosted. Latin and Latin Extended only: other scripts fall back
-   to the system font rather than shipping files nobody here reads. */
+/* Fonts, self-hosted from @fontsource-variable. Latin and Latin Extended
+   only: other scripts fall back to the system font. Sora for headings,
+   Inter for text, JetBrains Mono for data (times, addresses, counts). */
 @font-face {
-  font-family: "Google Sans Flex";
+  font-family: "Sora";
   font-style: normal;
   font-display: swap;
-  font-weight: 1 1000;
-  src: url("@fontsource-variable/google-sans-flex/files/google-sans-flex-latin-wght-normal.woff2")
+  font-weight: 100 800;
+  src: url("@fontsource-variable/sora/files/sora-latin-wght-normal.woff2")
     format("woff2-variations");
   unicode-range:
     U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
     U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
-  font-family: "Google Sans Flex";
+  font-family: "Sora";
   font-style: normal;
   font-display: swap;
-  font-weight: 1 1000;
-  src: url("@fontsource-variable/google-sans-flex/files/google-sans-flex-latin-ext-wght-normal.woff2")
+  font-weight: 100 800;
+  src: url("@fontsource-variable/sora/files/sora-latin-ext-wght-normal.woff2")
     format("woff2-variations");
   unicode-range:
     U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
@@ -27,36 +28,76 @@
     U+A720-A7FF;
 }
 @font-face {
-  font-family: "Geist Mono";
+  font-family: "Inter";
   font-style: normal;
   font-display: swap;
   font-weight: 100 900;
-  src: url("@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2")
+  src: url("@fontsource-variable/inter/files/inter-latin-wght-normal.woff2")
     format("woff2-variations");
   unicode-range:
     U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
     U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("@fontsource-variable/inter/files/inter-latin-ext-wght-normal.woff2")
+    format("woff2-variations");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 800;
+  src: url("@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2")
+    format("woff2-variations");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 800;
+  src: url("@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-ext-wght-normal.woff2")
+    format("woff2-variations");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
 
-/* Material Symbols Rounded, cut down to the icons in scripts/fetch-icons.mjs.
-   ?v= changes with the file so an old copy is never served from cache. */
+/* Material Symbols Rounded (weight 300, to sit with Inter), cut down to the
+   icons in scripts/fetch-icons.mjs. ?v= changes with the file so an old copy
+   is never served from cache. */
 @font-face {
   font-family: "Material Symbols Rounded";
   font-style: normal;
-  font-weight: 400;
+  font-weight: 300;
   font-display: block;
-  src: url("/fonts/material-symbols-rounded.woff2?v=1") format("woff2");
+  src: url("/fonts/material-symbols-rounded.woff2?v=2") format("woff2");
 }
 
 @theme inline {
-  --font-sans: "Google Sans Flex", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Sora", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-soft-foreground: var(--soft-foreground);
   --color-muted-foreground: var(--muted-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
   --color-destructive: var(--destructive);
   --color-destructive-soft: var(--destructive-soft);
   --color-surface: var(--surface-1);
@@ -75,8 +116,8 @@
   --color-inverse-foreground: var(--inverse-foreground);
 }
 
-/* A field inside a box steps lighter again, so it never vanishes into it.
-   :where keeps this at a plain utility's specificity. */
+/* A field inside a box uses the box's own field colour, so it never
+   vanishes into it. :where keeps this at a plain utility's specificity. */
 @layer utilities {
   .bg-field:where(.bg-box *) {
     background-color: var(--field-box);
@@ -94,18 +135,26 @@
     color: var(--foreground);
     font-family: var(--font-sans);
     font-size: 14px;
+    line-height: 1.5;
+    font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
     -webkit-tap-highlight-color: transparent;
   }
   * {
     border-color: var(--border);
   }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
   :focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
   ::selection {
-    background: color-mix(in srgb, var(--foreground) 28%, transparent);
+    background: color-mix(in srgb, var(--primary) 32%, transparent);
   }
   /* The root is isolated so portalled popups (Base UI) stack above it. */
   #root {
@@ -117,7 +166,7 @@
 .ms {
   /* biome-ignore lint/a11y/useGenericFontNames: an icon font; a generic fallback would print the ligature names as words */
   font-family: "Material Symbols Rounded";
-  font-weight: normal;
+  font-weight: 300;
   font-style: normal;
   line-height: 1;
   letter-spacing: normal;
@@ -128,13 +177,19 @@
   font-variation-settings: "FILL" 0;
   user-select: none;
 }
-.ms[data-filled="true"],
-[data-active="true"] > .ms {
+.ms[data-filled="true"] {
   font-variation-settings: "FILL" 1;
 }
 
-/* Spring transitions for Base UI popups. --spring-spatial and
-   --spring-effects are set from components/kit/motion.ts (one source). */
+/* Initials avatar: the hue (--h) comes from the address, the lightness and
+   chroma from the theme (tokens.css). */
+.avatar-tint {
+  background: oklch(var(--avatar-bg-l) var(--avatar-bg-c) var(--h, 280));
+  color: oklch(var(--avatar-fg-l) var(--avatar-fg-c) var(--h, 280));
+}
+
+/* Popups (Base UI) fade and rise a few pixels. --spring-* are set from
+   components/kit/motion.ts (one source). */
 .popup-spring {
   transform-origin: var(--transform-origin);
   transition:
@@ -144,7 +199,7 @@
 .popup-spring[data-starting-style],
 .popup-spring[data-ending-style] {
   opacity: 0;
-  transform: scale(0.92);
+  transform: scale(0.97) translateY(-2px);
 }
 
 .kbd {
@@ -153,7 +208,8 @@
   min-width: 1.25rem;
   height: 1.25rem;
   padding: 0 0.25rem;
-  border-radius: 0.375rem;
+  border-radius: 0.3125rem;
+  border: 1px solid var(--border);
   background: var(--tonal);
   font-family: var(--font-mono);
   font-size: 11px;

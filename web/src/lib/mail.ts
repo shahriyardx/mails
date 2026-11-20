@@ -147,16 +147,38 @@ export function quoteMessage(message: Message, mode: "reply" | "forward") {
 // ---- Formatting -----------------------------------------------------------
 
 /** 14:05 today, 21 Sep this year, Sep 24 before that. */
-export function formatStamp(value: string) {
+const DAY = 86_400_000;
+const startOfDay = (date: Date) =>
+  new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+
+/** A list timestamp: 20:22 today, Tue this week, 12 Nov this year, Nov 24 before. */
+export function formatStamp(value: string, now = new Date()) {
   const date = new Date(value);
-  const now = new Date();
-  if (date.toDateString() === now.toDateString()) {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+  const days = Math.round((startOfDay(now) - startOfDay(date)) / DAY);
+  if (days <= 0) {
+    return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
   }
+  if (days < 7) return date.toLocaleDateString("en-GB", { weekday: "short" });
   if (date.getFullYear() === now.getFullYear()) {
-    return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+    return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
   }
   return date.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
+}
+
+/**
+ * The day heading a thread sits under in the list: Today, Yesterday,
+ * Earlier this week (weeks start on Monday), then the date itself.
+ */
+export function dayGroup(value: string, now = new Date()) {
+  const date = new Date(value);
+  const days = Math.round((startOfDay(now) - startOfDay(date)) / DAY);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days <= (now.getDay() + 6) % 7) return "Earlier this week";
+  const weekday = date.toLocaleDateString("en-GB", { weekday: "short" });
+  const day = date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const year = date.getFullYear() === now.getFullYear() ? "" : ` ${date.getFullYear()}`;
+  return `${weekday} ${day}${year}`;
 }
 
 export function formatDateTime(value: string) {

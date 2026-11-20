@@ -423,40 +423,52 @@ export function textToHtml(text: string) {
   return `<div style="white-space:pre-wrap">${linked}</div>`;
 }
 
-/** The stylesheet inside the frame. Kept close to the extension's. */
-export function frameStyles(onWhite: boolean) {
-  const text = onWhite ? "#1f1f1f" : "oklch(0.88 0.01 85)";
+/** Frame colours per app theme (tokens.css --soft-foreground, --muted-foreground, --border). */
+const FRAME_THEME = {
+  dark: { text: "#b9b7c3", muted: "#94929f", line: "#3a3942" },
+  light: { text: "#4b4957", muted: "#686574", line: "#d4d1de" },
+} as const;
+
+/**
+ * The stylesheet inside the frame. Kept close to the extension's. The app's
+ * fonts are not loaded in the frame (font-src stays data: only), so Inter
+ * applies only where it is installed; otherwise the system sans.
+ */
+export function frameStyles(onWhite: boolean, theme: "dark" | "light" = "dark") {
+  const colors = FRAME_THEME[theme];
+  const text = onWhite ? "#1f1f1f" : colors.text;
   return `
   html { scrollbar-width: none; }
   html::-webkit-scrollbar { width: 0; height: 0; }
-  :root { color-scheme: ${onWhite ? "light" : "dark"}; }
+  :root { color-scheme: ${onWhite ? "light" : theme}; }
   body {
     margin: 0;
     padding: ${onWhite ? "16px" : "0"};
-    font-family: "Google Sans Flex", ui-sans-serif, system-ui, sans-serif;
-    font-size: 14px;
-    line-height: 1.55;
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    font-size: ${onWhite ? "14px" : "15.5px"};
+    line-height: ${onWhite ? "1.55" : "1.75"};
     color: ${text};
     background: ${onWhite ? "#fff" : "transparent"};
     word-break: break-word;
     overflow-wrap: anywhere;
   }
+  p { margin: 0 0 14px; }
   img { max-width: 100%; height: auto; }
   table { max-width: 100%; }
   a { color: ${text}; text-decoration: underline; }
   blockquote {
     margin: 8px 0 8px 4px;
     padding-left: 12px;
-    border-left: 2px solid oklch(0.36 0.008 85);
-    color: ${onWhite ? "#555" : "oklch(0.66 0.008 85)"};
+    border-left: 2px solid ${colors.line};
+    color: ${onWhite ? "#555" : colors.muted};
   }
   pre { white-space: pre-wrap; word-break: break-word; }
   img[data-blocked-src] {
     width: 22px !important;
     height: 22px !important;
     max-width: 22px;
-    background: repeating-linear-gradient(45deg, oklch(0.88 0.01 85 / 0.12), oklch(0.88 0.01 85 / 0.12) 5px, transparent 5px, transparent 10px);
-    border: 1px dashed oklch(0.66 0.008 85);
+    background: repeating-linear-gradient(45deg, ${colors.line}, ${colors.line} 5px, transparent 5px, transparent 10px);
+    border: 1px dashed ${colors.muted};
     border-radius: 3px;
   }
   body > *:first-child { margin-top: 0; }

@@ -4,6 +4,7 @@ import { useSetImageTrust } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { escapeHtml } from "@/lib/mail";
 import { frameCsp, frameStyles, prepareEmail, textToHtml } from "@/lib/sanitize";
+import { useResolvedTheme } from "@/lib/theme";
 
 /**
  * A message body in a sandboxed iframe. No allow-scripts: nothing in the
@@ -49,7 +50,7 @@ export function EmailFrame({
   return (
     <div>
       {prepared.blockedImages > 0 && !showImages && (
-        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-box px-3 py-2 text-[13px] text-muted-foreground">
+        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-surface px-3 py-2 text-[13px] text-muted-foreground">
           <Icon name="hide_image" size={18} />
           <span className="mr-auto">
             {prepared.blockedImages} remote {prepared.blockedImages === 1 ? "image" : "images"}{" "}
@@ -129,11 +130,12 @@ function Frame({
 }) {
   const ref = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(0);
+  const theme = useResolvedTheme();
 
   const srcDoc = useMemo(() => {
     const csp = frameCsp(allowRemote, `${window.location.origin}/api/app/attachments/`);
-    return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${escapeHtml(csp)}"><base target="_blank"><style>${frameStyles(onWhite)}</style></head><body>${body}</body></html>`;
-  }, [body, onWhite, allowRemote]);
+    return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${escapeHtml(csp)}"><base target="_blank"><style>${frameStyles(onWhite, theme)}</style></head><body>${body}</body></html>`;
+  }, [body, onWhite, allowRemote, theme]);
 
   const measure = useCallback(() => {
     const doc = ref.current?.contentDocument;
@@ -180,7 +182,7 @@ function Frame({
   }, [measure]);
 
   return (
-    <div className={cn(onWhite && "overflow-hidden rounded-2xl bg-white")}>
+    <div className={cn(onWhite && "overflow-hidden rounded-xl border border-border bg-white")}>
       <iframe
         ref={ref}
         title="Message body"

@@ -20,8 +20,9 @@ export function SelectTrigger({
   return (
     <BaseSelect.Trigger
       className={cn(
-        "flex h-10 min-w-0 items-center gap-2 text-left text-sm outline-none focus-visible:outline-2 focus-visible:outline-ring",
-        variant === "field" && "rounded-xl bg-field px-3.5",
+        "flex h-9.5 min-w-0 items-center gap-2 text-left text-sm outline-none focus-visible:outline-2 focus-visible:outline-ring",
+        variant === "field" &&
+          "rounded-lg border border-input bg-field px-3 focus-visible:border-ring focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--ring)_25%,transparent)] focus-visible:outline-none",
         className,
       )}
       {...props}
@@ -47,7 +48,7 @@ export function SelectContent({
         <BaseSelect.Popup
           className={cn(
             floating,
-            "max-h-(--available-height) min-w-(--anchor-width) overflow-y-auto p-1.5",
+            "max-h-(--available-height) min-w-(--anchor-width) overflow-y-auto p-1",
             className,
           )}
         >
@@ -66,7 +67,7 @@ export function SelectItem({
   return (
     <BaseSelect.Item
       className={cn(
-        "flex h-9 cursor-default select-none items-center gap-2 rounded-xl px-2.5 text-[13px] outline-none data-highlighted:bg-tonal-hover",
+        "flex h-8 cursor-default select-none items-center gap-2 rounded-md px-2 text-[13px] outline-none data-highlighted:bg-tonal",
         className,
       )}
       {...props}

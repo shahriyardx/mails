@@ -21,9 +21,9 @@ export function Component() {
   return (
     <main className="grid min-h-dvh place-items-center p-4">
       <Card className="w-full max-w-sm items-center gap-6 px-8 py-10 text-center">
-        <Logo className="size-12" />
+        <Logo className="size-4 rounded-[4px]" />
         <div className="space-y-2">
-          <h1 className="text-2xl font-medium tracking-tight">Sign in to Mails</h1>
+          <h1 className="text-2xl font-semibold">Sign in to Mails</h1>
           <p className="text-sm text-muted-foreground">
             {claimed
               ? "Only the owner of this instance can sign in."
@@ -33,7 +33,7 @@ export function Component() {
         {error && (
           <p
             role="alert"
-            className="flex gap-2 rounded-2xl bg-destructive-soft p-3 text-left text-[13px] text-destructive"
+            className="flex gap-2 rounded-lg bg-destructive-soft p-3 text-left text-[13px] text-destructive"
           >
             <Icon name="error" size={18} />
             {ERRORS[error] ?? "Sign-in failed. Try again."}

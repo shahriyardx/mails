@@ -5,31 +5,34 @@ import { cn } from "@/lib/cn";
 import { Icon } from "./icon";
 
 /*
- * Pills that morph toward a rounded square (rounded-xl) while pressed and
- * spring back. The radius is half the height rather than rounded-full, so
- * the change is a visible morph instead of a jump at the end.
+ * Flat buttons with 8-10px corners. No press morph: hover and press only
+ * change the fill, so nothing moves under the pointer.
  */
 const base =
-  "inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap font-medium outline-none " +
-  "[transition:border-radius_var(--spring-spatial-fast),background-color_150ms,color_150ms,opacity_150ms] " +
-  "active:not-disabled:rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring " +
+  "inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap font-medium outline-none " +
+  "transition-[background-color,color,box-shadow,opacity] duration-150 " +
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring " +
   "disabled:pointer-events-none disabled:opacity-50 data-disabled:pointer-events-none data-disabled:opacity-50";
 
 const tones = {
-  primary: "bg-primary text-primary-foreground hover:bg-primary/90",
+  primary:
+    "bg-primary text-primary-foreground hover:bg-[color-mix(in_srgb,var(--primary)_88%,var(--foreground))] active:bg-[color-mix(in_srgb,var(--primary)_80%,var(--foreground))]",
   tonal: "bg-tonal text-tonal-foreground hover:bg-tonal-hover aria-expanded:bg-tonal-hover",
-  ghost: "text-foreground hover:bg-tonal aria-expanded:bg-tonal",
+  outline:
+    "text-soft-foreground shadow-[inset_0_0_0_1px_var(--border)] hover:bg-tonal hover:text-foreground aria-expanded:bg-tonal",
+  ghost: "text-soft-foreground hover:bg-tonal hover:text-foreground aria-expanded:bg-tonal",
   destructive:
-    "bg-destructive-soft text-destructive hover:bg-[color-mix(in_srgb,var(--destructive)_20%,var(--background))]",
+    "bg-destructive-soft text-destructive hover:bg-[color-mix(in_srgb,var(--destructive)_22%,var(--background))]",
 };
 
 export const buttonVariants = cva(base, {
   variants: {
     variant: tones,
     size: {
-      sm: "h-8 rounded-[16px] px-3.5 text-[13px]",
-      md: "h-10 rounded-[20px] px-5 text-sm",
-      lg: "h-12 rounded-[24px] px-6 text-[15px]",
+      xs: "h-7 rounded-[7px] px-2.5 text-xs",
+      sm: "h-8 rounded-lg px-3 text-[13px]",
+      md: "h-9.5 rounded-[10px] px-3.5 text-sm",
+      lg: "h-11 rounded-[10px] px-5 text-[15px]",
     },
     block: { true: "w-full" },
   },
@@ -40,15 +43,16 @@ const iconButtonVariants = cva(base, {
   variants: {
     variant: tones,
     size: {
-      sm: "size-8 rounded-[16px]",
-      md: "size-10 rounded-[20px]",
-      lg: "size-12 rounded-[24px]",
+      xs: "size-7.5 rounded-lg",
+      sm: "size-8 rounded-lg",
+      md: "size-9.5 rounded-[10px]",
+      lg: "size-11 rounded-[10px]",
     },
   },
   defaultVariants: { variant: "ghost", size: "md" },
 });
 
-const iconSize = { sm: 18, md: 20, lg: 22 } as const;
+const iconSize = { xs: 16, sm: 18, md: 18, lg: 20 } as const;
 
 type BaseProps = Omit<ComponentProps<typeof BaseButton>, "className"> & { className?: string };
 
@@ -82,7 +86,7 @@ export function Button({
         <Icon
           name={glyph}
           size={iconSize[size ?? "md"]}
-          className={cn("-ml-1", loading && "animate-spin")}
+          className={cn("-ml-0.5", loading && "animate-spin")}
         />
       )}
       {children as ReactNode}
@@ -101,7 +105,7 @@ export interface IconButtonProps
   loading?: boolean;
 }
 
-/** An icon-only pill button. `label` is required so it is never unnamed. */
+/** An icon-only button. `label` is required so it is never unnamed. */
 export function IconButton({
   className,
   variant,

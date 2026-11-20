@@ -14,9 +14,16 @@ export function Stat({
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-col gap-1 rounded-3xl bg-surface p-5", className)}>
+    <div
+      className={cn(
+        "flex flex-col gap-1 rounded-[14px] border border-border bg-surface p-5",
+        className,
+      )}
+    >
       <span className="text-[13px] text-muted-foreground">{label}</span>
-      <span className="font-mono text-2xl font-medium tabular-nums">{value}</span>
+      <span className="font-display text-2xl font-semibold tracking-[-0.02em] tabular-nums">
+        {value}
+      </span>
       {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
     </div>
   );

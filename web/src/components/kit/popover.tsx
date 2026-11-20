@@ -4,7 +4,7 @@ import { cn } from "@/lib/cn";
 
 /** Shared look for every floating panel: menus, popovers, selects. */
 export const floating =
-  "popup-spring z-50 rounded-2xl bg-surface-high text-foreground shadow-[0_12px_40px_rgb(0_0_0/0.4)] outline-none";
+  "popup-spring z-50 rounded-xl border border-border bg-surface-high text-foreground shadow-[0_12px_32px_var(--shadow)] outline-none";
 
 export const Popover = BasePopover.Root;
 export const PopoverClose = BasePopover.Close;

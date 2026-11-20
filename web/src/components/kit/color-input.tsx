@@ -20,13 +20,18 @@ export function ColorInput({
 }) {
   const id = useId();
   return (
-    <div className={cn("flex h-10 items-center gap-2 rounded-xl bg-field pr-3 pl-1.5", className)}>
+    <div
+      className={cn(
+        "flex h-9.5 items-center gap-2 rounded-lg border border-input bg-field pr-3 pl-1",
+        className,
+      )}
+    >
       <input
         type="color"
         aria-label={label}
         value={HEX.test(value) ? value : "#000000"}
         onChange={(event) => onChange(event.target.value)}
-        className="size-7 shrink-0 cursor-pointer rounded-lg border-0 bg-transparent p-0"
+        className="size-7 shrink-0 cursor-pointer rounded-md border-0 bg-transparent p-0"
       />
       <label htmlFor={id} className="sr-only">
         {label} hex value

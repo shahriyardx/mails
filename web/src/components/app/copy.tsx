@@ -50,20 +50,26 @@ export function OnceSecret({
   className?: string;
 }) {
   return (
-    <div role="status" className={cn("flex flex-col gap-3 rounded-3xl bg-box p-4", className)}>
+    <div
+      role="status"
+      className={cn(
+        "flex flex-col gap-3 rounded-[14px] border border-[color-mix(in_srgb,var(--primary)_40%,var(--border))] bg-accent-soft p-4",
+        className,
+      )}
+    >
       <div className="flex items-start gap-3">
-        <Icon name="warning" className="mt-0.5" />
+        <Icon name="key" className="mt-0.5 text-accent" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">{title}</p>
-          <p className="text-[13px] text-muted-foreground">
-            Copy it now and keep it somewhere safe. It will not be shown again.
+          <p className="text-sm font-semibold">{title}</p>
+          <p className="text-[13px] text-soft-foreground">
+            Shown once. Copy it now and keep it somewhere safe; it cannot be shown again.
           </p>
         </div>
         {onDismiss && (
           <IconButton icon="close" label="I have copied it" size="sm" onClick={onDismiss} />
         )}
       </div>
-      <div className="flex items-center gap-2 rounded-xl bg-field py-1 pr-1 pl-3.5">
+      <div className="flex items-center gap-2 rounded-lg border border-input bg-background py-1 pr-1 pl-3">
         <code className="min-w-0 flex-1 break-all font-mono text-[13px] select-all">{value}</code>
         <CopyButton text={value} label="Copy secret" size="md" />
       </div>
@@ -82,7 +88,12 @@ export function CodeBlock({
   className?: string;
 }) {
   return (
-    <div className={cn("relative overflow-hidden rounded-2xl bg-field", className)}>
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-[10px] border border-border bg-background",
+        className,
+      )}
+    >
       {title ? (
         <div className="flex items-center justify-between py-1 pr-1 pl-3.5 font-mono text-xs text-muted-foreground">
           {title}

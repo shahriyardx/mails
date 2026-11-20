@@ -39,7 +39,7 @@ export function ColorPicker({
             aria-label={color}
             onClick={() => onChange(color)}
             className={cn(
-              "grid size-8 place-items-center rounded-full text-background outline-none transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+              "grid size-7 place-items-center rounded-lg text-background outline-none transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
               on && "ring-2 ring-foreground ring-offset-2 ring-offset-surface-high",
             )}
             style={{ background: color }}
