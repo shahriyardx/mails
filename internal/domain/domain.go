@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -147,7 +148,7 @@ func (s *Service) Add(ctx context.Context, raw string) (*Domain, error) {
 		if err != nil {
 			return nil, fmt.Errorf("insert inherited domain: %w", err)
 		}
-		return s.afterChange(ctx, newID)
+		return s.added(ctx, newID, name)
 	}
 
 	known, err := s.SES.GetIdentity(ctx, name)
@@ -202,7 +203,16 @@ func (s *Service) Add(ctx context.Context, raw string) (*Domain, error) {
 	if err != nil {
 		return nil, fmt.Errorf("insert domain: %w", err)
 	}
-	return s.afterChange(ctx, newID)
+	return s.added(ctx, newID, name)
+}
+
+// added finishes Add: a name the owner adds again is no longer one they
+// removed.
+func (s *Service) added(ctx context.Context, domainID, name string) (*Domain, error) {
+	if _, err := s.DB.Exec(ctx, `DELETE FROM removed_domain WHERE name = $1`, name); err != nil {
+		return nil, fmt.Errorf("clear removed domain: %w", err)
+	}
+	return s.afterChange(ctx, domainID)
 }
 
 // Refresh asks SES where the identity stands and probes SPF and DMARC.
@@ -273,6 +283,13 @@ func (s *Service) Remove(ctx context.Context, idOrName string, inSES bool) (*Dom
 	if _, err := s.DB.Exec(ctx, `DELETE FROM domain WHERE id = $1`, d.ID); err != nil {
 		return nil, false, fmt.Errorf("delete domain: %w", err)
 	}
+	// The identity stays in SES: remember the owner removed it, so the
+	// list's sync does not import it straight back.
+	if !deleted {
+		if _, err := s.DB.Exec(ctx, `INSERT INTO removed_domain (name) VALUES ($1) ON CONFLICT DO NOTHING`, d.Name); err != nil {
+			return nil, false, fmt.Errorf("remember removed domain: %w", err)
+		}
+	}
 	// Its mailboxes fall back to a parent domain, if one is left.
 	if err := s.linkMailboxes(ctx); err != nil {
 		return nil, false, err
@@ -332,15 +349,29 @@ type ImportResult struct {
 	Total    int `json:"total"`
 }
 
-// Import pulls every SES domain identity in and upserts it. Safe to repeat.
+// Import pulls every SES domain identity in and upserts it, including ones
+// the owner removed before (they asked for everything). Safe to repeat.
 func (s *Service) Import(ctx context.Context) (ImportResult, error) {
+	if _, err := s.DB.Exec(ctx, `DELETE FROM removed_domain`); err != nil {
+		return ImportResult{}, fmt.Errorf("clear removed domains: %w", err)
+	}
+	return s.sync(ctx)
+}
+
+// sync upserts every SES domain identity except ones the owner removed.
+func (s *Service) sync(ctx context.Context) (ImportResult, error) {
+	rows, _ := s.DB.Query(ctx, `SELECT name FROM removed_domain`)
+	removed, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return ImportResult{}, fmt.Errorf("load removed domains: %w", err)
+	}
 	ids, err := s.SES.ListIdentities(ctx)
 	if err != nil {
 		return ImportResult{}, err
 	}
 	var res ImportResult
 	for _, item := range ids {
-		if item.Type != "" && item.Type != "DOMAIN" {
+		if item.Type != "" && item.Type != "DOMAIN" || slices.Contains(removed, item.Name) {
 			continue
 		}
 		res.Total++
@@ -393,7 +424,7 @@ func (s *Service) ListFresh(ctx context.Context) (list []*Domain, warning string
 	if !stale {
 		return list, "", nil
 	}
-	if _, syncErr := s.Import(ctx); syncErr != nil {
+	if _, syncErr := s.sync(ctx); syncErr != nil {
 		slog.Warn("domain sync failed", "err", syncErr)
 		return list, "Could not reach SES: " + ses.Explain(syncErr), nil
 	}

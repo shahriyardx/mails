@@ -258,6 +258,48 @@ func TestRecordsForEasyDKIM(t *testing.T) {
 	}
 }
 
+// Removing a domain but keeping its SES identity must stick: the list's
+// automatic sync does not bring it back. An explicit import does.
+func TestRemovedDomainStaysRemoved(t *testing.T) {
+	s, fake, _ := newService(t)
+	ctx := context.Background()
+	_ = fake.CreateIdentity(ctx, "a.com")
+	if _, err := s.Add(ctx, "a.com"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.Remove(ctx, "a.com", false); err != nil {
+		t.Fatal(err)
+	}
+	list, warning, err := s.ListFresh(ctx)
+	if err != nil || warning != "" || len(list) != 0 {
+		t.Fatalf("list after remove = %d rows, %q, %v", len(list), warning, err)
+	}
+	if res, err := s.Import(ctx); err != nil || res.Imported != 1 {
+		t.Fatalf("explicit import = %+v %v", res, err)
+	}
+	// Brought back by hand, it is an ordinary domain again.
+	if _, err := s.DB.Exec(ctx, `UPDATE domain SET last_checked_at = NULL`); err != nil {
+		t.Fatal(err)
+	}
+	if list, _, err = s.ListFresh(ctx); err != nil || len(list) != 1 {
+		t.Fatalf("list after import = %d rows, %v", len(list), err)
+	}
+	// Re-adding it by hand clears the mark too.
+	if _, _, err := s.Remove(ctx, "a.com", false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Add(ctx, "a.com"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.Remove(ctx, "a.com", true); err != nil {
+		t.Fatal(err)
+	}
+	_ = fake.CreateIdentity(ctx, "a.com") // set up again in the SES console
+	if list, _, err = s.ListFresh(ctx); err != nil || len(list) != 1 {
+		t.Fatalf("identity deleted then recreated in SES: %d rows, %v", len(list), err)
+	}
+}
+
 func TestSelector(t *testing.T) {
 	for in, want := range map[string]string{"Mail!": "mail", "--": "mail", "s1-x": "s1-x"} {
 		if got := domain.Selector(in); got != want {
