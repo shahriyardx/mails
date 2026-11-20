@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { cleanStylesheet, decodeCss, frameCsp, prepareEmail, sanitizeForEditor } from "./sanitize";
+import {
+  cleanStylesheet,
+  decodeCss,
+  frameCsp,
+  prepareEmail,
+  restoreBlockedImages,
+  sanitizeForEditor,
+} from "./sanitize";
 
 const blocked = (html: string) => prepareEmail(html, { showRemoteImages: false });
 const shown = (html: string) => prepareEmail(html, { showRemoteImages: true });
@@ -307,6 +314,20 @@ describe("sanitizeForEditor", () => {
     expect(out).not.toMatch(/<style|class=|id=|style=|<form|<input/);
     expect(out).toContain("Hi");
     expect(out).toContain('href="https://a.test"');
+  });
+
+  it("keeps a held-back image when a saved draft is opened again", () => {
+    const once = sanitizeForEditor('<img src="https://x.test/a.png">');
+    const twice = sanitizeForEditor(once);
+    expect(twice).not.toMatch(/ src="https:/);
+    expect(restoreBlockedImages(twice)).toContain('src="https://x.test/a.png"');
+  });
+
+  it("does not let a planted data-blocked-src through", () => {
+    const out = restoreBlockedImages(
+      sanitizeForEditor('<img data-blocked-src="javascript:alert(1)" src="x.png">'),
+    );
+    expect(out).not.toMatch(/javascript:/i);
   });
 });
 

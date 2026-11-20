@@ -235,10 +235,15 @@ const EDITOR_POLICY = {
  * Safe HTML for the composer's editor (a reply's quote, a saved draft, a
  * paste): the
  * mail policy, then the editor policy. Remote images stay held back while
- * editing and come back on send through restoreBlockedImages.
+ * editing and come back on send through restoreBlockedImages. Held-back
+ * images are restored first, because clean() drops data attributes: a saved
+ * draft (already held back once) would otherwise lose them for good.
  */
 export const sanitizeForEditor = (html: string) =>
-  DOMPurify.sanitize(clean(html, { showRemoteImages: false }).html, EDITOR_POLICY);
+  DOMPurify.sanitize(
+    clean(restoreBlockedImages(html), { showRemoteImages: false }).html,
+    EDITOR_POLICY,
+  );
 
 /** Puts held-back remote images back, for the copy that is sent. */
 export function restoreBlockedImages(html: string) {
