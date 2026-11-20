@@ -39,7 +39,6 @@ interface Props {
   error: string | null;
   view: View;
   settings: Settings;
-  dark: boolean;
   onBack: () => void;
   onPatch: (patch: ThreadPatch) => void;
   onTrash: () => void;
@@ -61,7 +60,6 @@ export function ThreadView({
   error,
   view,
   settings,
-  dark,
   onBack,
   onPatch,
   onTrash,
@@ -151,7 +149,7 @@ export function ThreadView({
 
           <div className="ml-auto flex items-center gap-1">
             <IconButton
-              label="Open in Mailroom"
+              label="Open in Mails"
               onClick={() => openTab(threadUrl(settings, thread, folder))}
             >
               <ExternalLink />
@@ -198,7 +196,6 @@ export function ThreadView({
               <MessagePanel
                 key={message.id}
                 message={message}
-                dark={dark}
                 defaultOpen={index === messages.length - 1}
                 onOpenInApp={() => openTab(threadUrl(settings, thread, folder))}
               />
@@ -235,12 +232,10 @@ export function ThreadView({
 
 function MessagePanel({
   message,
-  dark,
   defaultOpen,
   onOpenInApp,
 }: {
   message: ApiMessage;
-  dark: boolean;
   defaultOpen: boolean;
   /** Downloading a file needs the key in a header, which a link cannot carry,
    *  so an attachment hands the reader to the dashboard instead. */
@@ -321,7 +316,7 @@ function MessagePanel({
           ) : null}
 
           {prepared.html ? (
-            <EmailFrame html={prepared.html} dark={dark} allowRemote={showImages} />
+            <EmailFrame html={prepared.html} allowRemote={showImages} />
           ) : (
             <div className="text-[12.5px] italic text-muted-foreground">
               This message has no body.
@@ -335,7 +330,7 @@ function MessagePanel({
                   key={file.id}
                   type="button"
                   onClick={onOpenInApp}
-                  title={`${file.filename} — open in Mailroom to download`}
+                  title={`${file.filename} — open in Mails to download`}
                   className="inline-flex max-w-full items-center gap-1.5 rounded-[8px] border border-border bg-muted/60 px-2 py-1 text-[11.5px] transition hover:bg-accent"
                 >
                   <Paperclip className="size-3 shrink-0 text-muted-foreground" />

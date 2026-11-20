@@ -231,38 +231,34 @@ export function textToHtml(text: string) {
 export const FRAME_STYLES = `
   html { scrollbar-width: none; }
   html::-webkit-scrollbar { width: 0; height: 0; }
-  :root { color-scheme: light; }
-  :root.dark { color-scheme: dark; }
+  :root { color-scheme: dark; }
   body {
     margin: 0;
     padding: 0;
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-family: "Google Sans Flex Variable", ui-sans-serif, system-ui, sans-serif;
     font-size: 13px;
     line-height: 1.55;
-    color: #0f172a;
+    color: oklch(0.88 0.01 85);
     background: transparent;
     word-break: break-word;
     overflow-wrap: anywhere;
   }
-  :root.dark body { color: #e2e8f0; }
-  :root.dark blockquote { border-left-color: #475569; color: #94a3b8; }
-  :root.dark a { color: #a5b4fc; }
   img { max-width: 100%; height: auto; }
   table { max-width: 100%; }
-  a { color: #4f46e5; }
+  a { color: oklch(0.88 0.01 85); text-decoration: underline; }
   blockquote {
     margin: 8px 0 8px 4px;
     padding-left: 12px;
-    border-left: 2px solid #cbd5e1;
-    color: #64748b;
+    border-left: 2px solid oklch(0.36 0.008 85);
+    color: oklch(0.66 0.008 85);
   }
   pre { white-space: pre-wrap; word-break: break-word; }
   img[data-blocked-src] {
     width: 22px !important;
     height: 22px !important;
     max-width: 22px;
-    background: repeating-linear-gradient(45deg, #cbd5e133, #cbd5e133 5px, transparent 5px, transparent 10px);
-    border: 1px dashed #94a3b8;
+    background: repeating-linear-gradient(45deg, oklch(0.88 0.01 85 / 0.12), oklch(0.88 0.01 85 / 0.12) 5px, transparent 5px, transparent 10px);
+    border: 1px dashed oklch(0.66 0.008 85);
     border-radius: 3px;
   }
   body > *:first-child { margin-top: 0; }

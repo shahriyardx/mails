@@ -41,31 +41,6 @@ export function useSettings() {
   return { settings, update };
 }
 
-/**
- * Whether to draw the dark palette, following the choice and then the system.
- *
- * Applied to `documentElement` rather than passed down, because the email
- * frame reads the class off the root to decide its own colours.
- */
-export function useTheme(preference: Settings["theme"] | undefined) {
-  const [dark, setDark] = useState(false);
-
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-
-    const apply = () => {
-      const wanted = preference === "dark" || (preference !== "light" && media.matches);
-      setDark(wanted);
-      document.documentElement.classList.toggle("dark", wanted);
-    };
-
-    apply();
-    media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
-  }, [preference]);
-
-  return dark;
-}
 
 /** Debounces a value, so typing in the search box is not a call per letter. */
 export function useDebounced<T>(value: T, delay = 300) {

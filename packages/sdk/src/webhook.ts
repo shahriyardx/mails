@@ -4,11 +4,11 @@ import type { DeliveryStatus, EmailAddress, Folder, Thread, WebhookEventName } f
 /**
  * Receiving events.
  *
- * Every call Mailroom makes to your endpoint carries three headers:
+ * Every call Mails makes to your endpoint carries three headers:
  *
- * - `X-Mailroom-Event` — the event name
- * - `X-Mailroom-Signature` — `t=<unix seconds>,v1=<hex>`
- * - `X-Mailroom-Webhook-Id` — which endpoint this came from
+ * - `X-Mails-Event` — the event name
+ * - `X-Mails-Signature` — `t=<unix seconds>,v1=<hex>`
+ * - `X-Mails-Webhook-Id` — which endpoint this came from
  *
  * The signature is an HMAC-SHA256 over `` `${t}.${rawBody}` `` keyed with the
  * endpoint's secret. **Check it against the raw body**, not a re-serialised
@@ -87,7 +87,7 @@ export interface DeliveryEmailSummary {
   status: DeliveryStatus | null;
 }
 
-export type MailroomWebhookEvent =
+export type MailsWebhookEvent =
   | (WebhookEventEnvelope<{ email: ReceivedEmail }> & { type: "mail.received" })
   | (WebhookEventEnvelope<{ email: SentEmailSummary }> & { type: "email.sent" })
   | (WebhookEventEnvelope<{
@@ -97,8 +97,6 @@ export type MailroomWebhookEvent =
       /** What SES said, when it said anything. */
       detail: string | null;
       occurred_at: string;
-      /** Present and true when a test key produced this rather than SES. */
-      simulated?: true;
     }> & {
       type:
         | "email.delivered"
@@ -120,7 +118,7 @@ export interface VerifyOptions {
   secret: string;
   /** The **raw** request body, exactly as it arrived. */
   payload: string | Uint8Array | ArrayBuffer;
-  /** The `X-Mailroom-Signature` header. */
+  /** The `X-Mails-Signature` header. */
   signature: string | null | undefined;
   /**
    * How far the timestamp may be from now, in seconds. Default 300, matching
@@ -130,14 +128,14 @@ export interface VerifyOptions {
 }
 
 /**
- * Whether a body really came from your Mailroom instance.
+ * Whether a body really came from your Mails instance.
  *
  * ```ts
  * const raw = await request.text();
  * const ok = await verifyWebhook({
- *   secret: process.env.MAILROOM_WEBHOOK_SECRET!,
+ *   secret: process.env.MAILS_WEBHOOK_SECRET!,
  *   payload: raw,
- *   signature: request.headers.get("x-mailroom-signature"),
+ *   signature: request.headers.get("x-mails-signature"),
  * });
  * ```
  */
@@ -160,7 +158,7 @@ export async function verifyWebhook(options: VerifyOptions): Promise<boolean> {
  * Throws {@link WebhookVerificationError} if the signature does not match, so
  * a handler that forgets to check the return value still cannot be fooled.
  */
-export async function constructWebhookEvent(options: VerifyOptions): Promise<MailroomWebhookEvent> {
+export async function constructWebhookEvent(options: VerifyOptions): Promise<MailsWebhookEvent> {
   const valid = await verifyWebhook(options);
   if (!valid) {
     throw new WebhookVerificationError(
@@ -169,7 +167,7 @@ export async function constructWebhookEvent(options: VerifyOptions): Promise<Mai
   }
 
   try {
-    return JSON.parse(toText(options.payload)) as MailroomWebhookEvent;
+    return JSON.parse(toText(options.payload)) as MailsWebhookEvent;
   } catch {
     throw new WebhookVerificationError("The webhook body is not valid JSON");
   }

@@ -1,5 +1,5 @@
 /**
- * The slice of the Mailroom v1 API this extension reads.
+ * The slice of the Mails v1 API this extension reads.
  *
  * Hand-written rather than imported: the published SDK is a Node package and
  * pulling it in would bring a build step and a versioning problem into a

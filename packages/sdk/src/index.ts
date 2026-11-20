@@ -1,15 +1,13 @@
 /**
- * The Node and TypeScript SDK for Mailroom.
- *
- * @see https://github.com/shahriyardx/mailroom/tree/main/packages/sdk#readme
+ * The Node and TypeScript SDK for Mails.
  */
-export { Mailroom } from "./client.js";
-export { Mailroom as default } from "./client.js";
+export { Mails } from "./client.js";
+export { Mails as default } from "./client.js";
 
 export {
   HttpClient,
   paginate,
-  type MailroomOptions,
+  type MailsOptions,
   type RateLimitState,
   type RequestOptions,
 } from "./http.js";
@@ -18,7 +16,7 @@ export {
   AuthenticationError,
   ConflictError,
   ConnectionError,
-  MailroomError,
+  MailsError,
   NotFoundError,
   PayloadTooLargeError,
   PermissionError,
@@ -27,8 +25,8 @@ export {
   TimeoutError,
   ValidationError,
   WebhookVerificationError,
-  isMailroomError,
-  type MailroomErrorCode,
+  isMailsError,
+  type MailsErrorCode,
 } from "./errors.js";
 
 export {
@@ -36,7 +34,7 @@ export {
   signWebhookPayload,
   verifyWebhook,
   type DeliveryEmailSummary,
-  type MailroomWebhookEvent,
+  type MailsWebhookEvent,
   type ReceivedEmail,
   type SentEmailSummary,
   type VerifyOptions,

@@ -1,6 +1,6 @@
-# @shahriyardx/mailroom
+# @shahriyardx/mails
 
-The Node and TypeScript SDK for [Mailroom](https://github.com/shahriyardx/mailroom) — self-hosted mail on Amazon SES and Cloudflare.
+The Node and TypeScript SDK for Mails — self-hosted mail on Amazon SES and Cloudflare.
 
 Send mail, read your inbox, file conversations, manage domains and mailboxes, and receive signed webhooks, against **your own** instance.
 
@@ -18,9 +18,6 @@ Send mail, read your inbox, file conversations, manage domains and mailboxes, an
 - [Quick start](#quick-start)
 - [Configuring the client](#configuring-the-client)
 - [Sending mail](#sending-mail)
-- [Sending later](#sending-later)
-- [Templates](#templates)
-- [Test keys](#test-keys)
 - [Reading mail](#reading-mail)
 - [Mailboxes and domains](#mailboxes-and-domains)
 - [Labels, contacts and blocked addresses](#labels-contacts-and-blocked-addresses)
@@ -40,10 +37,10 @@ Send mail, read your inbox, file conversations, manage domains and mailboxes, an
 ## Install
 
 ```bash
-npm install @shahriyardx/mailroom
-# pnpm add @shahriyardx/mailroom
-# yarn add @shahriyardx/mailroom
-# bun add @shahriyardx/mailroom
+npm install @shahriyardx/mails
+# pnpm add @shahriyardx/mails
+# yarn add @shahriyardx/mails
+# bun add @shahriyardx/mails
 ```
 
 Node 18 or newer. Nothing to polyfill.
@@ -53,10 +50,10 @@ Node 18 or newer. Nothing to polyfill.
 Make a key in your instance under **Settings → API keys**. It is shown once.
 
 ```ts
-import { Mailroom } from "@shahriyardx/mailroom";
+import { Mails } from "@shahriyardx/mails";
 
-const mail = new Mailroom({
-  apiKey: process.env.MAILROOM_API_KEY,
+const mail = new Mails({
+  apiKey: process.env.MAILS_API_KEY,
   baseUrl: "https://mail.example.com",
 });
 
@@ -77,15 +74,15 @@ await mail.emails.send({
 CommonJS works the same way:
 
 ```js
-const { Mailroom } = require("@shahriyardx/mailroom");
+const { Mails } = require("@shahriyardx/mails");
 ```
 
 ## Configuring the client
 
 ```ts
-const mail = new Mailroom({
-  apiKey: process.env.MAILROOM_API_KEY, // default: process.env.MAILROOM_API_KEY
-  baseUrl: "https://mail.example.com",  // default: process.env.MAILROOM_BASE_URL
+const mail = new Mails({
+  apiKey: process.env.MAILS_API_KEY, // default: process.env.MAILS_API_KEY
+  baseUrl: "https://mail.example.com",  // default: process.env.MAILS_BASE_URL
   timeout: 30_000,                      // ms to wait for a reply
   maxRetries: 2,                        // extra tries after a 429, 5xx or dropped socket
   headers: { "X-Trace-Id": "…" },       // sent on every call
@@ -93,7 +90,7 @@ const mail = new Mailroom({
 });
 ```
 
-With `MAILROOM_API_KEY` and `MAILROOM_BASE_URL` set, `new Mailroom()` on its own is enough.
+With `MAILS_API_KEY` and `MAILS_BASE_URL` set, `new Mails()` on its own is enough.
 
 `baseUrl` is your instance's address. The `/api/v1` suffix is added for you, so `https://mail.example.com` and `https://mail.example.com/api/v1` both work.
 
@@ -171,104 +168,15 @@ if (sent.status === "queued") {
 
 You do not have to do anything about it. The message is in Sent, marked `queued`, and goes out on its own; `email.sent` fires when it does, and `email.failed` if the attempts run out.
 
-## Sending later
+## Calling one off
+
+A message that is `queued` because SES was busy can still be stopped:
 
 ```ts
-const sent = await mail.emails.send({
-  from: "reminders@example.com",
-  to: "customer@example.net",
-  subject: "Your appointment tomorrow",
-  text: "See you at 10.",
-  scheduled_at: "in 2 hours",
-});
-
-console.log(sent.status);        // "scheduled"
-console.log(sent.scheduled_at);  // "2026-09-21T16:00:00.000Z"
-```
-
-`scheduled_at` takes a `Date`, an ISO 8601 timestamp, a Unix time in seconds or milliseconds, or a short relative form: `"in 30 minutes"`, `"in 2 hours"`, `"in 1 day"`. A time that has already passed sends now. At most 30 days ahead.
-
-While it waits you can move it or call it off:
-
-```ts
-await mail.emails.reschedule(sent.id, new Date("2026-10-01T09:00:00Z"));
 await mail.emails.cancel(sent.id);
 ```
 
-Both throw `ConflictError` once the message has been picked up for sending — at that point it is on its way, and saying otherwise would be a lie you would go on to build on. The same two work on a message that is `queued` because SES was busy.
-
-## Templates
-
-Save the wording once, send it by name. Changing a receipt then needs no deploy of whatever service sends it.
-
-```ts
-const receipt = await mail.templates.create({
-  name: "Receipt",
-  subject: "Your receipt, {{ name }}",
-  html: "<p>Hello {{ name }}, you paid {{ amount }}.</p>",
-});
-
-await mail.emails.send({
-  from: "receipts@example.com",
-  to: "customer@example.net",
-  template: receipt.id,
-  data: { name: "Ada", amount: "£10" },
-});
-```
-
-The template language is deliberately not one:
-
-| | |
-| --- | --- |
-| `{{ name }}` | the value, with HTML escaped |
-| `{{{ body }}}` | the value as it is, for markup you meant |
-| `{{ user.name }}` | a path into a nested object |
-
-That is all of it — no loops, no conditionals, no function calls. A template that needs logic has quietly become code, and code belongs in your service where it can be reviewed and tested.
-
-Two things worth knowing. A value you did not send is a `ValidationError` naming what is missing, not an empty string: `"Hi ,"` arriving at a customer is worse than an error, and an empty string cannot be told later from a value that really was empty. And `{{ }}` escapes what it inserts, so a name from a signup form cannot write tags into mail sent under your domain — use `{{{ }}}` only for markup you produced yourself.
-
-`subject` given alongside a template wins, so a one-off variation needs no second template. A template is sent by its id, which never changes. `template_id` works wherever `template` does.
-
-```ts
-const template = await mail.templates.get(receipt.id);
-console.log(template.variables); // ["name", "amount"]
-```
-
-## Test keys
-
-A key made in test mode runs every check a live one runs — the mailbox, the blocked list, the template, building the MIME, the webhooks — and stops one step short of handing anything to SES. Nothing leaves the building, nothing costs anything, and nothing counts against your sending quota.
-
-Test keys read `mk_test_…` rather than `mk_live_…`, so one that reached production config is visible rather than silent.
-
-```ts
-const me = await mail.me();
-if (me.mode === "test") console.log("nothing sent from here will arrive");
-```
-
-Since nothing reaches SES, no event will ever arrive to say what became of the message. The recipient decides instead:
-
-| Recipient | What the message is made to look like |
-| --- | --- |
-| `bounce@…`, `bounced@…` | bounced |
-| `complaint@…`, `complained@…` | marked as spam |
-| `delay@…` | still being tried |
-| anything else | delivered |
-
-Your webhook endpoint hears `email.sent` and then the matching event, in the same shape SES would have produced, with `simulated: true` added. That is the point: a receiver you test against this needs no special case.
-
-Listings and statistics show the side the key is on, and either can ask for the other:
-
-```ts
-await mail.emails.list();                 // this key's side
-await mail.emails.list({ test: true });   // the test side
-await mail.emails.list({ test: false });  // the live side
-await mail.emails.list({ test: "all" });  // both
-```
-
-Statistics are the reason this exists — a bounce rate must never count a bounce somebody asked for.
-
-Note that this is a view, not an access boundary. Test mode governs *sending*: a test key cannot put a message in front of a real person. What it may read is decided by its scopes and reach like any other key, so narrow those as you would for any key you did not fully trust.
+This throws `ConflictError` once the message has been picked up for sending: at that point it is on its way.
 
 ## Reading mail
 
@@ -389,7 +297,7 @@ for (const day of stats.days) console.log(day.day, day.sent, day.delivered);
 
 ```ts
 const hook = await mail.webhooks.create({
-  url: "https://api.example.com/hooks/mailroom",
+  url: "https://api.example.com/hooks/mails",
   events: ["mail.received", "email.bounced"], // or ["*"] for everything, now and later
   description: "Production receiver",
 });
@@ -442,7 +350,7 @@ for await (const delivery of mail.webhooks.listAllDeliveries({ succeeded: false 
 | `email.delayed` | SES is still trying |
 | `email.rejected` | SES refused to send it |
 | `email.failed` | It could not be handed to SES, and no attempts are left |
-| `email.canceled` | A scheduled message was called off before it went out |
+| `email.canceled` | A queued message was called off before it went out |
 | `thread.updated` | A thread was moved, read, starred or labelled through the API |
 
 Delivery is retried four times over about forty seconds. A `4xx` other than 408 and 429 is taken as a final no. After 20 failures in a row the endpoint is switched off, and turning it back on clears the count.
@@ -453,9 +361,9 @@ Every call carries three headers:
 
 | Header | What |
 | --- | --- |
-| `X-Mailroom-Event` | The event name |
-| `X-Mailroom-Signature` | `t=<unix seconds>,v1=<hex>` |
-| `X-Mailroom-Webhook-Id` | Which endpoint it came from |
+| `X-Mails-Event` | The event name |
+| `X-Mails-Signature` | `t=<unix seconds>,v1=<hex>` |
+| `X-Mails-Webhook-Id` | Which endpoint it came from |
 
 The signature is an HMAC-SHA256 over `` `${t}.${rawBody}` `` keyed with the endpoint's secret.
 
@@ -466,16 +374,16 @@ The signature is an HMAC-SHA256 over `` `${t}.${rawBody}` `` keyed with the endp
 **Next.js route handler**
 
 ```ts
-import { constructWebhookEvent } from "@shahriyardx/mailroom";
+import { constructWebhookEvent } from "@shahriyardx/mails";
 
 export async function POST(request: Request) {
   const raw = await request.text();
 
   try {
     const event = await constructWebhookEvent({
-      secret: process.env.MAILROOM_WEBHOOK_SECRET!,
+      secret: process.env.MAILS_WEBHOOK_SECRET!,
       payload: raw,
-      signature: request.headers.get("x-mailroom-signature"),
+      signature: request.headers.get("x-mails-signature"),
     });
 
     switch (event.type) {
@@ -499,19 +407,19 @@ export async function POST(request: Request) {
 
 ```js
 const express = require("express");
-const { constructWebhookEvent } = require("@shahriyardx/mailroom");
+const { constructWebhookEvent } = require("@shahriyardx/mails");
 
 const app = express();
 
 app.post(
-  "/hooks/mailroom",
+  "/hooks/mails",
   express.raw({ type: "application/json" }), // the raw body, not express.json()
   async (req, res) => {
     try {
       const event = await constructWebhookEvent({
-        secret: process.env.MAILROOM_WEBHOOK_SECRET,
+        secret: process.env.MAILS_WEBHOOK_SECRET,
         payload: req.body,
-        signature: req.get("x-mailroom-signature"),
+        signature: req.get("x-mails-signature"),
       });
       console.log(event.type, event.id);
       res.json({ ok: true });
@@ -547,7 +455,7 @@ The envelope is the same for every event:
 `signWebhookPayload` signs a body the way the server does, so you can post a realistic call at your own handler without waiting for a real event.
 
 ```ts
-import { signWebhookPayload } from "@shahriyardx/mailroom";
+import { signWebhookPayload } from "@shahriyardx/mails";
 
 const body = JSON.stringify({
   id: "whd_test",
@@ -558,9 +466,9 @@ const body = JSON.stringify({
 });
 const signature = await signWebhookPayload("whsec_…", body);
 
-await fetch("http://localhost:3000/hooks/mailroom", {
+await fetch("http://localhost:3000/hooks/mails", {
   method: "POST",
-  headers: { "Content-Type": "application/json", "X-Mailroom-Signature": signature },
+  headers: { "Content-Type": "application/json", "X-Mails-Signature": signature },
   body,
 });
 ```
@@ -598,10 +506,10 @@ for await (const thread of mail.threads.listAll({ folder: "inbox" })) {
 
 ## Errors
 
-Anything other than a 2xx throws. Every error extends `MailroomError` and carries `status`, `code`, `message` and the decoded `body`.
+Anything other than a 2xx throws. Every error extends `MailsError` and carries `status`, `code`, `message` and the decoded `body`.
 
 ```ts
-import { isMailroomError, NotFoundError, RateLimitError } from "@shahriyardx/mailroom";
+import { isMailsError, NotFoundError, RateLimitError } from "@shahriyardx/mails";
 
 try {
   await mail.emails.send({ from: "nobody@unverified.example", to: "a@b.c" });
@@ -610,7 +518,7 @@ try {
     await sleep((error.retryAfter ?? 5) * 1000);
   } else if (error instanceof NotFoundError) {
     // gone, or outside this key's reach — the two look the same on purpose
-  } else if (isMailroomError(error)) {
+  } else if (isMailsError(error)) {
     console.error(error.code, error.status, error.message, error.param);
   } else {
     throw error;
@@ -700,7 +608,6 @@ The key, the base URL, the timeout, the retries and the error mapping all still 
 | `mail.emails.list()` / `listAll()` | `GET /emails` | `emails:read` |
 | `mail.emails.get()` | `GET /emails/:id` | `emails:read` |
 | `mail.emails.cancel()` | `POST /emails/:id/cancel` | `emails:send` |
-| `mail.emails.reschedule()` | `PATCH /emails/:id` | `emails:send` |
 | `mail.threads.list()` / `listAll()` | `GET /threads` | `mail:read` |
 | `mail.threads.get()` | `GET /threads/:id` | `mail:read` |
 | `mail.threads.update()` | `PATCH /threads/:id` | `mail:write` |
@@ -727,11 +634,6 @@ The key, the base URL, the timeout, the retries and the error mapping all still 
 | `mail.labels.update()` | `PATCH /labels/:id` | `labels:write` |
 | `mail.labels.delete()` | `DELETE /labels/:id` | `labels:write` |
 | `mail.contacts.list()` / `listAll()` | `GET /contacts` | `contacts:read` |
-| `mail.templates.list()` / `listAll()` | `GET /templates` | `templates:read` |
-| `mail.templates.get()` | `GET /templates/:id` | `templates:read` |
-| `mail.templates.create()` | `POST /templates` | `templates:write` |
-| `mail.templates.update()` | `PATCH /templates/:id` | `templates:write` |
-| `mail.templates.delete()` | `DELETE /templates/:id` | `templates:write` |
 | `mail.suppressions.list()` / `listAll()` | `GET /suppressions` | `suppressions:read` |
 | `mail.suppressions.create()` | `POST /suppressions` | `suppressions:write` |
 | `mail.suppressions.delete()` | `DELETE /suppressions/:id` | `suppressions:write` |
@@ -749,9 +651,9 @@ The key, the base URL, the timeout, the retries and the error mapping all still 
 
 ```bash
 pnpm install
-pnpm --filter @shahriyardx/mailroom run typecheck
-pnpm --filter @shahriyardx/mailroom run build
-pnpm --filter @shahriyardx/mailroom run test
+pnpm --filter @shahriyardx/mails run typecheck
+pnpm --filter @shahriyardx/mails run build
+pnpm --filter @shahriyardx/mails run test
 ```
 
 The SDK lives in the same repository as the server it talks to, so the two cannot drift apart.

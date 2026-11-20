@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  Mailroom,
+  Mails,
   NotFoundError,
   RateLimitError,
   ValidationError,
   constructWebhookEvent,
-  isMailroomError,
+  isMailsError,
   signWebhookPayload,
   verifyWebhook,
 } from "../dist/index.js";
@@ -32,7 +32,7 @@ function fakeFetch(replies) {
 function client(replies, options = {}) {
   const { fetch, calls } = fakeFetch(replies);
   return {
-    mail: new Mailroom({ apiKey: KEY, baseUrl: "https://m.test", fetch, ...options }),
+    mail: new Mails({ apiKey: KEY, baseUrl: "https://m.test", fetch, ...options }),
     calls,
   };
 }
@@ -41,7 +41,7 @@ test("the base URL gains /api/v1 when it is left off", () => {
   const { mail } = client({ body: {} });
   assert.equal(mail.baseUrl, "https://m.test/api/v1");
 
-  const withSuffix = new Mailroom({
+  const withSuffix = new Mails({
     apiKey: KEY,
     baseUrl: "https://m.test/api/v1/",
     fetch: async () => new Response("{}"),
@@ -50,8 +50,8 @@ test("the base URL gains /api/v1 when it is left off", () => {
 });
 
 test("a missing key or URL is refused before any call is made", () => {
-  assert.throws(() => new Mailroom({ baseUrl: "https://m.test", apiKey: "" }), /API key/);
-  assert.throws(() => new Mailroom({ apiKey: KEY, baseUrl: "" }), /base URL/);
+  assert.throws(() => new Mails({ baseUrl: "https://m.test", apiKey: "" }), /API key/);
+  assert.throws(() => new Mails({ apiKey: KEY, baseUrl: "" }), /base URL/);
 });
 
 test("send posts the body and carries the key", async () => {
@@ -97,7 +97,7 @@ test("an error reply becomes the class that matches its status", async () => {
   const { mail } = client({ status: 404, body: { error: "No such thread", code: "not_found" } });
   await assert.rejects(mail.threads.get("thr_missing"), (error) => {
     assert.ok(error instanceof NotFoundError);
-    assert.ok(isMailroomError(error));
+    assert.ok(isMailsError(error));
     assert.equal(error.code, "not_found");
     assert.equal(error.status, 404);
     assert.equal(error.message, "No such thread");
@@ -248,25 +248,8 @@ test("the payload may be bytes as well as a string", async () => {
 });
 
 /* -------------------------------------------------------------------------- */
-/* Scheduling, templates and test keys                                        */
+/* Cancel                                                                     */
 /* -------------------------------------------------------------------------- */
-
-test("a scheduled send passes the time through untouched", async () => {
-  const { mail, calls } = client({
-    status: 202,
-    body: { id: "msg_1", status: "scheduled", scheduled_at: "2026-10-01T09:00:00.000Z" },
-  });
-
-  const sent = await mail.emails.send({
-    from: "me@m.test",
-    to: "a@b.c",
-    subject: "Later",
-    scheduled_at: "in 30 minutes",
-  });
-
-  assert.equal(sent.status, "scheduled");
-  assert.equal(JSON.parse(calls[0].init.body).scheduled_at, "in 30 minutes");
-});
 
 test("cancel posts to the message's cancel path", async () => {
   const { mail, calls } = client({ body: { id: "msg_1", status: "canceled" } });
@@ -277,75 +260,8 @@ test("cancel posts to the message's cancel path", async () => {
   assert.match(calls[0].url, /\/emails\/msg_1\/cancel$/);
 });
 
-test("reschedule sends a Date as an ISO string", async () => {
-  const { mail, calls } = client({ body: { id: "msg_1" } });
-  const at = new Date("2026-10-01T09:00:00.000Z");
-  await mail.emails.reschedule("msg_1", at);
-
-  assert.equal(calls[0].init.method, "PATCH");
-  assert.equal(JSON.parse(calls[0].init.body).scheduled_at, "2026-10-01T09:00:00.000Z");
-});
-
-test("sending a template passes the name and the data", async () => {
-  const { mail, calls } = client({ status: 202, body: { id: "msg_1", status: "sent" } });
-
-  await mail.emails.send({
-    from: "me@m.test",
-    to: "a@b.c",
-    template: "welcome",
-    data: { name: "Ada" },
-  });
-
-  const body = JSON.parse(calls[0].init.body);
-  assert.equal(body.template, "welcome");
-  assert.deepEqual(body.data, { name: "Ada" });
-});
-
-test("templates can be listed, read, changed and removed", async () => {
-  const { mail, calls } = client([
-    { body: { object: "list", data: [{ id: "tpl_1", slug: "welcome" }], has_more: false } },
-    { body: { object: "template", id: "tpl_1", slug: "welcome" } },
-    { body: { object: "template", id: "tpl_1", subject: "New" } },
-    { body: { object: "template", id: "tpl_1", deleted: true } },
-  ]);
-
-  await mail.templates.list();
-  await mail.templates.get("welcome");
-  await mail.templates.update("welcome", { subject: "New" });
-  await mail.templates.delete("welcome");
-
-  assert.deepEqual(
-    calls.map((call) => call.init.method),
-    ["GET", "GET", "PATCH", "DELETE"],
-  );
-  assert.match(calls[1].url, /\/templates\/welcome$/);
-});
-
-test("listing can ask for the test side, or for both", async () => {
-  const { mail, calls } = client({ body: { object: "list", data: [], has_more: false } });
-  await mail.emails.list({ test: "all" });
-  assert.match(calls[0].url, /[?&]test=all/);
-});
-
-test("a simulated delivery reads as the real event, and says it was simulated", async () => {
-  const secret = "whsec_test";
-  const payload = JSON.stringify({
-    id: "evt_1",
-    type: "email.delivered",
-    created_at: "2026-09-21T00:00:00.000Z",
-    data: {
-      email: { id: "msg_1", status: "delivered", test: true },
-      recipients: ["a@b.c"],
-      detail: "Simulated by a test key",
-      occurred_at: "2026-09-21T00:00:00.000Z",
-      simulated: true,
-    },
-  });
-
-  const signature = await signWebhookPayload(secret, payload);
-  const event = await constructWebhookEvent({ secret, payload, signature });
-
-  assert.equal(event.type, "email.delivered");
-  assert.equal(event.data.simulated, true);
-  assert.deepEqual(event.data.recipients, ["a@b.c"]);
+test("the client has no templates resource", () => {
+  const { mail } = client({ body: {} });
+  assert.equal("templates" in mail, false);
+  assert.equal(typeof mail.emails.reschedule, "undefined");
 });

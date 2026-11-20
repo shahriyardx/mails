@@ -167,8 +167,8 @@ export function Switch({ checked, onChange, label, hint }: SwitchProps) {
       >
         <span
           className={cx(
-            "absolute top-0.5 size-4 rounded-full bg-white transition-all",
-            checked ? "left-[18px]" : "left-0.5",
+            "absolute top-0.5 size-4 rounded-full transition-all",
+            checked ? "left-[18px] bg-background" : "left-0.5 bg-foreground",
           )}
         />
       </button>
@@ -249,8 +249,9 @@ export function Avatar({ name, address, size = "md", className }: AvatarProps) {
         className,
       )}
       style={{
-        backgroundColor: `oklch(0.93 0.045 ${hue})`,
-        color: `oklch(0.42 0.13 ${hue})`,
+        // Low chroma: a hint of hue to tell people apart, never a colour.
+        backgroundColor: `oklch(0.34 0.025 ${hue})`,
+        color: `oklch(0.88 0.03 ${hue})`,
       }}
     >
       {initialsFor(name, address)}

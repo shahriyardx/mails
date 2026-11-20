@@ -1,7 +1,7 @@
 import { Button, Choice, Field, Input, Spinner, Switch } from "@/components/kit";
 import { ApiError, listMailboxes, whoami } from "@/lib/api";
 import { cx } from "@/lib/format";
-import { useSettings, useTheme } from "@/lib/hooks";
+import { useSettings } from "@/lib/hooks";
 import { type Settings, normalizeBase, originPattern } from "@/lib/settings";
 import type { ApiIdentity, ApiMailbox } from "@/lib/types";
 import { ExternalLink, KeyRound, ShieldCheck, TriangleAlert } from "lucide-react";
@@ -25,7 +25,6 @@ type Status =
 
 export function Options() {
   const { settings, update } = useSettings();
-  useTheme(settings?.theme);
 
   const [baseUrl, setBaseUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
@@ -102,7 +101,7 @@ export function Options() {
         state: "error",
         message: failure?.message ?? "Could not reach that instance.",
         hint: failure?.isAuth
-          ? "Settings → API keys in Mailroom will make you a new one. It needs the mail:read and mail:write scopes."
+          ? "Settings → API keys in Mails will make you a new one. It needs the mail:read and mail:write scopes."
           : undefined,
       });
     }
@@ -160,7 +159,7 @@ export function Options() {
     <div className="min-h-screen bg-background py-10">
       <div className="mx-auto w-full max-w-[640px] space-y-6 px-6">
         <header>
-          <h1 className="text-[20px] font-semibold tracking-[-0.02em]">Mailroom</h1>
+          <h1 className="text-[20px] font-semibold tracking-[-0.02em]">Mails</h1>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
             Your inbox in the toolbar. Self-hosted, so you say where it lives.
           </p>
@@ -170,7 +169,7 @@ export function Options() {
         <section className="rounded-[14px] border border-border bg-card p-5 shadow-raise">
           <h2 className="mb-1 text-[14px] font-semibold">Instance</h2>
           <p className="mb-4 text-[12.5px] text-muted-foreground">
-            The address of your Mailroom and a key it will accept. The key is kept in this browser
+            The address of your Mails and a key it will accept. The key is kept in this browser
             only and is never synced to your account.
           </p>
 
@@ -187,7 +186,7 @@ export function Options() {
 
             <Field
               label="API key"
-              hint="Mailroom → Settings → API keys. It needs mail:read, and mail:write for triage."
+              hint="Mails → Settings → API keys. It needs mail:read, and mail:write for triage."
             >
               <Input
                 value={apiKey}
@@ -338,19 +337,6 @@ export function Options() {
                   value: minutes,
                   label: minutes === 60 ? "1 hr" : `${minutes} min`,
                 }))}
-              />
-            </Field>
-
-            <Field label="Appearance" hint="The popup follows this.">
-              <Choice
-                label="Appearance"
-                value={settings.theme}
-                onChange={(theme) => void update({ theme })}
-                options={[
-                  { value: "system" as const, label: "System" },
-                  { value: "light" as const, label: "Light" },
-                  { value: "dark" as const, label: "Dark" },
-                ]}
               />
             </Field>
           </div>

@@ -1,105 +1,68 @@
 @import "tailwindcss";
 
+@import "@fontsource-variable/google-sans-flex";
+@import "@fontsource-variable/geist-mono";
+
 /* ==========================================================================
-   Mailroom, in a toolbar
+   Mails, in a toolbar
 
-   The same design language as the web app — warm neutrals, one indigo accent
-   that only ever means state, soft geometry — with the tokens copied rather
-   than imported, because the extension is built on its own and must not grow
-   a dependency on the Next app's stylesheet.
+   Soothing dark, the same tokens as the dashboard (see the "Color: soothing
+   dark" table in the design spec). Dark only: no light mode, no theme switch.
+   Every grey sits at hue 85 with chroma at or below 0.01; surfaces are mixed
+   from the foreground into the background, each a small step lighter. No
+   accent colour: state is weight and a lighter fill.
 
-   Keep in step with src/app/globals.css. If a token moves there, move it here.
+   Copied rather than imported, because the extension is built on its own.
+   If a token moves in the dashboard, move it here.
    ========================================================================== */
-
-@custom-variant dark (&:is(.dark *));
 
 :root {
   --radius: 0.75rem;
 
-  --shadow-raise: 0 1px 2px oklch(0.2 0.02 80 / 0.05);
-  --shadow-pop: 0 4px 14px -4px oklch(0.2 0.02 80 / 0.1), 0 1px 3px oklch(0.2 0.02 80 / 0.05);
+  --background: oklch(0.2 0.005 85);
+  --foreground: oklch(0.88 0.01 85);
+  --muted-foreground: oklch(0.66 0.008 85);
+  --primary: oklch(0.8 0.01 85);
+  --primary-foreground: var(--background);
+  --destructive: oklch(0.68 0.1 25);
+  --destructive-foreground: var(--background);
 
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.21 0.006 265);
+  /* Surfaces: foreground mixed into the background in srgb. */
+  --surface-1: color-mix(in srgb, var(--foreground) 5%, var(--background));
+  --surface-box: color-mix(in srgb, var(--foreground) 8%, var(--background));
+  --field-card: color-mix(in srgb, var(--foreground) 9%, var(--background));
+  --field-box: color-mix(in srgb, var(--foreground) 12%, var(--background));
+  --tonal: color-mix(in srgb, var(--foreground) 12%, var(--background));
+  --border: color-mix(in srgb, var(--foreground) 12%, var(--background));
+  --input: color-mix(in srgb, var(--foreground) 15%, var(--background));
 
-  --card: oklch(1 0 0);
-  --popover: oklch(1 0 0);
+  --card: var(--surface-1);
+  --popover: var(--surface-box);
+  --primary-soft: var(--tonal);
+  --primary-soft-foreground: var(--foreground);
+  --secondary: var(--tonal);
+  --secondary-foreground: var(--foreground);
+  --muted: color-mix(in srgb, var(--foreground) 7%, var(--background));
+  --accent: color-mix(in srgb, var(--foreground) 9%, var(--background));
+  --accent-foreground: var(--foreground);
+  --ring: var(--foreground);
+  --rail: color-mix(in srgb, var(--foreground) 3%, var(--background));
+  --rail-foreground: oklch(0.74 0.008 85);
 
-  --primary: oklch(0.53 0.17 278);
-  --primary-foreground: oklch(0.99 0.004 278);
-  --primary-soft: oklch(0.955 0.02 278);
-  --primary-soft-foreground: oklch(0.44 0.16 278);
+  /* Status, desaturated so nothing shouts. */
+  --ok: oklch(0.76 0.05 155);
+  --ok-soft: color-mix(in srgb, var(--ok) 14%, var(--background));
+  --warn: oklch(0.8 0.06 80);
+  --warn-soft: color-mix(in srgb, var(--warn) 14%, var(--background));
+  --danger-soft: color-mix(in srgb, var(--destructive) 14%, var(--background));
 
-  --secondary: oklch(0.962 0.002 265);
-  --secondary-foreground: oklch(0.28 0.006 265);
-
-  --muted: oklch(0.968 0.002 265);
-  --muted-foreground: oklch(0.55 0.006 265);
-
-  --accent: oklch(0.956 0.002 265);
-  --accent-foreground: oklch(0.22 0.006 265);
-
-  --destructive: oklch(0.55 0.18 25);
-  --destructive-foreground: oklch(0.99 0 0);
-
-  --border: oklch(0.918 0.002 265);
-  --input: oklch(0.93 0.002 265);
-  --ring: oklch(0.53 0.17 278);
-
-  --rail: oklch(0.989 0.001 265);
-  --rail-foreground: oklch(0.36 0.006 265);
-
-  --ok: oklch(0.53 0.1 158);
-  --ok-soft: oklch(0.955 0.03 158);
-  --warn: oklch(0.6 0.12 72);
-  --warn-soft: oklch(0.962 0.04 72);
-  --danger-soft: oklch(0.962 0.025 25);
-}
-
-.dark {
-  --shadow-raise: 0 1px 2px oklch(0 0 0 / 0.3);
-  --shadow-pop: 0 4px 14px -4px oklch(0 0 0 / 0.45), 0 1px 3px oklch(0 0 0 / 0.3);
-
-  --background: oklch(0.152 0.004 265);
-  --foreground: oklch(0.935 0.003 265);
-
-  --card: oklch(0.196 0.005 265);
-  --popover: oklch(0.232 0.006 265);
-
-  --primary: oklch(0.68 0.15 278);
-  --primary-foreground: oklch(0.17 0.03 278);
-  --primary-soft: oklch(0.29 0.055 278);
-  --primary-soft-foreground: oklch(0.85 0.08 278);
-
-  --secondary: oklch(0.258 0.006 265);
-  --secondary-foreground: oklch(0.935 0.003 265);
-
-  --muted: oklch(0.248 0.006 265);
-  --muted-foreground: oklch(0.66 0.006 265);
-
-  --accent: oklch(0.272 0.006 265);
-  --accent-foreground: oklch(0.95 0.003 265);
-
-  --destructive: oklch(0.66 0.17 25);
-  --destructive-foreground: oklch(0.16 0.01 25);
-
-  --border: oklch(0.288 0.006 265);
-  --input: oklch(0.308 0.007 265);
-  --ring: oklch(0.68 0.15 278);
-
-  --rail: oklch(0.182 0.005 265);
-  --rail-foreground: oklch(0.74 0.006 265);
-
-  --ok: oklch(0.72 0.12 160);
-  --ok-soft: oklch(0.29 0.045 160);
-  --warn: oklch(0.78 0.12 76);
-  --warn-soft: oklch(0.3 0.05 76);
-  --danger-soft: oklch(0.3 0.055 25);
+  --shadow-raise: 0 1px 2px oklch(0.1 0.005 85 / 0.3);
+  --shadow-pop: 0 4px 14px -4px oklch(0.1 0.005 85 / 0.45), 0 1px 3px oklch(0.1 0.005 85 / 0.3);
 }
 
 @theme inline {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, "SFMono-Regular", "IBM Plex Mono", monospace;
+  --font-sans: "Google Sans Flex Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -152,10 +115,6 @@
 
 @layer base {
   :root {
-    color-scheme: light;
-  }
-
-  .dark {
     color-scheme: dark;
   }
 

@@ -33,12 +33,6 @@ export interface ListEmailsParams {
   mailbox_id?: string;
   mailbox?: string;
   domain?: string;
-  /**
-   * Which side of the line to list. The default follows the key — a live key
-   * sees real mail, a test key sees its own test sends — and either can ask
-   * for the other side, or for `"all"`.
-   */
-  test?: boolean | "all";
 }
 
 /** Sending, and looking at what was sent. */
@@ -56,20 +50,6 @@ export class Emails {
    *   html: "<p>Thanks.</p>",
    * });
    * ```
-   *
-   * A saved template sends by id instead of a body written here:
-   *
-   * ```ts
-   * await mail.emails.send({
-   *   from: "receipts@example.com",
-   *   to: "customer@example.net",
-   *   template: "tpl_…",
-   *   data: { name: "Ada", amount: "£10" },
-   * });
-   * ```
-   *
-   * `scheduled_at` holds it until a time you choose, and {@link cancel} calls
-   * it off while it waits.
    *
    * Pass `idempotencyKey` and a retry after a timeout cannot send twice.
    */
@@ -130,8 +110,8 @@ export class Emails {
   }
 
   /**
-   * Calls off a message that has not gone out — one waiting for its
-   * scheduled time, or one waiting for SES to be able to take it.
+   * Calls off a message that has not gone out: one still queued, waiting for
+   * SES to be able to take it.
    *
    * Throws {@link ConflictError} once a worker has picked the message up,
    * because at that point it is on its way and there is nothing left to stop.
@@ -140,25 +120,6 @@ export class Emails {
     return this.http.request<Message>({
       method: "POST",
       path: `/emails/${encodeURIComponent(id)}/cancel`,
-      options,
-    });
-  }
-
-  /**
-   * Moves a waiting message to a different time.
-   *
-   * Takes the same forms as `scheduled_at` on {@link send}: a Date, an ISO
-   * timestamp, a Unix time, or `"in 30 minutes"`.
-   */
-  reschedule(
-    id: string,
-    scheduledAt: string | number | Date,
-    options?: RequestOptions,
-  ): Promise<Message> {
-    return this.http.request<Message>({
-      method: "PATCH",
-      path: `/emails/${encodeURIComponent(id)}`,
-      body: { scheduled_at: scheduledAt instanceof Date ? scheduledAt.toISOString() : scheduledAt },
       options,
     });
   }

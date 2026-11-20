@@ -2,7 +2,7 @@ import { type Settings, getSettings, watchedMailboxIds, watchesNothing } from ".
 import type { ApiIdentity, ApiList, ApiMailbox, ApiMessage, ApiThread, View } from "./types";
 
 /**
- * A thin client for the Mailroom v1 API.
+ * A thin client for the Mails v1 API.
  *
  * Fetches run from the extension's own pages and its background worker, both
  * of which hold the host permission for the instance, so no CORS dance is
@@ -38,7 +38,7 @@ export async function call<T>(
   options: Options = {},
 ): Promise<T> {
   if (!settings.baseUrl || !settings.apiKey) {
-    throw new ApiError(401, "unauthorized", "Mailroom is not connected yet.");
+    throw new ApiError(401, "unauthorized", "Mails is not connected yet.");
   }
 
   let response: Response;

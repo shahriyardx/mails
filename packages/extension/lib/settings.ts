@@ -8,7 +8,7 @@ import { browser } from "wxt/browser";
  * including ones the reader never meant to read mail on.
  */
 export interface Settings {
-  /** Origin of the Mailroom instance, no trailing slash. */
+  /** Origin of the Mails instance, no trailing slash. */
   baseUrl: string;
   apiKey: string;
   /**
@@ -29,7 +29,6 @@ export interface Settings {
   /** Play the browser's notification sound is the browser's business; this
    *  only decides whether the toolbar number is drawn. */
   badge: boolean;
-  theme: "system" | "light" | "dark";
 }
 
 export const DEFAULTS: Settings = {
@@ -40,7 +39,6 @@ export const DEFAULTS: Settings = {
   notifications: true,
   pollMinutes: 2,
   badge: true,
-  theme: "system",
 };
 
 const KEY = "settings";
