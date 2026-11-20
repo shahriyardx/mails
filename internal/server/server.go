@@ -35,6 +35,7 @@ import (
 	"github.com/shahriyardx/mails/internal/mailbox"
 	"github.com/shahriyardx/mails/internal/push"
 	"github.com/shahriyardx/mails/internal/realtime"
+	"github.com/shahriyardx/mails/internal/reporting"
 	"github.com/shahriyardx/mails/internal/send"
 	"github.com/shahriyardx/mails/internal/setup"
 	"github.com/shahriyardx/mails/internal/webhook"
@@ -61,6 +62,7 @@ type Deps struct {
 	Keys      *apikey.Service
 	Webhooks  *webhook.Service
 	V1        *apiv1.API
+	Reporting *reporting.Service
 }
 
 // New builds the router. web is the built React app (web/dist).
@@ -76,7 +78,7 @@ func New(d *Deps, web fs.FS) http.Handler {
 
 		// Machine callers: no session cookie involved.
 		api.Method("POST", "/inbound", inbound.Handler(d.Inbound, d.Cfg.InboundSecret))
-		api.Method("POST", "/ses/events", delivery.SNSHandler(d.Delivery, d.SNS, d.Cfg.SESSNSTopicARN))
+		api.Method("POST", "/ses/events", delivery.SNSHandler(d.Delivery, d.SNS, d.Reporting.TopicARN))
 		api.Mount("/v1", d.V1.Routes())
 
 		// Everything that reads or writes the session cookie.
@@ -100,6 +102,7 @@ func New(d *Deps, web fs.FS) http.Handler {
 					app.Mount("/setup", setup.Routes(d.Setup))
 					app.Mount("/api-keys", apikey.Routes(d.Keys))
 					app.Mount("/webhooks", webhook.Routes(d.Webhooks))
+					app.Mount("/reporting", reporting.Routes(d.Reporting))
 					app.Mount("/", chiJoin(mail.Routes(d.Mail), send.Routes(d.Send), delivery.Routes(d.Delivery)))
 				})
 			})

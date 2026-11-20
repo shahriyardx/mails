@@ -65,18 +65,23 @@ var ErrNotConfigured = errors.New("SES is not configured: set AWS_ACCESS_KEY_ID 
 
 type client struct{ api *sesv2.Client }
 
-// New builds a real client. With empty keys it falls back to the default AWS
-// chain (instance role, shared config).
-func New(ctx context.Context, region, accessKey, secretKey string) (Client, error) {
+// Config loads the AWS config every AWS client in Mails shares. With empty
+// keys it falls back to the default chain (instance role, shared config).
+func Config(ctx context.Context, region, accessKey, secretKey string) (aws.Config, error) {
 	opts := []func(*awsconfig.LoadOptions) error{awsconfig.WithRegion(region)}
 	if accessKey != "" {
 		opts = append(opts, awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")))
 	}
 	cfg, err := awsconfig.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("load aws config: %w", err)
+		return aws.Config{}, fmt.Errorf("load aws config: %w", err)
 	}
-	return &client{api: sesv2.NewFromConfig(cfg)}, nil
+	return cfg, nil
+}
+
+// New builds a real SES client.
+func New(cfg aws.Config) Client {
+	return &client{api: sesv2.NewFromConfig(cfg)}
 }
 
 func (c *client) GetIdentity(ctx context.Context, name string) (*Identity, error) {

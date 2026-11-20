@@ -80,7 +80,7 @@ func setup(t *testing.T, topicARN string) *env {
 	}
 	rec := &events.Recorder{}
 	svc := &delivery.Service{DB: pool, SES: sesfake.New(), Hub: realtime.NewHub(), Events: rec, Now: time.Now}
-	return &env{svc: svc, h: delivery.SNSHandler(svc, &delivery.Verifier{HTTP: aws}, topicARN), key: key, aws: aws, pool: pool, rec: rec}
+	return &env{svc: svc, h: delivery.SNSHandler(svc, &delivery.Verifier{HTTP: aws}, func() string { return topicARN }), key: key, aws: aws, pool: pool, rec: rec}
 }
 
 func (e *env) post(t *testing.T, env map[string]string) int {

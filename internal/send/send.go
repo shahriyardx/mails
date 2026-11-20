@@ -46,7 +46,9 @@ type Service struct {
 	Mail      *mail.Service
 	Hub       *realtime.Hub
 	Events    events.Sink
-	ConfigSet string
+	// ConfigSet returns the SES configuration set to send with ("" for
+	// none). It is read per send, so setting up reporting needs no restart.
+	ConfigSet func() string
 	Now       func() time.Time
 
 	once sync.Once
@@ -159,7 +161,7 @@ func (s *Service) Send(ctx context.Context, in Input) (*Result, error) {
 	}
 	status, sesID, reason := "sent", "", ""
 	sendCtx, cancel := context.WithTimeout(ctx, sesTimeout)
-	sesID, err = s.SES.SendRaw(sendCtx, ses.RawEmail{From: p.box.Address, To: p.envelop, Raw: p.raw, ConfigurationSet: s.ConfigSet})
+	sesID, err = s.SES.SendRaw(sendCtx, ses.RawEmail{From: p.box.Address, To: p.envelop, Raw: p.raw, ConfigurationSet: s.configSet()})
 	cancel()
 	if err != nil {
 		if ses.Permanent(err) {
@@ -188,6 +190,13 @@ func (s *Service) Send(ctx context.Context, in Input) (*Result, error) {
 		s.emitEmail(recCtx, "email.sent", res.ID)
 	}
 	return res, nil
+}
+
+func (s *Service) configSet() string {
+	if s.ConfigSet == nil {
+		return ""
+	}
+	return s.ConfigSet()
 }
 
 func (s *Service) storeCopies(ctx context.Context, copies []storedCopy) error {

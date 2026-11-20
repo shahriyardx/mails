@@ -18,8 +18,9 @@ import (
 // configured topic, signed by AWS, are accepted: any AWS account can sign
 // messages for a topic of its own, so the topic check is what makes a
 // valid signature mean "our SES".
-func SNSHandler(s *Service, v *Verifier, topicARN string) http.Handler {
+func SNSHandler(s *Service, v *Verifier, topic func() string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		topicARN := topic()
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 256<<10))
 		if err != nil {
 			httpx.JSON(w, 400, map[string]string{"error": "unreadable body"})
@@ -31,8 +32,8 @@ func SNSHandler(s *Service, v *Verifier, topicARN string) http.Handler {
 			return
 		}
 		if topicARN == "" {
-			slog.Warn("SNS message refused: set SES_SNS_TOPIC_ARN to the topic SES publishes to", "topic", e.TopicArn)
-			httpx.JSON(w, 403, map[string]string{"error": "SES_SNS_TOPIC_ARN is not set on this instance"})
+			slog.Warn("SNS message refused: set up delivery reporting (Settings -> Reporting) or SES_SNS_TOPIC_ARN", "topic", e.TopicArn)
+			httpx.JSON(w, 403, map[string]string{"error": "Delivery reporting is not set up on this instance"})
 			return
 		}
 		if e.TopicArn != topicARN {

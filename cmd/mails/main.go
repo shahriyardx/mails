@@ -28,6 +28,7 @@ import (
 	"github.com/shahriyardx/mails/internal/mailbox"
 	"github.com/shahriyardx/mails/internal/push"
 	"github.com/shahriyardx/mails/internal/realtime"
+	"github.com/shahriyardx/mails/internal/reporting"
 	"github.com/shahriyardx/mails/internal/safehttp"
 	"github.com/shahriyardx/mails/internal/secret"
 	"github.com/shahriyardx/mails/internal/send"
@@ -90,8 +91,14 @@ func run() error {
 		slog.Info("migrations up to date")
 	}
 
-	sesClient, err := ses.New(ctx, cfg.AWSRegion, cfg.AWSAccessKeyID, cfg.AWSSecretAccessKey)
+	awsCfg, err := ses.Config(ctx, cfg.AWSRegion, cfg.AWSAccessKeyID, cfg.AWSSecretAccessKey)
 	if err != nil {
+		return err
+	}
+	sesClient := ses.New(awsCfg)
+	reports := &reporting.Service{DB: pool, AWS: reporting.NewAWS(awsCfg), AppURL: cfg.AppURL,
+		EnvConfigSet: cfg.SESConfigSet, EnvTopicARN: cfg.SESSNSTopicARN}
+	if err := reports.Load(ctx); err != nil {
 		return err
 	}
 	var store storage.Store
@@ -120,7 +127,7 @@ func run() error {
 	mailboxes := &mailbox.Service{DB: pool, Receiving: func(ctx context.Context, d string) any { return cf.EnsureSubdomainReceiving(ctx, d) }}
 	sender := &send.Service{
 		DB: pool, SES: sesClient, Store: store, Mailboxes: mailboxes, Mail: mailSvc, Hub: hub,
-		ConfigSet: cfg.SESConfigSet, Now: time.Now, Events: hooks,
+		ConfigSet: reports.ConfigSet, Now: time.Now, Events: hooks,
 	}
 	deps := &server.Deps{
 		DB:   pool,
@@ -134,16 +141,17 @@ func run() error {
 		Mailboxes: mailboxes,
 		Inbound: &inbound.Service{DB: pool, Hub: hub, Now: time.Now,
 			OnReceived: []func(context.Context, inbound.Received){pusher.OnReceived}, Events: hooks},
-		Mail:     mailSvc,
-		Send:     sender,
-		Delivery: &delivery.Service{DB: pool, SES: sesClient, Hub: hub, Events: hooks, Now: time.Now},
-		SNS:      &delivery.Verifier{HTTP: &http.Client{Timeout: 10 * time.Second}},
-		CF:       cf,
-		Forward:  &forwarding.Manager{DB: pool, CF: cf},
-		Push:     pusher,
-		Setup:    &setup.Service{DB: pool, SESConfigured: cfg.AWSAccessKeyID != "", Region: cfg.AWSRegion},
-		Keys:     &apikey.Service{DB: pool},
-		Webhooks: hooks,
+		Mail:      mailSvc,
+		Send:      sender,
+		Delivery:  &delivery.Service{DB: pool, SES: sesClient, Hub: hub, Events: hooks, Now: time.Now},
+		SNS:       &delivery.Verifier{HTTP: &http.Client{Timeout: 10 * time.Second}},
+		CF:        cf,
+		Forward:   &forwarding.Manager{DB: pool, CF: cf},
+		Push:      pusher,
+		Setup:     &setup.Service{DB: pool, SESConfigured: cfg.AWSAccessKeyID != "", Region: cfg.AWSRegion},
+		Keys:      &apikey.Service{DB: pool},
+		Webhooks:  hooks,
+		Reporting: reports,
 	}
 	idem := &idempotency.Store{DB: pool}
 	deps.V1 = &apiv1.API{
