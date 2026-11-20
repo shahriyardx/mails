@@ -28,7 +28,7 @@ jobs:
       TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5437/postgres?sslmode=disable
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: gofmt
