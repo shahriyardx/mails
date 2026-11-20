@@ -13,7 +13,11 @@ export function SetupCard() {
   return (
     <section aria-label="Finish setting up" className="mx-2 mb-2 rounded-3xl bg-box p-4">
       <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-medium">Finish setting up</h2>
+        <h2 className="text-sm font-medium">
+          <Link to="/settings/setup" className="hover:underline">
+            Finish setting up
+          </Link>
+        </h2>
         <span className="text-xs text-muted-foreground">
           {done} of {steps.length} done
         </span>
