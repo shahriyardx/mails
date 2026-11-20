@@ -25,6 +25,7 @@ import {
   errorMessage,
   useCreateMailbox,
   useDeleteMailbox,
+  useDomains,
   useMailboxes,
   useUpdateMailbox,
 } from "@/lib/api";
@@ -160,7 +161,7 @@ function MailboxRow({ mailbox }: { mailbox: Mailbox }) {
         onOpenChange={setDeleting}
         title={`Delete ${mailbox.address}?`}
         description="The mailbox and every message in it are deleted for good."
-        consequences="Mail sent to this address afterwards goes to the catch-all, or is dropped if there is none."
+        consequences={<AfterDelete mailbox={mailbox} />}
         phrase={mailbox.address}
         confirmLabel="Delete mailbox"
         onConfirm={async () => {
@@ -170,6 +171,18 @@ function MailboxRow({ mailbox }: { mailbox: Mailbox }) {
       />
     </li>
   );
+}
+
+/** Where later mail to a deleted mailbox goes (inbound resolveMailbox). */
+function AfterDelete({ mailbox }: { mailbox: Mailbox }) {
+  // Only fetched while the delete dialog is open.
+  const domains = useDomains();
+  const domain = domains.data?.data.find(
+    (d) => d.id === mailbox.domain_id || d.name === mailbox.domain,
+  );
+  return domain?.auto_create_mailboxes
+    ? "Mail sent to this address afterwards goes to the catch-all. Without one, the domain's \"Capture every address\" makes this mailbox again, empty, on the next message."
+    : "Mail sent to this address afterwards goes to the catch-all, or is dropped if there is none.";
 }
 
 interface Settings {

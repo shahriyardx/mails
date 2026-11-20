@@ -38,7 +38,9 @@ vi.mock("@/lib/api", () => ({
       },
     ],
   }),
-  useDomains: () => ({ data: [] }),
+  useDomains: () => ({
+    data: { data: [{ id: "dom_1", name: "example.test", auto_create_mailboxes: true }] },
+  }),
   useCreateMailbox: () => idle,
   useDeleteMailbox: () => idle,
   useUpdateMailbox: () => update,
@@ -103,5 +105,14 @@ describe("edit forms keep the typed edit when the save fails", () => {
 
     expect(update.mutate).toHaveBeenCalledTimes(1);
     expect(document.querySelector<HTMLInputElement>('input[value="Edited"]')).not.toBeNull();
+  });
+});
+
+describe("deleting a mailbox", () => {
+  it("says a domain that captures every address makes it again", async () => {
+    const { default: Mailboxes } = await import("./mailboxes");
+    await render(Mailboxes);
+    await act(async () => byLabel("Delete me@example.test").click());
+    expect(document.body.textContent).toContain("makes this mailbox again");
   });
 });
