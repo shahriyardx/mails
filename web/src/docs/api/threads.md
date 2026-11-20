@@ -127,7 +127,8 @@ Answering mail you received goes to its `Reply-To`, or else its sender.
 Answering your own last message goes to the same people again. Your own
 address is never added.
 
-Returns `202` with the same body as a send.
+Returns `202` with the same body as a send. Like a send, it honours an
+[`Idempotency-Key`](/docs/api/idempotency), so a retry cannot answer twice.
 
 ## Delete
 
