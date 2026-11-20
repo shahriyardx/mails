@@ -200,11 +200,41 @@ export function prepareEmail(source: string, options: PrepareOptions): PreparedE
 }
 
 /**
- * Safe HTML for the composer's editor (a reply's quote, a saved draft): the
- * same policy, no folding. Remote images stay held back while editing and
- * come back on send through restoreBlockedImages.
+ * What the composer accepts. Unlike a received mail, which renders inside a
+ * sandboxed frame, the editor is part of the app's own page: a <style>
+ * block or a style, class or id attribute there would restyle or cover the
+ * dashboard itself. So no styling survives, and nothing interactive.
  */
-export const sanitizeForEditor = (html: string) => clean(html, { showRemoteImages: false }).html;
+const EDITOR_POLICY = {
+  FORBID_TAGS: [
+    "style",
+    "link",
+    "meta",
+    "base",
+    "form",
+    "input",
+    "button",
+    "textarea",
+    "select",
+    "iframe",
+    "object",
+    "embed",
+    "svg",
+    "math",
+    "video",
+    "audio",
+  ],
+  FORBID_ATTR: ["style", "class", "id", "srcset", "background", "poster"],
+};
+
+/**
+ * Safe HTML for the composer's editor (a reply's quote, a saved draft, a
+ * paste): the
+ * mail policy, then the editor policy. Remote images stay held back while
+ * editing and come back on send through restoreBlockedImages.
+ */
+export const sanitizeForEditor = (html: string) =>
+  DOMPurify.sanitize(clean(html, { showRemoteImages: false }).html, EDITOR_POLICY);
 
 /** Puts held-back remote images back, for the copy that is sent. */
 export function restoreBlockedImages(html: string) {

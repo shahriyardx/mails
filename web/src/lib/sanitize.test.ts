@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { cleanStylesheet, decodeCss, frameCsp, prepareEmail } from "./sanitize";
+import { cleanStylesheet, decodeCss, frameCsp, prepareEmail, sanitizeForEditor } from "./sanitize";
 
 const blocked = (html: string) => prepareEmail(html, { showRemoteImages: false });
 const shown = (html: string) => prepareEmail(html, { showRemoteImages: true });
@@ -295,4 +295,15 @@ describe("adversarial input stays fast (no catastrophic backtracking)", () => {
       expect(performance.now() - start).toBeLessThan(100);
     });
   }
+});
+
+describe("sanitizeForEditor", () => {
+  it("keeps text and links but drops anything that could restyle the app", () => {
+    const out = sanitizeForEditor(
+      '<style>body{display:none}</style><p class="x" id="y" style="color:red">Hi <a href="https://a.test">link</a></p><form><input></form>',
+    );
+    expect(out).not.toMatch(/<style|class=|id=|style=|<form|<input/);
+    expect(out).toContain("Hi");
+    expect(out).toContain('href="https://a.test"');
+  });
 });

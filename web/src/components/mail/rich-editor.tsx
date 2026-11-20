@@ -1,7 +1,7 @@
-import DOMPurify from "dompurify";
 import { type ClipboardEvent, useEffect, useRef } from "react";
 import { IconButton, Tooltip } from "@/components/kit";
 import { cn } from "@/lib/cn";
+import { sanitizeForEditor } from "@/lib/sanitize";
 
 const TOOLS: { icon: string; label: string; run: () => void }[] = [
   { icon: "format_bold", label: "Bold", run: () => document.execCommand("bold") },
@@ -60,14 +60,7 @@ export function RichEditor({
     const html = event.clipboardData.getData("text/html");
     if (!html) return;
     event.preventDefault();
-    document.execCommand(
-      "insertHTML",
-      false,
-      DOMPurify.sanitize(html, {
-        FORBID_TAGS: ["style", "img", "form"],
-        FORBID_ATTR: ["style", "class"],
-      }),
-    );
+    document.execCommand("insertHTML", false, sanitizeForEditor(html));
   }
 
   return (
