@@ -5,12 +5,6 @@ import { CodeBlock, CopyButton, OnceSecret } from "@/components/app/copy";
 import {
   Badge,
   Button,
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Checkbox,
   ConfirmDialog,
   Dialog,
@@ -25,16 +19,13 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  EmptyState,
   Field,
   Icon,
   IconButton,
   Input,
   Label,
   List,
-  ListRow,
   Skeleton,
-  Switch,
   Tabs,
   TabsList,
   TabsPanel,
@@ -53,6 +44,7 @@ import {
   useWebhookDeliveries,
   useWebhooks,
 } from "@/lib/api";
+import { cn } from "@/lib/cn";
 import { formatDateTime, formatStamp } from "@/lib/mail";
 import { toggleId } from "@/lib/scopes";
 import type {
@@ -63,8 +55,28 @@ import type {
   WebhookDelivery,
   WebhookResult,
 } from "@/lib/types";
+import {
+  emptyBox,
+  LoadError,
+  PageAction,
+  rowActions,
+  Section,
+  StatusDot,
+  SwitchRow,
+} from "./parts";
 
 const ALL = "all";
+
+/** Row actions hide until the row is hovered or focused (or its menu is open), on pointer screens. */
+const ROW_ACTIONS = cn("flex shrink-0 items-center gap-0.5", rowActions);
+
+const VERIFY_SAMPLE = `import { constructWebhookEvent } from "@shahriyardx/mails";
+
+const event = await constructWebhookEvent({
+  secret: process.env.MAILS_WEBHOOK_SECRET!,
+  payload: await request.text(), // the raw body, before JSON.parse
+  signature: request.headers.get("x-mails-signature"),
+});`;
 
 /** "domain:<id>" / "mailbox:<id>" / "all", for the scope select. */
 function scopeValue(hook: { mailbox_id: string | null; domain_id: string | null }) {
@@ -111,6 +123,7 @@ export default function Webhooks() {
 
   const [tab, setTab] = useState("endpoints");
   const [filter, setFilter] = useState<DeliveryFilter>({});
+  const [open, setOpen] = useState<string | null>(null);
   const [editing, setEditing] = useState<Webhook | "new" | null>(null);
   const [fresh, setFresh] = useState<{ url: string; secret: string } | null>(null);
   const [rotating, setRotating] = useState<Webhook | null>(null);
@@ -129,165 +142,223 @@ export default function Webhooks() {
     );
   }
 
+  function sendTest(hook: Webhook) {
+    ping.mutate(hook.id, {
+      onSuccess: resultToast,
+      onError: (error) => toast.error(errorMessage(error)),
+    });
+  }
+
+  const newEndpoint = (
+    <Button variant="primary" icon="add" disabled={!hooks.data} onClick={() => setEditing("new")}>
+      New endpoint
+    </Button>
+  );
+
   return (
-    <Tabs value={tab} onValueChange={(v) => setTab(String(v))} className="flex flex-col gap-4">
-      <TabsList className="self-start">
+    <Tabs value={tab} onValueChange={(v) => setTab(String(v))} className="flex flex-col gap-6">
+      <PageAction>{newEndpoint}</PageAction>
+      <TabsList>
         <TabsTab value="endpoints">Endpoints</TabsTab>
         <TabsTab value="deliveries">Deliveries</TabsTab>
       </TabsList>
 
-      <TabsPanel value="endpoints" className="flex flex-col gap-4">
-        {fresh && (
-          <OnceSecret
-            title={`Signing secret for ${fresh.url}`}
-            value={fresh.secret}
-            onDismiss={() => setFresh(null)}
-          />
-        )}
-        <Card>
-          <CardHeader>
-            <CardTitle>Endpoints</CardTitle>
-            <CardDescription>
-              Mails posts a signed JSON body to each URL when something happens to your mail.
-            </CardDescription>
-            <CardAction>
-              <Button
-                variant="primary"
-                size="sm"
-                icon="add"
-                disabled={!hooks.data}
-                onClick={() => setEditing("new")}
-              >
-                New endpoint
-              </Button>
-            </CardAction>
-          </CardHeader>
-          <CardContent>
-            {hooks.isPending ? (
-              <div className="flex flex-col gap-2">
-                <Skeleton className="h-16" />
-                <Skeleton className="h-16" />
-              </div>
-            ) : hooks.isError ? (
-              <EmptyState
-                icon="error"
-                title="Could not load endpoints"
-                body={errorMessage(hooks.error)}
-                action={<Button onClick={() => hooks.refetch()}>Try again</Button>}
-              />
-            ) : list.length === 0 ? (
-              <EmptyState
-                icon="webhook"
-                title="No endpoints yet"
-                body="Add a URL and it gets a signed call every time mail arrives, is delivered, bounces or is opened."
-              />
-            ) : (
-              <List className="bg-box">
-                {list.map((hook) => (
-                  <ListRow
-                    key={hook.id}
-                    icon="webhook"
-                    title={
-                      <span className="flex items-center gap-2">
-                        <span className="truncate font-mono text-[13px]">{hook.url}</span>
+      <TabsPanel value="endpoints" className="flex flex-col gap-10">
+        <div className="flex flex-col gap-4">
+          {fresh && (
+            <OnceSecret
+              title={`Signing secret for ${fresh.url}`}
+              value={fresh.secret}
+              onDismiss={() => setFresh(null)}
+            />
+          )}
+          {hooks.isPending ? (
+            <List aria-busy="true">
+              {[0, 1].map((i) => (
+                <li key={i} className="px-4 py-3">
+                  <Skeleton className="h-9" />
+                </li>
+              ))}
+            </List>
+          ) : hooks.isError ? (
+            <LoadError error={hooks.error} retry={hooks.refetch} />
+          ) : list.length === 0 ? (
+            <div className={emptyBox}>
+              <p className="text-muted-foreground">No endpoints yet.</p>
+              <div className="mt-4">{newEndpoint}</div>
+            </div>
+          ) : (
+            <List>
+              {list.map((hook) => {
+                const expanded = open === hook.id;
+                const failing = hook.consecutive_failures > 0;
+                return (
+                  <li key={hook.id} className="group/row">
+                    <div className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-box">
+                      <button
+                        type="button"
+                        aria-expanded={expanded}
+                        onClick={() => setOpen(expanded ? null : hook.id)}
+                        className="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left outline-none focus-visible:outline-2 focus-visible:outline-ring"
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span
+                            className={cn(
+                              "block truncate text-sm font-semibold",
+                              !hook.description && "font-mono",
+                            )}
+                          >
+                            {hook.description || hook.url}
+                          </span>
+                          <span className="block truncate font-mono text-xs text-muted-foreground">
+                            {[
+                              hook.description && hook.url,
+                              scopeLabel(hook, domains.data, mailboxes.data),
+                              hook.events.includes("*") ? "all events" : hook.events.join(", "),
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </span>
+                          {hook.last_error && failing && (
+                            <span className="block truncate text-xs text-destructive">
+                              {hook.last_error}
+                            </span>
+                          )}
+                        </span>
                         <HookStatus hook={hook} />
-                      </span>
-                    }
-                    description={[
-                      hook.description,
-                      scopeLabel(hook, domains.data, mailboxes.data),
-                      hook.events.includes("*") ? "all events" : hook.events.join(", "),
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                    action={
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={<IconButton icon="more_vert" label={`Actions for ${hook.url}`} />}
+                      </button>
+                      <div className={cn(ROW_ACTIONS, expanded && "md:opacity-100")}>
+                        <IconButton
+                          icon="send"
+                          size="sm"
+                          label={`Send a test event to ${hook.url}`}
+                          disabled={ping.isPending}
+                          onClick={() => sendTest(hook)}
                         />
-                        <DropdownMenuContent>
-                          <DropdownMenuItem
-                            icon="send"
-                            disabled={ping.isPending}
-                            onClick={() =>
-                              ping.mutate(hook.id, {
-                                onSuccess: resultToast,
-                                onError: (error) => toast.error(errorMessage(error)),
-                              })
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            render={
+                              <IconButton
+                                icon="more_vert"
+                                size="sm"
+                                label={`Actions for ${hook.url}`}
+                              />
                             }
-                          >
-                            Send a test event
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            icon="list_alt"
-                            onClick={() => {
-                              setFilter({ webhook_id: hook.id });
-                              setTab("deliveries");
-                            }}
-                          >
-                            Deliveries
-                          </DropdownMenuItem>
-                          <DropdownMenuItem icon="edit" onClick={() => setEditing(hook)}>
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            icon={hook.enabled ? "block" : "check_circle"}
-                            onClick={() => toggle(hook)}
-                          >
-                            {hook.enabled ? "Turn off" : "Turn on"}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem icon="key" onClick={() => setRotating(hook)}>
-                            Replace the secret
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            icon="delete"
-                            destructive
-                            onClick={() => setRemoving(hook)}
-                          >
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    }
-                  >
-                    {hook.last_error && hook.consecutive_failures > 0 && (
-                      <p className="truncate text-xs text-destructive">{hook.last_error}</p>
+                          />
+                          <DropdownMenuContent>
+                            <DropdownMenuItem
+                              icon="list_alt"
+                              onClick={() => {
+                                setFilter({ webhook_id: hook.id });
+                                setTab("deliveries");
+                              }}
+                            >
+                              Deliveries
+                            </DropdownMenuItem>
+                            <DropdownMenuItem icon="edit" onClick={() => setEditing(hook)}>
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              icon={hook.enabled ? "block" : "check_circle"}
+                              onClick={() => toggle(hook)}
+                            >
+                              {hook.enabled ? "Turn off" : "Turn on"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem icon="key" onClick={() => setRotating(hook)}>
+                              Replace the secret
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              icon="delete"
+                              destructive
+                              onClick={() => setRemoving(hook)}
+                            >
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                    {expanded && (
+                      <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 border-t border-border px-4 py-4 text-[13px]">
+                        <dt className="text-muted-foreground">URL</dt>
+                        <dd className="min-w-0 font-mono break-all">{hook.url}</dd>
+                        <dt className="text-muted-foreground">Which mail</dt>
+                        <dd className="font-mono">
+                          {scopeLabel(hook, domains.data, mailboxes.data)}
+                        </dd>
+                        <dt className="text-muted-foreground">Events</dt>
+                        <dd className="flex flex-wrap gap-1">
+                          {hook.events.includes("*")
+                            ? "All events, including new ones"
+                            : hook.events.map((e) => (
+                                <Badge key={e} size="sm" className="font-mono">
+                                  {e}
+                                </Badge>
+                              ))}
+                        </dd>
+                        <dt className="text-muted-foreground">Last call</dt>
+                        <dd className="font-mono">
+                          {hook.last_delivered_at
+                            ? `${formatDateTime(hook.last_delivered_at)}${hook.last_status ? `, HTTP ${hook.last_status}` : ""}`
+                            : "none yet"}
+                        </dd>
+                        {hook.last_error_at && (
+                          <>
+                            <dt className="text-muted-foreground">Last error</dt>
+                            <dd
+                              className={cn("min-w-0 break-words", failing && "text-destructive")}
+                            >
+                              <span className="font-mono">
+                                {formatDateTime(hook.last_error_at)}
+                              </span>
+                              {hook.last_error && ` · ${hook.last_error}`}
+                            </dd>
+                          </>
+                        )}
+                        <dt className="text-muted-foreground">Added</dt>
+                        <dd className="font-mono">{formatDateTime(hook.created_at)}</dd>
+                      </dl>
                     )}
-                  </ListRow>
-                ))}
-              </List>
-            )}
-          </CardContent>
-        </Card>
+                  </li>
+                );
+              })}
+            </List>
+          )}
+        </div>
 
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Checking a call is genuine</CardTitle>
-            <CardDescription>
+        <Section
+          title="Checking a call is genuine"
+          description={
+            <>
               Each call carries an <code className="font-mono">X-Mails-Signature</code> header, an
               HMAC-SHA256 of the timestamp and body with the endpoint's secret.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              icon="menu_book"
-              render={<Link to="/docs/webhooks/verifying" />}
-              nativeButton={false}
-            >
-              Verifying a call
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              render={<Link to="/docs/webhooks/events" />}
-              nativeButton={false}
-            >
-              The events
-            </Button>
-          </CardContent>
-        </Card>
+            </>
+          }
+          action={
+            <div className="flex shrink-0 gap-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                icon="menu_book"
+                render={<Link to="/docs/webhooks/verifying" />}
+                nativeButton={false}
+              >
+                Verifying a call
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                render={<Link to="/docs/webhooks/events" />}
+                nativeButton={false}
+              >
+                The events
+              </Button>
+            </div>
+          }
+        >
+          <CodeBlock text={VERIFY_SAMPLE} />
+        </Section>
       </TabsPanel>
 
       <TabsPanel value="deliveries">
@@ -339,19 +410,10 @@ export default function Webhooks() {
 }
 
 function HookStatus({ hook }: { hook: Webhook }) {
-  if (!hook.enabled)
-    return (
-      <Badge size="sm" tone="danger">
-        Off
-      </Badge>
-    );
+  if (!hook.enabled) return <StatusDot tone="off">Off</StatusDot>;
   if (hook.consecutive_failures > 0)
-    return (
-      <Badge size="sm" tone="danger">
-        {hook.consecutive_failures} failing
-      </Badge>
-    );
-  return <Badge size="sm">Live</Badge>;
+    return <StatusDot tone="bad">{hook.consecutive_failures} failing</StatusDot>;
+  return <StatusDot tone="ok">Live</StatusDot>;
 }
 
 function EndpointDialog({
@@ -470,18 +532,20 @@ function EndpointDialog({
           >
             <Choice value={scope} onChange={setScope} options={scopeOptions} />
           </Field>
-          <fieldset className="flex flex-col gap-2">
-            <legend className="mb-1.5 text-[13px] font-medium">Events</legend>
-            <Label className="flex items-center justify-between gap-3 rounded-2xl bg-box px-4 py-3 font-normal">
-              <span className="text-sm">All events, including new ones</span>
-              <Switch checked={everything} onCheckedChange={setEverything} />
-            </Label>
+          <fieldset className="flex flex-col gap-3 border-t border-border pt-5">
+            <legend className="sr-only">Events</legend>
+            <SwitchRow
+              label="All events"
+              description="Includes events added later."
+              checked={everything}
+              onCheckedChange={setEverything}
+            />
             {!everything && (
-              <div className="grid gap-0.5 rounded-2xl bg-box p-1.5 sm:grid-cols-2">
+              <div className="grid gap-0.5 rounded-[10px] border border-border p-1 sm:grid-cols-2">
                 {events.map((name) => (
                   <Label
                     key={name}
-                    className="flex h-9 cursor-pointer items-center gap-3 rounded-xl px-2.5 font-normal hover:bg-tonal"
+                    className="flex h-9 cursor-pointer items-center gap-3 rounded-md px-2.5 font-normal hover:bg-tonal"
                   >
                     <Checkbox
                       checked={picked.includes(name)}
@@ -493,10 +557,13 @@ function EndpointDialog({
               </div>
             )}
           </fieldset>
-          <Label className="flex items-center justify-between gap-3 rounded-2xl bg-box px-4 py-3 font-normal">
-            <span className="text-sm">On</span>
-            <Switch checked={enabled} onCheckedChange={setEnabled} />
-          </Label>
+          <SwitchRow
+            label="On"
+            description="Off keeps the endpoint and its history but stops calls."
+            checked={enabled}
+            onCheckedChange={setEnabled}
+            className="border-t border-border pt-5"
+          />
         </form>
         <DialogFooter>
           <DialogClose render={<Button variant="ghost" />}>Cancel</DialogClose>
@@ -530,21 +597,9 @@ function Deliveries({
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Deliveries</CardTitle>
-        <CardDescription>Every attempt at every endpoint, newest first.</CardDescription>
-        <CardAction>
-          <IconButton
-            icon="refresh"
-            label="Refresh"
-            loading={deliveries.isRefetching}
-            onClick={() => deliveries.refetch()}
-          />
-        </CardAction>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <div className="grid gap-2 sm:grid-cols-3">
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-3">
           <Choice
             label="Endpoint"
             value={filter.webhook_id ?? ALL}
@@ -570,46 +625,48 @@ function Deliveries({
             options={{ [ALL]: "Any result", true: "Succeeded", false: "Failed" }}
           />
         </div>
+        <IconButton
+          icon="refresh"
+          label="Refresh"
+          className="self-start"
+          loading={deliveries.isRefetching && !deliveries.isFetchingNextPage}
+          onClick={() => deliveries.refetch()}
+        />
+      </div>
 
-        {deliveries.isPending ? (
-          <div className="flex flex-col gap-2">
-            <Skeleton className="h-12" />
-            <Skeleton className="h-12" />
-            <Skeleton className="h-12" />
-          </div>
-        ) : deliveries.isError ? (
-          <EmptyState
-            icon="error"
-            title="Could not load deliveries"
-            body={errorMessage(deliveries.error)}
-            action={<Button onClick={() => deliveries.refetch()}>Try again</Button>}
-          />
-        ) : rows.length === 0 ? (
-          <EmptyState
-            icon="webhook"
-            title="Nothing sent yet"
-            body="Attempts show up here as soon as an endpoint is called. Try Send a test event."
-          />
-        ) : (
-          <ul className="flex flex-col gap-0.5 rounded-3xl bg-box p-1.5">
-            {rows.map((d) => (
-              <DeliveryRow key={d.id} delivery={d} />
-            ))}
-          </ul>
-        )}
+      {deliveries.isPending ? (
+        <List aria-busy="true">
+          {[0, 1, 2].map((i) => (
+            <li key={i} className="px-4 py-3">
+              <Skeleton className="h-6" />
+            </li>
+          ))}
+        </List>
+      ) : deliveries.isError ? (
+        <LoadError error={deliveries.error} retry={deliveries.refetch} />
+      ) : rows.length === 0 ? (
+        <p className={cn(emptyBox, "text-muted-foreground")}>
+          Nothing sent yet. Calls show up here as soon as an endpoint is called.
+        </p>
+      ) : (
+        <List>
+          {rows.map((d) => (
+            <DeliveryRow key={d.id} delivery={d} />
+          ))}
+        </List>
+      )}
 
-        {deliveries.hasNextPage && (
-          <Button
-            variant="ghost"
-            className="self-center"
-            loading={deliveries.isFetchingNextPage}
-            onClick={() => deliveries.fetchNextPage()}
-          >
-            Load more
-          </Button>
-        )}
-      </CardContent>
-    </Card>
+      {deliveries.hasNextPage && (
+        <Button
+          variant="ghost"
+          className="self-center"
+          loading={deliveries.isFetchingNextPage}
+          onClick={() => deliveries.fetchNextPage()}
+        >
+          Load more
+        </Button>
+      )}
+    </div>
   );
 }
 
@@ -618,23 +675,20 @@ function DeliveryRow({ delivery: d }: { delivery: WebhookDelivery }) {
   const payload = JSON.stringify(d.payload, null, 2);
   return (
     <li>
-      <details className="group rounded-2xl open:bg-surface">
-        <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 rounded-2xl px-3 py-2 outline-none hover:bg-tonal focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
-          <Badge
-            tone={d.succeeded ? "neutral" : "danger"}
-            className="w-12 justify-center font-mono"
-          >
+      <details className="group">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 px-4 py-2.5 outline-none transition-colors hover:bg-box focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+          <StatusDot tone={d.succeeded ? "ok" : "bad"} className="w-12 font-mono">
             {d.status_code ?? "—"}
-          </Badge>
+          </StatusDot>
           <span className="min-w-0 flex-1">
             <span className="block truncate font-mono text-[13px]">{d.event}</span>
             {d.error && <span className="block truncate text-xs text-destructive">{d.error}</span>}
           </span>
-          <span className="hidden shrink-0 text-xs text-muted-foreground sm:block">
+          <span className="hidden shrink-0 font-mono text-xs text-muted-foreground sm:block">
             {d.attempt > 1 ? `try ${d.attempt}` : ""}
             {d.duration_ms !== null && ` ${d.duration_ms} ms`}
           </span>
-          <span className="w-14 shrink-0 text-right text-xs text-muted-foreground">
+          <span className="w-14 shrink-0 text-right font-mono text-xs text-muted-foreground">
             {formatStamp(d.created_at)}
           </span>
           <Icon
@@ -643,17 +697,17 @@ function DeliveryRow({ delivery: d }: { delivery: WebhookDelivery }) {
             className="shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
           />
         </summary>
-        <div className="flex flex-col gap-3 px-3 pt-1 pb-3">
-          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
+        <div className="flex flex-col gap-3 border-t border-border px-4 py-4">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-[13px]">
             <dt className="text-muted-foreground">Event id</dt>
             <dd className="flex min-w-0 items-center gap-1 font-mono break-all">
               {d.event_id}
               <CopyButton text={d.event_id} label="Copy event id" />
             </dd>
             <dt className="text-muted-foreground">Sent</dt>
-            <dd>{formatDateTime(d.created_at)}</dd>
+            <dd className="font-mono">{formatDateTime(d.created_at)}</dd>
             <dt className="text-muted-foreground">Attempt</dt>
-            <dd>
+            <dd className="font-mono">
               {d.attempt}
               {d.duration_ms !== null && `, ${d.duration_ms} ms`}
               {d.status_code !== null && `, HTTP ${d.status_code}`}
@@ -661,7 +715,7 @@ function DeliveryRow({ delivery: d }: { delivery: WebhookDelivery }) {
             {d.next_retry_at && (
               <>
                 <dt className="text-muted-foreground">Next try</dt>
-                <dd>{formatDateTime(d.next_retry_at)}</dd>
+                <dd className="font-mono">{formatDateTime(d.next_retry_at)}</dd>
               </>
             )}
           </dl>

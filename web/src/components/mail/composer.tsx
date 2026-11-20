@@ -231,17 +231,21 @@ export default function Composer({
       transition={spatial}
       onKeyDown={onKeyDown}
       className={cn(
-        "fixed z-40 flex flex-col overflow-hidden bg-surface-high shadow-[0_24px_64px_rgb(0_0_0/0.5)]",
+        "fixed z-40 flex flex-col overflow-hidden border border-border bg-surface-high shadow-[0_24px_64px_var(--shadow)]",
         full
           ? phone
             ? "inset-0"
-            : "inset-6 mx-auto max-w-4xl rounded-3xl"
-          : "right-6 bottom-0 h-[min(36rem,calc(100dvh-3rem))] w-[min(40rem,calc(100vw-3rem))] rounded-t-3xl",
+            : "inset-6 mx-auto max-w-4xl rounded-2xl"
+          : "right-6 bottom-0 h-[min(36rem,calc(100dvh-3rem))] w-[min(40rem,calc(100vw-3rem))] rounded-t-2xl border-b-0",
       )}
     >
       <header className="flex h-14 shrink-0 items-center gap-1 pr-2 pl-5">
-        <h2 className="flex-1 truncate text-sm font-medium">{draft.title ?? "New message"}</h2>
-        {savedAt && <span className="mr-1 text-xs text-muted-foreground">Saved {savedAt}</span>}
+        <h2 className="flex-1 truncate text-[15px] font-semibold">
+          {draft.title ?? "New message"}
+        </h2>
+        {savedAt && (
+          <span className="mr-1 font-mono text-xs text-muted-foreground">saved {savedAt}</span>
+        )}
         {!phone && (
           <IconButton
             icon={expanded ? "close_fullscreen" : "open_in_full"}
@@ -344,7 +348,7 @@ export default function Composer({
           {files.map((file) => (
             <li
               key={file.id}
-              className="flex items-center gap-1.5 rounded-full bg-tonal py-1 pr-1 pl-2.5 text-xs"
+              className="flex items-center gap-1.5 rounded-md border border-border bg-tonal py-1 pr-1 pl-2.5 text-xs"
             >
               <Icon
                 name={file.uploading ? "progress_activity" : "attach_file"}
@@ -360,7 +364,7 @@ export default function Composer({
                 aria-label={`Remove ${file.filename}`}
                 disabled={file.uploading}
                 onClick={() => touch(setFiles)(files.filter((f) => f.id !== file.id))}
-                className="grid size-5 place-items-center rounded-full text-muted-foreground hover:bg-tonal-hover hover:text-foreground"
+                className="grid size-5 place-items-center rounded text-muted-foreground hover:bg-tonal-hover hover:text-foreground"
               >
                 <Icon name="close" size={14} />
               </button>

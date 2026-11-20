@@ -1,16 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { Choice } from "@/components/app/choice";
-import { OnceSecret } from "@/components/app/copy";
+import { CodeBlock, OnceSecret } from "@/components/app/copy";
 import {
-  Badge,
   Button,
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Checkbox,
   ConfirmDialog,
   Dialog,
@@ -20,17 +13,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  EmptyState,
   Field,
   IconButton,
   Input,
   Label,
   List,
-  ListRow,
   Skeleton,
   toast,
 } from "@/components/kit";
@@ -44,7 +31,8 @@ import {
   useRenameApiKey,
   useRevokeApiKey,
 } from "@/lib/api";
-import { formatStamp } from "@/lib/mail";
+import { cn } from "@/lib/cn";
+import { formatDateTime, formatStamp } from "@/lib/mail";
 import {
   CUSTOM,
   describeReach,
@@ -61,6 +49,10 @@ import {
   WILDCARD,
 } from "@/lib/scopes";
 import type { ApiKey, DomainRef, Mailbox } from "@/lib/types";
+import { emptyBox, LoadError, PageAction, rowActions, Section, StatusDot } from "./parts";
+
+/** Row actions hide until the row is hovered or focused, on pointer screens. */
+const ROW_ACTIONS = cn("flex shrink-0 items-center gap-0.5", rowActions);
 
 /** /settings/api-keys: make, rename and revoke keys for the public API. */
 export default function ApiKeys() {
@@ -69,166 +61,173 @@ export default function ApiKeys() {
   const mailboxes = useMailboxes();
   const [creating, setCreating] = useState(false);
   const [fresh, setFresh] = useState<{ name: string; token: string } | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<ApiKey | null>(null);
   const [revoking, setRevoking] = useState<ApiKey | null>(null);
   const revoke = useRevokeApiKey();
   const purge = usePurgeApiKey();
 
   const list = keys.data?.data ?? [];
-  const active = list.filter((k) => !k.revoked_at).length;
+  const newKey = (
+    <Button variant="primary" icon="add" disabled={!keys.data} onClick={() => setCreating(true)}>
+      New key
+    </Button>
+  );
 
   return (
-    <div className="flex flex-col gap-4">
-      {fresh && (
-        <OnceSecret
-          title={`Your new key "${fresh.name}"`}
-          value={fresh.token}
-          onDismiss={() => setFresh(null)}
-        />
-      )}
+    <div className="flex flex-col gap-10">
+      <PageAction>{newKey}</PageAction>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Your keys</CardTitle>
-          <CardDescription>
-            Send and read mail from your own code. Each key holds what it may do and which addresses
-            it may touch.
-            {keys.data && ` ${active} active.`}
-          </CardDescription>
-          <CardAction>
-            <Button
-              variant="primary"
-              size="sm"
-              icon="add"
-              disabled={!keys.data}
-              onClick={() => setCreating(true)}
-            >
-              New key
-            </Button>
-          </CardAction>
-        </CardHeader>
-        <CardContent>
-          {keys.isPending ? (
-            <div className="flex flex-col gap-2">
-              <Skeleton className="h-14" />
-              <Skeleton className="h-14" />
-            </div>
-          ) : keys.isError ? (
-            <EmptyState
-              icon="error"
-              title="Could not load your keys"
-              body={errorMessage(keys.error)}
-              action={<Button onClick={() => keys.refetch()}>Try again</Button>}
-            />
-          ) : list.length === 0 ? (
-            <EmptyState
-              icon="key"
-              title="No keys yet"
-              body="Make one to reach your mail from a script, a server or an agent."
-            />
-          ) : (
-            <List className="bg-box">
-              {list.map((key) => (
-                <ListRow
-                  key={key.id}
-                  icon="key"
-                  className={key.revoked_at ? "opacity-60" : undefined}
-                  title={
-                    <span className="flex items-center gap-2">
-                      <span className="truncate">{key.name}</span>
-                      {key.revoked_at && (
-                        <Badge size="sm" tone="danger">
-                          Revoked
-                        </Badge>
+      <div className="flex flex-col gap-4">
+        {fresh && (
+          <OnceSecret
+            title={`Your new key "${fresh.name}"`}
+            value={fresh.token}
+            onDismiss={() => setFresh(null)}
+          />
+        )}
+        {keys.isPending ? (
+          <List aria-busy="true">
+            {[0, 1].map((i) => (
+              <li key={i} className="px-4 py-3">
+                <Skeleton className="h-9" />
+              </li>
+            ))}
+          </List>
+        ) : keys.isError ? (
+          <LoadError error={keys.error} retry={keys.refetch} />
+        ) : list.length === 0 ? (
+          <div className={emptyBox}>
+            <p className="text-muted-foreground">No API keys yet.</p>
+            <div className="mt-4">{newKey}</div>
+          </div>
+        ) : (
+          <List>
+            {list.map((key) => {
+              const expanded = open === key.id;
+              const used = key.revoked_at
+                ? `revoked ${formatStamp(key.revoked_at)}`
+                : key.last_used_at
+                  ? `used ${formatStamp(key.last_used_at)}`
+                  : "never used";
+              return (
+                <li key={key.id} className="group/row">
+                  <div className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-box">
+                    <button
+                      type="button"
+                      aria-expanded={expanded}
+                      onClick={() => setOpen(expanded ? null : key.id)}
+                      className={cn(
+                        "flex min-w-0 flex-1 items-center gap-3 rounded-md text-left outline-none focus-visible:outline-2 focus-visible:outline-ring",
+                        key.revoked_at && "opacity-60",
                       )}
-                    </span>
-                  }
-                  description={
-                    <>
-                      <span className="font-mono">{key.prefix}</span>
-                      {" · "}
-                      {describeScopes(keys.data.areas, key.scopes)}
-                    </>
-                  }
-                  action={
-                    key.revoked_at ? (
-                      <IconButton
-                        icon="delete"
-                        label={`Remove ${key.name} from the list`}
-                        onClick={() =>
-                          purge.mutate(key.id, {
-                            onSuccess: () => toast.success("Key removed"),
-                            onError: (error) => toast.error(errorMessage(error)),
-                          })
-                        }
-                      />
-                    ) : (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={<IconButton icon="more_vert" label={`Actions for ${key.name}`} />}
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold">{key.name}</span>
+                        <span className="block truncate font-mono text-xs text-muted-foreground">
+                          {key.prefix} · {describeScopes(keys.data.areas, key.scopes)} · {used}
+                        </span>
+                      </span>
+                      {key.revoked_at ? (
+                        <StatusDot tone="off">Revoked</StatusDot>
+                      ) : (
+                        <StatusDot tone="ok">Active</StatusDot>
+                      )}
+                    </button>
+                    <div className={cn(ROW_ACTIONS, expanded && "md:opacity-100")}>
+                      {key.revoked_at ? (
+                        <IconButton
+                          icon="delete"
+                          size="sm"
+                          label={`Remove ${key.name} from the list`}
+                          onClick={() =>
+                            purge.mutate(key.id, {
+                              onSuccess: () => toast.success("Key removed"),
+                              onError: (error) => toast.error(errorMessage(error)),
+                            })
+                          }
                         />
-                        <DropdownMenuContent>
-                          <DropdownMenuItem icon="edit" onClick={() => setRenaming(key)}>
-                            Rename
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
+                      ) : (
+                        <>
+                          <IconButton
+                            icon="edit"
+                            size="sm"
+                            label={`Rename ${key.name}`}
+                            onClick={() => setRenaming(key)}
+                          />
+                          <IconButton
                             icon="block"
-                            destructive
+                            size="sm"
+                            label={`Revoke ${key.name}`}
                             onClick={() => setRevoking(key)}
-                          >
-                            Revoke
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )
-                  }
-                >
-                  <div className="truncate text-xs text-muted-foreground">
-                    {describeReach(key.reach, domains.data, mailboxes.data)}
-                    {" · "}
-                    {key.rate_limit_per_minute}/min
-                    {" · "}
-                    {key.revoked_at
-                      ? `revoked ${formatStamp(key.revoked_at)}`
-                      : key.last_used_at
-                        ? `used ${formatStamp(key.last_used_at)}`
-                        : "never used"}
+                          />
+                        </>
+                      )}
+                    </div>
                   </div>
-                </ListRow>
-              ))}
-            </List>
-          )}
-        </CardContent>
-      </Card>
+                  {expanded && (
+                    <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 border-t border-border px-4 py-4 text-[13px]">
+                      <dt className="text-muted-foreground">May do</dt>
+                      <dd>{describeScopes(keys.data.areas, key.scopes)}</dd>
+                      <dt className="text-muted-foreground">May reach</dt>
+                      <dd>{describeReach(key.reach, domains.data, mailboxes.data)}</dd>
+                      <dt className="text-muted-foreground">Rate limit</dt>
+                      <dd className="font-mono">{key.rate_limit_per_minute}/min</dd>
+                      <dt className="text-muted-foreground">Created</dt>
+                      <dd className="font-mono">{formatDateTime(key.created_at)}</dd>
+                      <dt className="text-muted-foreground">Last used</dt>
+                      <dd className="font-mono">
+                        {key.last_used_at ? formatDateTime(key.last_used_at) : "never"}
+                      </dd>
+                      {key.revoked_at && (
+                        <>
+                          <dt className="text-muted-foreground">Revoked</dt>
+                          <dd className="font-mono">{formatDateTime(key.revoked_at)}</dd>
+                        </>
+                      )}
+                    </dl>
+                  )}
+                </li>
+              );
+            })}
+          </List>
+        )}
+      </div>
 
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Using a key</CardTitle>
-          <CardDescription>
-            Send it as <code className="font-mono">Authorization: Bearer mk_live_…</code> to{" "}
-            <code className="font-mono">/api/v1</code>. The docs list every route and the scope each
-            one needs.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            icon="menu_book"
-            render={<Link to="/docs/api/index" />}
-            nativeButton={false}
-          >
-            API docs
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            render={<Link to="/docs/api/scopes" />}
-            nativeButton={false}
-          >
-            Scopes and reach
-          </Button>
-        </CardContent>
-      </Card>
+      <Section
+        title="Using a key"
+        description={
+          <>
+            Send it as a Bearer token to <code className="font-mono">/api/v1</code>. The docs list
+            every route and the scope each one needs.
+          </>
+        }
+        action={
+          <div className="flex shrink-0 gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              icon="menu_book"
+              render={<Link to="/docs/api/index" />}
+              nativeButton={false}
+            >
+              API docs
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              render={<Link to="/docs/api/scopes" />}
+              nativeButton={false}
+            >
+              Scopes and reach
+            </Button>
+          </div>
+        }
+      >
+        <CodeBlock
+          text={`curl ${window.location.origin}/api/v1/me \\\n  -H "Authorization: Bearer mk_live_..."`}
+        />
+      </Section>
 
       {keys.data && (
         <CreateKeyDialog
@@ -355,6 +354,7 @@ function CreateKeyDialog({
               value={rate}
               onChange={(e) => setRate(e.target.value)}
               placeholder="300"
+              className="font-mono"
             />
           </Field>
         </form>
@@ -404,28 +404,28 @@ function ScopePicker({
         />
       </Field>
       {full ? (
-        <p className="rounded-2xl bg-box px-4 py-3 text-[13px] text-muted-foreground">
+        <p className="text-[13px] text-muted-foreground">
           Everything, including anything the API adds later. Choose Custom to narrow it.
         </p>
       ) : (
-        <ul className="flex flex-col gap-0.5 rounded-2xl bg-box p-1.5">
+        <ul className="flex flex-col divide-y divide-border rounded-[10px] border border-border">
           {catalog.areas.map((area) => {
             const level = levelOf(area, choice.scopes);
             return (
               <li
                 key={area.id}
-                className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 rounded-xl px-2.5 py-2"
+                className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-2.5"
               >
                 <div className="min-w-0 flex-1 basis-40">
                   <div className="text-[13px] font-medium">{area.label}</div>
                   <div className="text-xs text-muted-foreground">{area.hint}</div>
                 </div>
-                <fieldset className="flex shrink-0 gap-0.5 rounded-full bg-field p-0.5">
+                <fieldset className="flex shrink-0 gap-0.5 rounded-lg border border-border p-0.5">
                   <legend className="sr-only">{area.label}</legend>
                   {area.levels.map((option, index) => (
                     <label
                       key={option.label}
-                      className="grid h-7 cursor-pointer place-items-center rounded-full px-3 text-xs text-muted-foreground transition-colors select-none hover:text-foreground has-checked:bg-tonal-hover has-checked:font-medium has-checked:text-foreground has-focus-visible:outline-2 has-focus-visible:outline-ring"
+                      className="grid h-7 cursor-pointer place-items-center rounded-md px-3 text-xs text-muted-foreground transition-colors select-none hover:text-foreground has-checked:bg-tonal-hover has-checked:font-medium has-checked:text-foreground has-focus-visible:outline-2 has-focus-visible:outline-ring"
                     >
                       <input
                         type="radio"
@@ -489,7 +489,7 @@ function ReachPicker({
         />
       </Field>
       {choice.mode !== "all" && (
-        <fieldset className="rounded-2xl bg-box p-1.5">
+        <fieldset className="rounded-[10px] border border-border p-1">
           <legend className="sr-only">{REACH_OPTIONS[choice.mode]}</legend>
           {rows.length === 0 ? (
             <p className="px-2.5 py-2 text-[13px] text-muted-foreground">
@@ -499,7 +499,7 @@ function ReachPicker({
             rows.map((row) => (
               <Label
                 key={row.id}
-                className="flex h-10 cursor-pointer items-center gap-3 rounded-xl px-2.5 font-normal hover:bg-tonal"
+                className="flex h-10 cursor-pointer items-center gap-3 rounded-md px-2.5 font-normal hover:bg-tonal"
               >
                 <Checkbox
                   checked={choice.ids.includes(row.id)}

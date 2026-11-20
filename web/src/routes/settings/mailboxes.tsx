@@ -1,12 +1,7 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 import {
   Badge,
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   ColorInput,
   ColorPicker,
   ConfirmDialog,
@@ -17,16 +12,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
   Field,
+  Icon,
   IconButton,
   Input,
   List,
-  ListEmpty,
-  ListRow,
   PALETTE,
   Textarea,
   toast,
@@ -38,39 +28,62 @@ import {
   useMailboxes,
   useUpdateMailbox,
 } from "@/lib/api";
+import { cn } from "@/lib/cn";
 import { EMAIL } from "@/lib/mail";
 import { receivingNote } from "@/lib/settings";
 import type { Mailbox } from "@/lib/types";
-import { LoadError, Notice, PageLoading, SwitchRow } from "./parts";
+import {
+  emptyBox,
+  LoadError,
+  Notice,
+  PageAction,
+  PageLoading,
+  rowActions,
+  SwitchRow,
+} from "./parts";
+
+type Note = ReturnType<typeof receivingNote>;
+
+/** Row actions: always there on touch, shown on hover or focus with a pointer. */
+const ROW_ACTIONS = cn("flex shrink-0 items-center gap-1", rowActions);
 
 /** Every address you send from or receive at. */
 export default function Mailboxes() {
   const mailboxes = useMailboxes();
+  const [adding, setAdding] = useState(false);
+  // What creating a subdomain mailbox did about receiving; outlives the dialog.
+  const [note, setNote] = useState<Note>(null);
   if (mailboxes.isPending) return <PageLoading />;
   if (mailboxes.isError) return <LoadError error={mailboxes.error} retry={mailboxes.refetch} />;
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Mailboxes</CardTitle>
-          <CardDescription>
-            One per address you send from or receive at. Mail to an address with no mailbox goes to
-            the domain's catch-all, if it has one.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <List className="bg-box">
-            {mailboxes.data.map((m) => (
-              <MailboxRow key={m.id} mailbox={m} />
-            ))}
-            {mailboxes.data.length === 0 && (
-              <ListEmpty>No mailboxes yet. Add a domain first, then create one below.</ListEmpty>
-            )}
-          </List>
-        </CardContent>
-      </Card>
-      <CreateMailbox />
+      <PageAction>
+        <Button variant="primary" icon="add" onClick={() => setAdding(true)}>
+          Add mailbox
+        </Button>
+      </PageAction>
+      {note && <Notice tone={note.ok ? "info" : "warning"}>{note.text}</Notice>}
+      {mailboxes.data.length === 0 ? (
+        <div className={emptyBox}>
+          <p className="text-muted-foreground">
+            No mailboxes yet. Add a domain first, then a mailbox on it.
+          </p>
+          <Button variant="primary" icon="add" className="mt-4" onClick={() => setAdding(true)}>
+            Add mailbox
+          </Button>
+        </div>
+      ) : (
+        <List>
+          {mailboxes.data.map((m) => (
+            <MailboxRow key={m.id} mailbox={m} />
+          ))}
+        </List>
+      )}
+      <p className="text-xs text-muted-foreground">
+        Mail to an address with no mailbox goes to the domain's catch-all, if it has one.
+      </p>
+      <CreateMailbox open={adding} onOpenChange={setAdding} onCreated={setNote} />
     </div>
   );
 }
@@ -80,63 +93,74 @@ function MailboxRow({ mailbox }: { mailbox: Mailbox }) {
   const [deleting, setDeleting] = useState(false);
   const update = useUpdateMailbox();
   const remove = useDeleteMailbox();
+  const panelId = useId();
 
   return (
-    <ListRow
-      title={
-        <span className="flex min-w-0 items-center gap-2">
+    <li className="group/row">
+      <div className="flex items-center gap-1 pr-3 transition-colors hover:bg-box">
+        <button
+          type="button"
+          aria-expanded={editing}
+          aria-controls={panelId}
+          onClick={() => setEditing(!editing)}
+          className="flex min-w-0 flex-1 items-center gap-3 py-3.5 pl-4 text-left outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+        >
+          <Icon
+            name="expand_more"
+            size={18}
+            className={cn(
+              "shrink-0 text-muted-foreground transition-transform",
+              editing && "rotate-180",
+            )}
+          />
           <span
             aria-hidden
-            className="size-2.5 shrink-0 rounded-full"
+            className="size-2 shrink-0 rounded-[2px]"
             style={{ background: mailbox.color }}
           />
-          <span className="truncate font-mono">{mailbox.address}</span>
-        </span>
-      }
-      description={mailbox.display_name}
-      action={
-        <>
-          {mailbox.is_default && <Badge className="hidden sm:inline-flex">Default</Badge>}
-          {mailbox.is_catch_all && <Badge className="hidden sm:inline-flex">Catch-all</Badge>}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={<IconButton icon="more_vert" label={`Actions for ${mailbox.address}`} />}
-            />
-            <DropdownMenuContent>
-              <DropdownMenuItem icon="edit" onClick={() => setEditing(true)}>
-                Edit
-              </DropdownMenuItem>
-              {!mailbox.is_default && (
-                <DropdownMenuItem
-                  icon="check_circle"
-                  onClick={() =>
-                    update.mutate(
-                      { id: mailbox.id, is_default: true },
-                      {
-                        onSuccess: () => toast.success(`${mailbox.address} is the default now`),
-                        onError: (error) => toast.error(errorMessage(error)),
-                      },
-                    )
-                  }
-                >
-                  Make default
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem icon="delete" destructive onClick={() => setDeleting(true)}>
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </>
-      }
-    >
-      {(mailbox.is_default || mailbox.is_catch_all) && (
-        <div className="mt-1 flex gap-1 sm:hidden">
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold">
+              {mailbox.display_name || mailbox.address}
+            </span>
+            {mailbox.display_name && (
+              <span className="block truncate font-mono text-xs text-muted-foreground">
+                {mailbox.address}
+              </span>
+            )}
+          </span>
           {mailbox.is_default && <Badge size="sm">Default</Badge>}
           {mailbox.is_catch_all && <Badge size="sm">Catch-all</Badge>}
+        </button>
+        <div className={ROW_ACTIONS}>
+          {!mailbox.is_default && (
+            <IconButton
+              icon="star"
+              size="sm"
+              label={`Make ${mailbox.address} the default`}
+              onClick={() =>
+                update.mutate(
+                  { id: mailbox.id, is_default: true },
+                  {
+                    onSuccess: () => toast.success(`${mailbox.address} is the default now`),
+                    onError: (error) => toast.error(errorMessage(error)),
+                  },
+                )
+              }
+            />
+          )}
+          <IconButton
+            icon="delete"
+            size="sm"
+            label={`Delete ${mailbox.address}`}
+            onClick={() => setDeleting(true)}
+          />
+        </div>
+      </div>
+      {editing && (
+        <div id={panelId} className="border-t border-border px-4 pt-4 pb-5 sm:pl-9.5">
+          <EditMailbox mailbox={mailbox} onDone={() => setEditing(false)} />
         </div>
       )}
-      <EditMailbox mailbox={mailbox} open={editing} onOpenChange={setEditing} />
       <ConfirmDialog
         open={deleting}
         onOpenChange={setDeleting}
@@ -150,7 +174,7 @@ function MailboxRow({ mailbox }: { mailbox: Mailbox }) {
           toast.success(`${mailbox.address} deleted`);
         }}
       />
-    </ListRow>
+    </li>
   );
 }
 
@@ -205,25 +229,35 @@ function SettingsFields({
           className="font-mono text-[13px]"
         />
       </Field>
-      <SwitchRow
-        label="Catch-all"
-        description="Also receives mail for addresses on this domain that have no mailbox."
-        checked={value.is_catch_all}
-        onCheckedChange={(on) => set("is_catch_all", on)}
-      />
-      <SwitchRow
-        label="Default"
-        description="New mail is written from this address unless you pick another."
-        checked={value.is_default}
-        onCheckedChange={(on) => set("is_default", on)}
-      />
+      <div className="space-y-4 border-t border-border pt-4">
+        <SwitchRow
+          label="Catch-all"
+          description="Also receives mail for addresses on this domain that have no mailbox."
+          checked={value.is_catch_all}
+          onCheckedChange={(on) => set("is_catch_all", on)}
+        />
+        <SwitchRow
+          label="Default"
+          description="New mail is written from this address unless you pick another."
+          checked={value.is_default}
+          onCheckedChange={(on) => set("is_default", on)}
+        />
+      </div>
     </>
   );
 }
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
-function CreateMailbox() {
+function CreateMailbox({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated: (note: Note) => void;
+}) {
   const blank: Settings = {
     display_name: "",
     color: PALETTE[1],
@@ -233,14 +267,13 @@ function CreateMailbox() {
   };
   const [address, setAddress] = useState("");
   const [settings, setSettings] = useState(blank);
-  const [note, setNote] = useState<ReturnType<typeof receivingNote>>(null);
   const create = useCreateMailbox();
   const valid = EMAIL.test(address.trim());
 
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!valid) return;
-    setNote(null);
+    onCreated(null);
     create.mutate(
       {
         address: address.trim(),
@@ -253,9 +286,10 @@ function CreateMailbox() {
       {
         onSuccess: (m) => {
           toast.success(`${m.address} created`);
-          setNote(receivingNote(m.receiving));
+          onCreated(receivingNote(m.receiving));
           setAddress("");
           setSettings(blank);
+          onOpenChange(false);
         },
         onError: (error) => toast.error(errorMessage(error)),
       },
@@ -263,16 +297,16 @@ function CreateMailbox() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Add a mailbox</CardTitle>
-        <CardDescription>
-          On a domain you have, or a subdomain of one. For a new subdomain, Mails publishes its MX
-          records in Cloudflare when the parent domain already receives here.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="flex flex-col gap-4" onSubmit={submit}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add a mailbox</DialogTitle>
+          <DialogDescription>
+            On a domain you have, or a subdomain of one. For a new subdomain, Mails publishes its MX
+            records in Cloudflare when the parent domain already receives here.
+          </DialogDescription>
+        </DialogHeader>
+        <form id="create-mailbox" className="flex flex-col gap-4" onSubmit={submit}>
           <Field label="Address" error={address && !valid ? "Not an email address" : undefined}>
             <Input
               value={address}
@@ -286,41 +320,33 @@ function CreateMailbox() {
             />
           </Field>
           <SettingsFields value={settings} onChange={setSettings} />
-          <div>
-            <Button type="submit" variant="primary" loading={create.isPending} disabled={!valid}>
-              Create mailbox
-            </Button>
-          </div>
-          {note && <Notice tone={note.ok ? "info" : "warning"}>{note.text}</Notice>}
         </form>
-      </CardContent>
-    </Card>
+        <DialogFooter>
+          <DialogClose render={<Button variant="ghost" />}>Cancel</DialogClose>
+          <Button
+            type="submit"
+            form="create-mailbox"
+            variant="primary"
+            loading={create.isPending}
+            disabled={!valid}
+          >
+            Create mailbox
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-function EditMailbox({
-  mailbox,
-  open,
-  onOpenChange,
-}: {
-  mailbox: Mailbox;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const initial = (): Settings => ({
+/** The inline editor under a mailbox row; it starts from the saved values each time it opens. */
+function EditMailbox({ mailbox, onDone }: { mailbox: Mailbox; onDone: () => void }) {
+  const [settings, setSettings] = useState<Settings>(() => ({
     display_name: mailbox.display_name,
     color: mailbox.color,
     signature: mailbox.signature ?? "",
     is_catch_all: mailbox.is_catch_all,
     is_default: mailbox.is_default,
-  });
-  const [settings, setSettings] = useState(initial);
-  const [wasOpen, setWasOpen] = useState(open);
-  // Start from the saved values each time the dialog opens.
-  if (open !== wasOpen) {
-    setWasOpen(open);
-    if (open) setSettings(initial());
-  }
+  }));
   const update = useUpdateMailbox();
 
   function submit(event: FormEvent) {
@@ -340,31 +366,20 @@ function EditMailbox({
         onError: (error) => toast.error(errorMessage(error)),
       },
     );
-    onOpenChange(false);
+    onDone();
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Edit mailbox</DialogTitle>
-          <DialogDescription className="font-mono">{mailbox.address}</DialogDescription>
-        </DialogHeader>
-        <form id={`edit-${mailbox.id}`} className="flex flex-col gap-4" onSubmit={submit}>
-          <SettingsFields value={settings} onChange={setSettings} />
-        </form>
-        <DialogFooter>
-          <DialogClose render={<Button variant="ghost" />}>Cancel</DialogClose>
-          <Button
-            type="submit"
-            form={`edit-${mailbox.id}`}
-            variant="primary"
-            disabled={!settings.display_name.trim()}
-          >
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <form className="flex flex-col gap-4" onSubmit={submit}>
+      <SettingsFields value={settings} onChange={setSettings} />
+      <div className="flex justify-end gap-2 border-t border-border pt-4">
+        <Button type="button" variant="ghost" onClick={onDone}>
+          Cancel
+        </Button>
+        <Button type="submit" variant="primary" disabled={!settings.display_name.trim()}>
+          Save
+        </Button>
+      </div>
+    </form>
   );
 }

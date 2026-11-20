@@ -5,7 +5,8 @@
 //   COOKIE=$(mails session) pnpm shots   # against a running Mails
 //
 // BASE (default http://localhost:3000), OUT (default shots/) and CHROME
-// (default /usr/bin/chromium) can be set. Uses playwright-core with the
+// (default /usr/bin/chromium) and THEME (dark or light, default dark) can be
+// set. Uses playwright-core with the
 // system Chromium, so no browser download.
 import { mkdirSync } from "node:fs";
 import { chromium } from "playwright-core";
@@ -13,6 +14,7 @@ import { chromium } from "playwright-core";
 const BASE = (process.env.BASE ?? "http://localhost:3000").replace(/\/+$/, "");
 const OUT = process.env.OUT ?? "shots";
 const COOKIE = process.env.COOKIE;
+const THEME = process.env.THEME === "light" ? "light" : "dark";
 if (!COOKIE) {
   console.error("COOKIE is required: run `mails session` on the server and pass its output.");
   process.exit(1);
@@ -29,6 +31,7 @@ const SHOTS = [
   { name: "settings-domains", path: "/settings/domains", viewport: desktop },
   { name: "settings-mailboxes", path: "/settings/mailboxes", viewport: desktop },
   { name: "settings-reporting", path: "/settings/reporting", viewport: desktop },
+  { name: "settings-preferences", path: "/settings/appearance", viewport: desktop },
   { name: "settings-api-keys", path: "/settings/api-keys", viewport: desktop },
   { name: "docs", path: "/docs/guide/self-hosting", viewport: desktop },
   { name: "phone-inbox", path: "/mail/all/inbox", viewport: phone, scale: 2 },
@@ -41,7 +44,7 @@ async function openFirstThread(page) {
 
 async function openComposer(page) {
   await page
-    .getByRole("button", { name: /compose/i })
+    .getByRole("button", { name: /write message/i })
     .first()
     .click();
   await page.waitForTimeout(400); // let the spring settle
@@ -58,7 +61,7 @@ try {
       viewport: shot.viewport,
       deviceScaleFactor: shot.scale ?? 1,
       reducedMotion: "reduce",
-      colorScheme: "dark",
+      colorScheme: THEME,
     });
     await context.addCookies([
       {
@@ -69,13 +72,14 @@ try {
         secure: protocol === "https:",
       },
     ]);
+    await context.addInitScript((t) => localStorage.setItem("mails-theme", t), THEME);
     const page = await context.newPage();
     await page.goto(BASE + shot.path, { waitUntil: "networkidle" });
     if (page.url().includes("/sign-in"))
       throw new Error("The cookie was refused: run `mails session` again.");
     if (shot.step) await shot.step(page);
-    await page.screenshot({ path: `${OUT}/${shot.name}.png`, animations: "disabled" });
-    console.log(`${OUT}/${shot.name}.png`);
+    await page.screenshot({ path: `${OUT}/${THEME}-${shot.name}.png`, animations: "disabled" });
+    console.log(`${OUT}/${THEME}-${shot.name}.png`);
     await context.close();
   }
 } finally {

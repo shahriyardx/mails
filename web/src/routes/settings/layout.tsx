@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router";
 import { AccountMenu } from "@/components/app/account-menu";
 import { Icon, IconButton, Sheet, SheetContent, SheetTitle } from "@/components/kit";
@@ -63,6 +63,12 @@ export function Component() {
 }
 
 function Nav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+  // The list is taller than short screens: keep the open page in view.
+  const nav = useRef<HTMLElement>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs again when the page changes
+  useEffect(() => {
+    nav.current?.querySelector("[aria-current=page]")?.scrollIntoView({ block: "nearest" });
+  }, [pathname]);
   return (
     <SidebarFrame>
       <NavRow
@@ -74,7 +80,11 @@ function Nav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => vo
       >
         Back to mail
       </NavRow>
-      <nav aria-label="Settings" className="-mx-1 min-h-0 flex-1 space-y-5 overflow-y-auto px-1">
+      <nav
+        ref={nav}
+        aria-label="Settings"
+        className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1"
+      >
         {GROUPS.map((group) => (
           <NavGroup key={group} title={group}>
             {SETTINGS_PAGES.filter((p) => p.group === group).map((page) => (

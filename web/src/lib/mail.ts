@@ -165,6 +165,20 @@ export function formatStamp(value: string, now = new Date()) {
   return date.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
 }
 
+/** A message's time: 20:22 today, 20 Nov, 20:22 this year, with the year before. */
+export function formatWhen(value: string, now = new Date()) {
+  const date = new Date(value);
+  const time = date.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  if (startOfDay(date) === startOfDay(now)) return time;
+  const day = date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const year = date.getFullYear() === now.getFullYear() ? "" : ` ${date.getFullYear()}`;
+  return `${day}${year}, ${time}`;
+}
+
 /**
  * The day heading a thread sits under in the list: Today, Yesterday,
  * Earlier this week (weeks start on Monday), then the date itself.

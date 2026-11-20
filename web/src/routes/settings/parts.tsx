@@ -49,6 +49,13 @@ export function StatusDot({
   );
 }
 
+/** A row's actions: shown on hover or focus on pointer screens, always on touch. */
+export const rowActions =
+  "transition-opacity md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 md:has-[[aria-expanded=true]]:opacity-100";
+
+/** An empty list: one sentence and one primary button inside. */
+export const emptyBox = "rounded-[14px] border border-dashed border-border px-6 py-10 text-center";
+
 /** A titled part of a page: a heading and a muted line, no box around it. */
 export function Section({
   title,

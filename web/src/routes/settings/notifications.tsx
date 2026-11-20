@@ -1,20 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  Badge,
-  Button,
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  ConfirmDialog,
-  IconButton,
-  List,
-  ListEmpty,
-  ListRow,
-  toast,
-} from "@/components/kit";
+import { Badge, Button, ConfirmDialog, IconButton, List, ListRow, toast } from "@/components/kit";
 import {
   errorMessage,
   usePush,
@@ -24,7 +9,20 @@ import {
 } from "@/lib/api";
 import { formatDateTime } from "@/lib/mail";
 import { currentEndpoint, pushSupport, subscribeBrowser, unsubscribeBrowser } from "@/lib/push";
-import { CopyValue, LoadError, Notice, PageLoading, SwitchRow } from "./parts";
+import {
+  CopyValue,
+  DangerRow,
+  DangerZone,
+  emptyBox,
+  LoadError,
+  Notice,
+  PageAction,
+  PageLoading,
+  rowActions,
+  Section,
+  StatusDot,
+  SwitchRow,
+} from "./parts";
 
 /** Web push for new mail, switched on per browser. */
 export default function Notifications() {
@@ -78,102 +76,94 @@ export default function Notifications() {
   }
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>New mail notifications</CardTitle>
-          <CardDescription>
-            A notice when mail arrives, even with Mails closed. Clicking it opens the conversation.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {!enabled ? (
-            <Notice tone="warning">
-              <p>
-                Push is off on this server: it has no VAPID keys. Run{" "}
-                <span className="font-mono">mails vapid-keys</span>, put the two values in{" "}
-                <span className="font-mono">VAPID_PUBLIC_KEY</span> and{" "}
-                <span className="font-mono">VAPID_PRIVATE_KEY</span>, then restart Mails.
-              </p>
-              <CopyValue
-                value="mails vapid-keys"
-                label="Copy command"
-                className="mt-2 bg-field-box"
-              />
-            </Notice>
-          ) : support === "insecure" ? (
-            <Notice tone="warning">Notifications need https. Open Mails over https.</Notice>
-          ) : support === "unsupported" ? (
-            <Notice tone="warning">This browser cannot show push notifications.</Notice>
-          ) : permission === "denied" ? (
-            <Notice tone="warning">
-              Notifications are blocked for this site. Allow them in the browser's site settings,
-              then come back.
-            </Notice>
-          ) : null}
+    <div className="space-y-10">
+      {on && (
+        <PageAction>
+          <Button
+            icon="send"
+            loading={test.isPending}
+            onClick={() =>
+              test.mutate(undefined, {
+                onSuccess: ({ delivered }) =>
+                  delivered > 0
+                    ? toast.success(
+                        `Test sent to ${delivered} browser${delivered === 1 ? "" : "s"}. Nothing showed? The OS may be hiding it.`,
+                      )
+                    : toast.error(
+                        "No browser accepted the test. Turn notifications on again here.",
+                      ),
+                onError: (error) => toast.error(errorMessage(error)),
+              })
+            }
+          >
+            Send a test
+          </Button>
+        </PageAction>
+      )}
 
-          <div className="space-y-3 rounded-2xl bg-box p-4">
-            <SwitchRow
-              label={
-                <span className="flex items-center gap-2">
-                  Notify me on this browser
-                  <Badge size="sm" tone={on ? "strong" : "neutral"}>
-                    {on ? "On" : "Off"}
-                  </Badge>
-                </span>
-              }
-              description={
-                on
-                  ? "New mail is announced here. Other browsers and phones are set up on their own."
-                  : "The browser asks for permission the first time."
-              }
-              checked={on}
-              disabled={!usable || working}
-              onCheckedChange={(next) => void (next ? turnOn() : turnOff())}
-            />
-            {on && (
-              <div className="flex flex-wrap items-center gap-3">
-                <Button
-                  size="sm"
-                  icon="send"
-                  loading={test.isPending}
-                  onClick={() =>
-                    test.mutate(undefined, {
-                      onSuccess: ({ delivered }) =>
-                        delivered > 0
-                          ? toast.success(
-                              `Test sent to ${delivered} browser${delivered === 1 ? "" : "s"}. Nothing showed? The OS may be hiding it.`,
-                            )
-                          : toast.error(
-                              "No browser accepted the test. Turn notifications on again here.",
-                            ),
-                      onError: (error) => toast.error(errorMessage(error)),
-                    })
-                  }
-                >
-                  Send a test
-                </Button>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <Section
+        title="This browser"
+        description="A notice when mail arrives, even with Mails closed. Clicking it opens the conversation."
+      >
+        {!enabled ? (
+          <Notice tone="warning">
+            <p>
+              Push is off on this server: it has no VAPID keys. Run{" "}
+              <span className="font-mono">mails vapid-keys</span>, put the two values in{" "}
+              <span className="font-mono">VAPID_PUBLIC_KEY</span> and{" "}
+              <span className="font-mono">VAPID_PRIVATE_KEY</span>, then restart Mails.
+            </p>
+            <CopyValue value="mails vapid-keys" label="Copy command" className="mt-2" />
+          </Notice>
+        ) : support === "insecure" ? (
+          <Notice tone="warning">Notifications need https. Open Mails over https.</Notice>
+        ) : support === "unsupported" ? (
+          <Notice tone="warning">This browser cannot show push notifications.</Notice>
+        ) : permission === "denied" ? (
+          <Notice tone="warning">
+            Notifications are blocked for this site. Allow them in the browser's site settings, then
+            come back.
+          </Notice>
+        ) : null}
+
+        <div className="rounded-[14px] border border-border bg-surface p-4">
+          <SwitchRow
+            label={
+              <span className="flex items-center gap-2.5">
+                Notify me on this browser
+                <StatusDot tone={on ? "ok" : "off"}>{on ? "On" : "Off"}</StatusDot>
+              </span>
+            }
+            description={
+              on
+                ? "New mail is announced here. Other browsers and phones are set up on their own."
+                : "The browser asks for permission the first time."
+            }
+            checked={on}
+            disabled={!usable || working}
+            onCheckedChange={(next) => void (next ? turnOn() : turnOff())}
+          />
+        </div>
+      </Section>
 
       {enabled && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Browsers</CardTitle>
-            <CardDescription>Every browser set up to be notified.</CardDescription>
-            {browsers.length > 1 && (
-              <CardAction>
-                <Button size="sm" variant="ghost" onClick={() => setOffEverywhere(true)}>
-                  Turn off everywhere
-                </Button>
-              </CardAction>
-            )}
-          </CardHeader>
-          <CardContent>
-            <List className="bg-box">
+        <Section title="Browsers" description="Every browser set up to be notified.">
+          {browsers.length === 0 ? (
+            <div className={emptyBox}>
+              <p className="text-muted-foreground">No browser is notified yet.</p>
+              <Button
+                variant="primary"
+                icon="notifications"
+                className="mt-4"
+                disabled={!usable}
+                loading={working}
+                onClick={() => void turnOn()}
+              >
+                Notify this browser
+              </Button>
+            </div>
+          ) : (
+            <List>
               {browsers.map((b) => {
                 const here = b.endpoint === mine;
                 return (
@@ -190,8 +180,10 @@ export default function Notifications() {
                     action={
                       <IconButton
                         icon="close"
+                        size="sm"
                         label={`Stop notifying ${b.label ?? "this browser"}`}
                         disabled={working}
+                        className={rowActions}
                         onClick={() =>
                           here
                             ? void turnOff()
@@ -206,12 +198,23 @@ export default function Notifications() {
                   />
                 );
               })}
-              {browsers.length === 0 && (
-                <ListEmpty>No browser is notified yet. Turn the switch above on.</ListEmpty>
-              )}
             </List>
-          </CardContent>
-        </Card>
+          )}
+        </Section>
+      )}
+
+      {enabled && browsers.length > 1 && (
+        <DangerZone>
+          <DangerRow
+            title="Turn off everywhere"
+            description="Every browser and phone stops being notified."
+            action={
+              <Button variant="destructive" onClick={() => setOffEverywhere(true)}>
+                Turn off everywhere
+              </Button>
+            }
+          />
+        </DangerZone>
       )}
 
       <ConfirmDialog

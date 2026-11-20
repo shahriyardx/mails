@@ -1,23 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { Choice } from "@/components/app/choice";
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  EmptyState,
-  Icon,
-  Skeleton,
-  Stat,
-  Stats,
-  Tabs,
-  TabsList,
-  TabsTab,
-} from "@/components/kit";
-import { errorMessage, useDomainRefs, useMetrics } from "@/lib/api";
+import { Skeleton, Stat, Stats, Tabs, TabsList, TabsTab } from "@/components/kit";
+import { useDomainRefs, useMetrics } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import {
   barSegments,
@@ -28,8 +13,10 @@ import {
   rateLevel,
 } from "@/lib/reports";
 import type { Metrics as MetricsData, MetricsDay, MetricsKind } from "@/lib/types";
+import { LoadError, Notice, Section } from "./parts";
 
 const ALL = "all";
+const PANEL = "rounded-[14px] border border-border bg-surface";
 
 /** /settings/metrics: outbound mail per day, rates against SES's limits. */
 export default function Metrics() {
@@ -40,7 +27,7 @@ export default function Metrics() {
   const m = metrics.data;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs value={range} onValueChange={(v) => setRange(Number(v))}>
           <TabsList>
@@ -67,20 +54,13 @@ export default function Metrics() {
         <>
           <Stats>
             {[0, 1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-28 rounded-3xl" />
+              <Skeleton key={i} className="h-28 rounded-[14px]" />
             ))}
           </Stats>
-          <Skeleton className="h-64 rounded-3xl" />
+          <Skeleton className="h-64 rounded-[14px]" />
         </>
       ) : metrics.isError ? (
-        <Card>
-          <EmptyState
-            icon="error"
-            title="Could not load metrics"
-            body={errorMessage(metrics.error)}
-            action={<Button onClick={() => metrics.refetch()}>Try again</Button>}
-          />
-        </Card>
+        <LoadError error={metrics.error} retry={metrics.refetch} />
       ) : m ? (
         <Report m={m} />
       ) : null}
@@ -95,21 +75,15 @@ function Report({ m }: { m: MetricsData }) {
   return (
     <>
       {(bounce === "over" || complaint === "over") && (
-        <div
-          role="alert"
-          className="flex items-start gap-3 rounded-3xl bg-destructive-soft p-4 text-destructive"
-        >
-          <Icon name="warning" className="mt-0.5" />
-          <p className="text-[13px] leading-relaxed">
-            {bounce === "over" && complaint === "over"
-              ? "Your bounce and complaint rates are"
-              : bounce === "over"
-                ? "Your bounce rate is"
-                : "Your complaint rate is"}{" "}
-            past the point where Amazon SES puts an account under review (5% bounces, 0.1%
-            complaints). Clean the address list and check what you send before sending more.
-          </p>
-        </div>
+        <Notice tone="danger">
+          {bounce === "over" && complaint === "over"
+            ? "Your bounce and complaint rates are"
+            : bounce === "over"
+              ? "Your bounce rate is"
+              : "Your complaint rate is"}{" "}
+          past the point where Amazon SES puts an account under review (5% bounces, 0.1%
+          complaints). Clean the address list and check what you send before sending more.
+        </Notice>
       )}
 
       <Stats>
@@ -127,33 +101,26 @@ function Report({ m }: { m: MetricsData }) {
         />
       </Stats>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Per day</CardTitle>
-          <CardDescription>Outbound mail by the UTC day it was sent.</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <Section title="Per day" description="Outbound mail by the UTC day it was sent.">
+        <div className={cn(PANEL, "p-5")}>
           {m.totals.sent === 0 ? (
-            <EmptyState
-              icon="bar_chart"
-              title="Nothing sent in this range"
-              body="Mail you send shows up here, one bar a day."
-              className="py-10"
-            />
+            <p className="py-10 text-center text-muted-foreground">
+              Nothing sent in this range. Mail you send shows up here, one bar a day.
+            </p>
           ) : (
             <DayChart days={m.days} />
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </Section>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2">
         <Kinds title="Bounces" empty="No bounces." kinds={m.bounces} />
         <Kinds title="Complaints" empty="No complaints." kinds={m.complaints} />
       </div>
 
-      <p className="text-center text-xs text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         What the rates mean, and how to bring them down:{" "}
-        <Link to="/docs/guide/metrics" className="underline underline-offset-2">
+        <Link to="/docs/guide/metrics" className="text-accent underline underline-offset-2">
           Metrics guide
         </Link>
       </p>
@@ -292,35 +259,40 @@ function DayChart({ days }: { days: MetricsDay[] }) {
 function Legend({ className, children }: { className: string; children: string }) {
   return (
     <span className="flex items-center gap-1.5">
-      <span aria-hidden className={cn("size-2.5 rounded-full", className)} />
+      <span aria-hidden className={cn("size-2 rounded-[2px]", className)} />
       {children}
     </span>
   );
 }
 
+/** Each kind with a bar sized against the biggest one. */
 function Kinds({ title, empty, kinds }: { title: string; empty: string; kinds: MetricsKind[] }) {
+  const max = Math.max(1, ...kinds.map((k) => k.count));
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {kinds.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">{empty}</p>
-        ) : (
-          <ul className="flex flex-col gap-1">
-            {kinds.map((k) => (
-              <li key={k.kind} className="flex items-center gap-3 text-[13px]">
-                <span className="min-w-0 flex-1 truncate">{k.kind}</span>
+    <Section title={title}>
+      {kinds.length === 0 ? (
+        <p className="text-[13px] text-muted-foreground">{empty}</p>
+      ) : (
+        <ul className={cn(PANEL, "divide-y divide-border")}>
+          {kinds.map((k) => (
+            <li key={k.kind} className="flex flex-col gap-2 px-4 py-3">
+              <div className="flex items-baseline gap-3 text-[13px]">
+                <span className="min-w-0 flex-1 truncate font-medium">{k.kind}</span>
                 <span className="font-mono tabular-nums">{formatCount(k.count)}</span>
-                <span className="w-16 text-right font-mono text-muted-foreground tabular-nums">
+                <span className="w-14 text-right font-mono text-xs text-muted-foreground tabular-nums">
                   {formatRate(k.rate)}
                 </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+              </div>
+              <div aria-hidden className="h-1 overflow-hidden rounded-full bg-tonal">
+                <div
+                  className="h-full rounded-full bg-primary"
+                  style={{ width: `${(k.count / max) * 100}%` }}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
   );
 }

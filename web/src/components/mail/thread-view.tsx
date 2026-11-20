@@ -27,6 +27,7 @@ import {
   formatAddress,
   formatBytes,
   formatDateTime,
+  formatWhen,
   forwardSubject,
   quoteMessage,
   replySubject,
@@ -401,7 +402,7 @@ function MessageItem({
   );
   const files = (message.attachments ?? []).filter((a) => !a.is_inline);
   const outbound = message.direction === "outbound";
-  const when = formatDateTime(message.sent_at ?? message.received_at);
+  const when = formatWhen(message.sent_at ?? message.received_at);
 
   const menu = open && !message.is_draft && (
     <DropdownMenu>

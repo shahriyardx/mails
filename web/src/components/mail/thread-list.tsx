@@ -451,8 +451,12 @@ function Row({
                 )}
               </span>
               {showMailbox && (
-                <span className="hidden max-w-28 shrink-0 truncate font-mono text-[11px] text-muted-foreground sm:inline">
-                  {thread.mailbox.split("@")[0]}@
+                <span
+                  title={thread.mailbox}
+                  className="size-2 shrink-0 self-center rounded-[2px]"
+                  style={{ background: thread.mailbox_color }}
+                >
+                  <span className="sr-only">{thread.mailbox}</span>
                 </span>
               )}
               {thread.has_attachments && (
