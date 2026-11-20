@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/shahriyardx/mails/internal/apikey"
+	"github.com/shahriyardx/mails/internal/apiv1"
 	"github.com/shahriyardx/mails/internal/auth"
 	"github.com/shahriyardx/mails/internal/cloudflare"
 	"github.com/shahriyardx/mails/internal/config"
@@ -19,17 +21,20 @@ import (
 	"github.com/shahriyardx/mails/internal/delivery"
 	"github.com/shahriyardx/mails/internal/domain"
 	"github.com/shahriyardx/mails/internal/forwarding"
+	"github.com/shahriyardx/mails/internal/idempotency"
 	"github.com/shahriyardx/mails/internal/inbound"
 	"github.com/shahriyardx/mails/internal/mail"
 	"github.com/shahriyardx/mails/internal/mailbox"
 	"github.com/shahriyardx/mails/internal/push"
 	"github.com/shahriyardx/mails/internal/realtime"
+	"github.com/shahriyardx/mails/internal/safehttp"
 	"github.com/shahriyardx/mails/internal/secret"
 	"github.com/shahriyardx/mails/internal/send"
 	"github.com/shahriyardx/mails/internal/server"
 	"github.com/shahriyardx/mails/internal/ses"
 	"github.com/shahriyardx/mails/internal/setup"
 	"github.com/shahriyardx/mails/internal/storage"
+	"github.com/shahriyardx/mails/internal/webhook"
 	"github.com/shahriyardx/mails/web"
 	"github.com/shahriyardx/mails/worker"
 )
@@ -92,6 +97,7 @@ func run() error {
 	if cfg.VAPIDPublicKey != "" && cfg.VAPIDPrivateKey != "" {
 		pusher.Send = push.WebPush(cfg.VAPIDPublicKey, cfg.VAPIDPrivateKey, cfg.VAPIDSubject)
 	}
+	hooks := &webhook.Service{DB: pool, HTTP: safehttp.Client(10*time.Second, !cfg.Secure()), Now: time.Now, AllowLocal: !cfg.Secure()}
 	hub := realtime.NewHub()
 	mailSvc := &mail.Service{DB: pool, Store: store, Hub: hub}
 	box, err := secret.New(cfg.Secret)
@@ -105,7 +111,7 @@ func run() error {
 	mailboxes := &mailbox.Service{DB: pool, Receiving: func(ctx context.Context, d string) any { return cf.EnsureSubdomainReceiving(ctx, d) }}
 	sender := &send.Service{
 		DB: pool, SES: sesClient, Store: store, Mailboxes: mailboxes, Mail: mailSvc, Hub: hub,
-		ConfigSet: cfg.SESConfigSet, Now: time.Now,
+		ConfigSet: cfg.SESConfigSet, Now: time.Now, Events: hooks,
 	}
 	deps := &server.Deps{
 		DB:   pool,
@@ -118,17 +124,26 @@ func run() error {
 		},
 		Mailboxes: mailboxes,
 		Inbound: &inbound.Service{DB: pool, Hub: hub, Now: time.Now,
-			OnReceived: []func(context.Context, inbound.Received){pusher.OnReceived}},
+			OnReceived: []func(context.Context, inbound.Received){pusher.OnReceived}, Events: hooks},
 		Mail:     mailSvc,
 		Send:     sender,
-		Delivery: &delivery.Service{DB: pool, SES: sesClient, Hub: hub, Now: time.Now},
+		Delivery: &delivery.Service{DB: pool, SES: sesClient, Hub: hub, Events: hooks, Now: time.Now},
 		SNS:      &delivery.Verifier{HTTP: &http.Client{Timeout: 10 * time.Second}},
 		CF:       cf,
 		Forward:  &forwarding.Manager{DB: pool, CF: cf},
 		Push:     pusher,
 		Setup:    &setup.Service{DB: pool, SESConfigured: cfg.AWSAccessKeyID != "", Region: cfg.AWSRegion},
+		Keys:     &apikey.Service{DB: pool},
+		Webhooks: hooks,
+	}
+	idem := &idempotency.Store{DB: pool}
+	deps.V1 = &apiv1.API{
+		DB: pool, Keys: deps.Keys, Domains: deps.Domains, Mailboxes: mailboxes, Mail: mailSvc, Send: sender,
+		Delivery: deps.Delivery, Webhooks: hooks, Idem: idem, Events: hooks, BaseURL: cfg.AppURL + "/api/v1",
 	}
 	go every(ctx, time.Hour, "sweep staged uploads", mailSvc.SweepStaged)
+	go every(ctx, time.Hour, "sweep idempotency keys", idem.Sweep)
+	go hooks.Run(ctx)
 	if cfg.OutboxWorker {
 		go sender.RunOutbox(ctx)
 	}

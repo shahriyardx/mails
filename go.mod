@@ -16,6 +16,7 @@ require (
 	github.com/cloudflare/cloudflare-go/v6 v6.10.0
 	github.com/emersion/go-message v0.18.2
 	github.com/go-chi/chi/v5 v5.5.0
+	github.com/go-chi/httprate v0.16.1
 	github.com/go-playground/validator/v10 v10.30.6
 	github.com/google/go-github/v93 v93.0.0
 	github.com/jackc/pgx/v5 v5.13.0
@@ -42,7 +43,6 @@ require (
 	github.com/aws/smithy-go v1.28.9 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.16 // indirect
-	github.com/go-chi/httprate v0.16.1 // indirect
 	github.com/go-playground/locales v0.14.2 // indirect
 	github.com/go-playground/universal-translator v0.18.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect

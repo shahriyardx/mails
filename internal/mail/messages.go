@@ -28,6 +28,9 @@ type MessageFilter struct {
 	Subject      string
 	Query        string
 	Since, Until *time.Time
+	Statuses     []string // delivery statuses, for sent mail
+	Opened       *bool
+	APIKeyID     string
 	WithBody     bool
 	Page         page.Params
 }
@@ -73,6 +76,15 @@ func (s *Service) ListMessages(ctx context.Context, f MessageFilter) (page.List[
 	}
 	if f.Query != "" {
 		w.add("m.search_vector @@ websearch_to_tsquery('english', ?)", f.Query)
+	}
+	if len(f.Statuses) > 0 {
+		w.add("m.delivery_status::text = ANY(?)", f.Statuses)
+	}
+	if f.Opened != nil {
+		w.add("(m.opened_at IS NOT NULL) = ?", *f.Opened)
+	}
+	if f.APIKeyID != "" {
+		w.add("m.api_key_id = ?", f.APIKeyID)
 	}
 	if f.Since != nil {
 		w.add("m.received_at >= ?", *f.Since)

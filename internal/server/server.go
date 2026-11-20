@@ -8,7 +8,7 @@
 //	/api/ses/*     SNS posts delivery events here (SNS signature)
 //	/api/app/*     the dashboard's own JSON API (owner session)
 //	/api/events    SSE live updates (owner session)
-//	/api/v1/*      public API (API key, or owner session)
+//	/api/v1/*      public API (API key)
 //	everything else: the embedded React app (index.html fallback)
 package server
 
@@ -21,6 +21,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/shahriyardx/mails/internal/apikey"
+	"github.com/shahriyardx/mails/internal/apiv1"
 	"github.com/shahriyardx/mails/internal/auth"
 	"github.com/shahriyardx/mails/internal/cloudflare"
 	"github.com/shahriyardx/mails/internal/config"
@@ -35,6 +37,7 @@ import (
 	"github.com/shahriyardx/mails/internal/realtime"
 	"github.com/shahriyardx/mails/internal/send"
 	"github.com/shahriyardx/mails/internal/setup"
+	"github.com/shahriyardx/mails/internal/webhook"
 )
 
 // Deps is every service the router mounts. main builds it; tests can build
@@ -55,6 +58,9 @@ type Deps struct {
 	Forward   *forwarding.Manager
 	Push      *push.Service
 	Setup     *setup.Service
+	Keys      *apikey.Service
+	Webhooks  *webhook.Service
+	V1        *apiv1.API
 }
 
 // New builds the router. web is the built React app (web/dist).
@@ -70,6 +76,7 @@ func New(d *Deps, web fs.FS) http.Handler {
 		// Machine callers: no session cookie involved.
 		api.Method("POST", "/inbound", inbound.Handler(d.Inbound, d.Cfg.InboundSecret))
 		api.Method("POST", "/ses/events", delivery.SNSHandler(d.Delivery, d.SNS, d.Cfg.SESSNSTopicARN))
+		api.Mount("/v1", d.V1.Routes())
 
 		// Everything that reads or writes the session cookie.
 		api.Group(func(s chi.Router) {
@@ -90,10 +97,11 @@ func New(d *Deps, web fs.FS) http.Handler {
 					app.Mount("/forwarding", forwarding.Routes(d.Forward))
 					app.Mount("/push", push.Routes(d.Push))
 					app.Mount("/setup", setup.Routes(d.Setup))
+					app.Mount("/api-keys", apikey.Routes(d.Keys))
+					app.Mount("/webhooks", webhook.Routes(d.Webhooks))
 					app.Mount("/", chiJoin(mail.Routes(d.Mail), send.Routes(d.Send), delivery.Routes(d.Delivery)))
 				})
 			})
-			// api.Mount("/v1", apiv1.Routes(d))  API key or owner session
 		})
 
 		api.NotFound(func(w http.ResponseWriter, r *http.Request) {

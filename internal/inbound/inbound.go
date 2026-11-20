@@ -19,6 +19,7 @@ import (
 
 	"github.com/shahriyardx/mails/internal/addr"
 	"github.com/shahriyardx/mails/internal/db"
+	"github.com/shahriyardx/mails/internal/events"
 	"github.com/shahriyardx/mails/internal/forwarding"
 	"github.com/shahriyardx/mails/internal/id"
 	"github.com/shahriyardx/mails/internal/mail"
@@ -89,6 +90,8 @@ type Service struct {
 	// OnReceived runs after each stored message commits. Hooks must not
 	// block: anything slow (a push service) goes in its own goroutine.
 	OnReceived []func(context.Context, Received)
+	// Events gets mail.received for webhooks.
+	Events events.Sink
 }
 
 type mailboxRow struct {
@@ -134,6 +137,7 @@ func (s *Service) Ingest(ctx context.Context, p *Payload, files []Attachment) (R
 		for _, hook := range s.OnReceived {
 			hook(ctx, r)
 		}
+		s.emitReceived(ctx, r, p, len(files) > 0)
 	}
 
 	// Forwarding is answered even for duplicates: the worker forwards once
@@ -165,6 +169,24 @@ func (s *Service) Ingest(ctx context.Context, p *Payload, files []Attachment) (R
 	}
 	res.Forward = removeOwn(ctx, s.DB, res.Forward)
 	return res, nil
+}
+
+// emitReceived fires mail.received with the documented payload.
+func (s *Service) emitReceived(ctx context.Context, r Received, p *Payload, hasFiles bool) {
+	if s.Events == nil {
+		return
+	}
+	to := p.ToAddresses
+	if to == nil {
+		to = []addr.Address{}
+	}
+	s.Events.Emit(ctx, events.Event{Type: "mail.received", MailboxID: r.MailboxID, Data: map[string]any{"email": map[string]any{
+		"id": r.MessageID, "thread_id": r.ThreadID, "mailbox_id": r.MailboxID, "mailbox": r.Mailbox,
+		"message_id": p.MessageID, "from": p.From, "to": to, "delivered_to": r.DeliveredTo, "subject": r.Subject,
+		"snippet": addr.Snippet(deref(p.Text), deref(p.HTML)), "folder": r.Folder, "has_attachments": hasFiles,
+		"spf": p.Auth.SPF, "dkim": p.Auth.DKIM, "dmarc": p.Auth.DMARC, "spam_score": p.SpamScore,
+		"mailed_by": p.MailedBy, "signed_by": p.SignedBy, "tls": p.TLS, "received_at": s.receivedAt(p.Date),
+	}}})
 }
 
 // removeOwn drops forward targets on our own domains: forwarding there

@@ -52,7 +52,11 @@ func ParseMessageFilter(q url.Values) (MessageFilter, error) {
 		Subject: q.Get("subject"), Query: strings.TrimSpace(q.Get("q")), WithBody: q.Get("include_body") == "true",
 	}
 	var err error
-	for name, dst := range map[string]**bool{"drafts": &f.Drafts, "unread": &f.Unread, "starred": &f.Starred} {
+	if v := q.Get("status"); v != "" {
+		f.Statuses = strings.Split(v, ",")
+	}
+	f.APIKeyID = q.Get("api_key_id")
+	for name, dst := range map[string]**bool{"drafts": &f.Drafts, "unread": &f.Unread, "starred": &f.Starred, "opened": &f.Opened} {
 		if *dst, err = boolParam(q, name); err != nil {
 			return f, err
 		}
