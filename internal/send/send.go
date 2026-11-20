@@ -421,18 +421,9 @@ func (s *Service) loadFiles(ctx context.Context, p *prepared, draft bool) error 
 	if len(found) != len(dedupe(ids)) {
 		return httpx.Invalid("attachment_ids", "attachment_ids: One or more files do not exist")
 	}
-	if !draft {
-		// Refuse an oversized message before reading any stored file.
-		total := 0
-		for _, f := range p.files {
-			total += len(f.Data)
-		}
-		for _, a := range found {
-			total += a.Size
-		}
-		if total > maxRaw {
-			return errTooLarge
-		}
+	total := 0
+	for _, f := range p.files {
+		total += len(f.Data)
 	}
 	for _, a := range found {
 		switch {
@@ -447,10 +438,19 @@ func (s *Service) loadFiles(ctx context.Context, p *prepared, draft bool) error 
 		default:
 			return httpx.Invalid("attachment_ids", "attachment_ids: One or more files do not exist")
 		}
+		total += a.Size
+	}
+	// Every file passed its access check (so a size says nothing about
+	// files the caller cannot reach); refuse an oversized message before
+	// reading any of them.
+	if !draft && total > maxRaw {
+		return errTooLarge
+	}
+	for _, a := range found {
 		if draft {
 			// A draft only records which files it holds; bytes are read when
 			// it is sent. A forwarded file is copied then too.
-			continue
+			break
 		}
 		obj, err := s.Store.Get(ctx, a.R2Key)
 		if err != nil {

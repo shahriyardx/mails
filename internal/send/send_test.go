@@ -506,6 +506,36 @@ func TestOversizedFilesRefusedBeforeReading(t *testing.T) {
 	}
 }
 
+// A size check must not tell a restricted key anything about files it
+// cannot reach: a foreign oversized file reads like a foreign small one.
+func TestForeignFileSizeStaysHidden(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	for _, q := range []string{
+		`INSERT INTO mailbox (id, address, domain, domain_id, display_name) VALUES ('mbx_2', 'other@a.test', 'a.test', 'dom_a', 'O')`,
+		`INSERT INTO thread (id, mailbox_id, subject) VALUES ('thr_2', 'mbx_2', 'x')`,
+		`INSERT INTO message (id, thread_id, mailbox_id, from_address, subject) VALUES ('msg_2', 'thr_2', 'mbx_2', 'z@b.test', 'x')`,
+		`INSERT INTO attachment (id, message_id, filename, size_bytes, r2_key) VALUES
+			('att_small', 'msg_2', 's.bin', 1, 'k/s'), ('att_big', 'msg_2', 'b.bin', 50 << 20, 'k/b')`,
+	} {
+		if _, err := e.pool.Exec(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var msgs []string
+	for _, att := range []string{"att_small", "att_big"} {
+		_, err := e.s.Send(ctx, send.Input{From: "me@a.test", To: to("x@b.test"), Text: "x", AttachmentIDs: []string{att},
+			APIKeyID: "key_1", Allowed: []string{"mbx_1"}})
+		if code(err) != 422 {
+			t.Fatalf("%s: err = %v, want 422", att, err)
+		}
+		msgs = append(msgs, err.Error())
+	}
+	if msgs[0] != msgs[1] {
+		t.Fatalf("responses differ: %q vs %q", msgs[0], msgs[1])
+	}
+}
+
 func TestDraftFileListIsAuthoritative(t *testing.T) {
 	e := setup(t)
 	ctx := context.Background()
