@@ -242,3 +242,57 @@ describe("quoted text", () => {
     expect(out.html).toContain("Forwarded text");
   });
 });
+
+describe("no drawing over the page or imitating its controls", () => {
+  it("drops out-of-flow positioning, transforms and negative margins in style attributes", () => {
+    const out = shown(
+      '<div style="position:fixed;top:0;z-index:9999;color:red">a</div>' +
+        '<div style="position:absolute;transform:translateY(-200px)">b</div>' +
+        '<div style="position:sticky">c</div><p style="margin-top:-500px;margin-left:8px">d</p>',
+    ).html;
+    expect(out).not.toMatch(/position|transform|-500px/);
+    expect(out).toContain("color: red");
+    expect(out).toContain("margin-left: 8px");
+  });
+
+  it("drops the same from <style> blocks, nested rules included", () => {
+    const out = shown(
+      "<style>.x{position:fixed;inset:0;color:red}@media (min-width:1px){.y{position:absolute;margin:-40px}}</style><p class=x>a</p>",
+    ).html;
+    expect(out).not.toMatch(/position|-40px/);
+    expect(out).toMatch(/color:\s*red/);
+  });
+
+  it("removes form controls and fake buttons", () => {
+    const out = shown(
+      '<form><input value="pw"><textarea>t</textarea><select><option>o</option></select><button>Sign in</button></form><dialog open>d</dialog>',
+    ).html;
+    expect(out).not.toMatch(/<(form|input|textarea|select|option|button|dialog)\b/i);
+  });
+
+  it("opens every link in a new tab without an opener", () => {
+    const out = shown('<a href="https://ok.example/" target="_self" rel="opener">a</a>').html;
+    expect(out).toContain('target="_blank"');
+    expect(out).toContain('rel="noopener noreferrer nofollow"');
+  });
+});
+
+describe("adversarial input stays fast (no catastrophic backtracking)", () => {
+  const cases: [string, string][] = [
+    ["many open angle brackets", "< ".repeat(50_000)],
+    ["unclosed bgcolor tags", '<td bgcolor="'.repeat(8_000)],
+    ["background with no value end", `<p style="${"background: ".repeat(9_000)}">a</p>`],
+    ["url( runs", `<style>${"url(".repeat(25_000)}</style>`],
+    ["unclosed comments", `<div style="${"/*".repeat(50_000)}">a</div>`],
+    ["escapes", `<style>.a{b:${"\\".repeat(100_000)}}</style>`],
+    ["quote attribution", `<div>${"wrote: ".repeat(14_000)}</div><blockquote>q</blockquote>`],
+  ];
+  for (const [name, html] of cases) {
+    it(name, () => {
+      expect(html.length).toBeGreaterThanOrEqual(90_000);
+      const start = performance.now();
+      prepareEmail(html, { showRemoteImages: false });
+      expect(performance.now() - start).toBeLessThan(100);
+    });
+  }
+});

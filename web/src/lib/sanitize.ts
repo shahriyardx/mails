@@ -63,58 +63,106 @@ export function decodeCss(css: string) {
 
 const fetches = (css: string) => CSS_FETCH.test(decodeCss(css));
 
-/** Removes every declaration that fetches. */
-function stripDeclarations(style: CSSStyleDeclaration) {
+/**
+ * Bodies past this are cut before parsing. Real mail is far smaller; the cap
+ * bounds the work any pattern below can be made to do.
+ */
+export const MAX_HTML = 2_000_000;
+
+/**
+ * Layout a message could use to draw over its own content or imitate our UI
+ * (a fake "show images" bar laid over the text): out-of-flow positioning,
+ * transforms and negative margins. Mail clients strip these too.
+ */
+function redresses(name: string, value: string) {
+  if (name === "position") return !/^\s*static\s*$/i.test(value);
+  if (name === "transform" || name === "translate") return true;
+  return name.startsWith("margin") && value.includes("-");
+}
+
+/** Removes every declaration that fetches (unless allowed) or redresses. */
+function stripDeclarations(style: CSSStyleDeclaration, allowRemote: boolean) {
   for (const name of Array.from(style)) {
-    if (fetches(style.getPropertyValue(name))) style.removeProperty(name);
+    const value = style.getPropertyValue(name);
+    if ((!allowRemote && fetches(value)) || redresses(name, value)) style.removeProperty(name);
   }
 }
 
-/** Walks a sheet (or grouping rule), dropping fetching declarations and rules. */
-function stripRules(owner: { cssRules: CSSRuleList; deleteRule(index: number): void }) {
+type RuleOwner = { cssRules: CSSRuleList; deleteRule(index: number): void };
+
+/** Walks a sheet (or grouping rule), cleaning declarations and dropping fetching rules. */
+function stripRules(owner: RuleOwner, allowRemote: boolean) {
   for (let index = owner.cssRules.length - 1; index >= 0; index -= 1) {
     const rule = owner.cssRules[index]!;
-    if ("style" in rule) stripDeclarations(rule.style as CSSStyleDeclaration);
-    if ("cssRules" in rule && "deleteRule" in rule) stripRules(rule as unknown as typeof owner);
+    if ("style" in rule) stripDeclarations(rule.style as CSSStyleDeclaration, allowRemote);
+    if ("cssRules" in rule && "deleteRule" in rule)
+      stripRules(rule as unknown as RuleOwner, allowRemote);
     // @import, @font-face and anything else still fetching goes whole.
-    if (fetches(rule.cssText)) owner.deleteRule(index);
+    if (!allowRemote && fetches(rule.cssText)) owner.deleteRule(index);
   }
 }
 
 /**
- * A <style> block with every fetch removed, or "" when it cannot be cleaned
- * with certainty. Parsed by the browser's own CSS parser, then checked again
- * as text: if anything fetching survives, the whole block goes.
+ * A <style> block with every fetch (unless allowed) and every redressing
+ * declaration removed, or "" when it cannot be cleaned with certainty.
+ * Parsed by the browser's own CSS parser, then checked again as text: if
+ * anything fetching survives, the whole block goes.
  */
-export function cleanStylesheet(css: string) {
-  if (!fetches(css)) return css;
+export function cleanStylesheet(css: string, allowRemote = false) {
+  // Nothing to do: keep the author's text as written.
+  if ((allowRemote || !fetches(css)) && !/position|transform|translate|margin/i.test(css))
+    return css;
   try {
     const sheet = new CSSStyleSheet();
     sheet.replaceSync(css);
-    stripRules(sheet);
+    stripRules(sheet, allowRemote);
     const out = Array.from(sheet.cssRules, (rule) => rule.cssText).join("\n");
-    return fetches(out) ? "" : out;
+    return !allowRemote && fetches(out) ? "" : out;
   } catch {
     return "";
   }
 }
 
-/** A colour too dark to read on the dark page (null when not a colour). */
+/** A colour too dark to read on the dark page. */
 function isDark(value: string) {
   const color = parse(value.trim());
   return color ? wcagLuminance(color) < 0.18 : false;
 }
 
+/** A background value that paints something (a visible colour or a gradient). */
+function paints(style: CSSStyleDeclaration) {
+  const color = parse(style.backgroundColor.trim());
+  return (
+    (color !== undefined && (color.alpha ?? 1) > 0) || style.backgroundImage.includes("gradient(")
+  );
+}
+
 /**
  * Whether the message paints its own page (a newsletter). Those are shown on
  * white with their colours untouched; everything else follows the dark page.
+ * Read with the browser's parsers (inert: a parsed document loads nothing),
+ * so the work stays linear in the input.
  */
 export function declaresBackground(html: string) {
-  if (/<[^>]+\sbgcolor\s*=\s*["']?(?!transparent)[#\w]/i.test(html)) return true;
-  for (const match of html.matchAll(/background(?:-color)?\s*:\s*([^;"']+)/gi)) {
-    const value = match[1]!.trim().toLowerCase();
-    if (/^(?:transparent|none|inherit|initial|url\()/.test(value)) continue;
-    if (/^(?:linear|radial)-gradient/.test(value) || parse(value.split(/\s+/)[0]!)) return true;
+  const doc = new DOMParser().parseFromString(html.slice(0, MAX_HTML), "text/html");
+  for (const el of Array.from(doc.querySelectorAll("[bgcolor]"))) {
+    const value = el.getAttribute("bgcolor")!.trim();
+    const color = value.toLowerCase() === "transparent" ? undefined : parse(value);
+    if (color) return true;
+  }
+  for (const el of Array.from(doc.querySelectorAll<HTMLElement>("[style]"))) {
+    if (paints(el.style)) return true;
+  }
+  for (const node of Array.from(doc.querySelectorAll("style"))) {
+    try {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(node.textContent ?? "");
+      for (const rule of Array.from(sheet.cssRules)) {
+        if ("style" in rule && paints(rule.style as CSSStyleDeclaration)) return true;
+      }
+    } catch {
+      // Unparseable: it paints nothing we can rely on.
+    }
   }
   return false;
 }
@@ -180,12 +228,12 @@ function clean(source: string, options: PrepareOptions) {
 
   DOMPurify.addHook("afterSanitizeElements", (node) => {
     // Lowercased: an SVG <style> reports "style", an HTML one "STYLE".
-    if (allowRemote || node.nodeName.toLowerCase() !== "style") return;
+    if (node.nodeName.toLowerCase() !== "style") return;
     const css = node.textContent ?? "";
-    const clean = cleanStylesheet(css);
+    const clean = cleanStylesheet(css, allowRemote);
     if (clean !== css) {
       node.textContent = clean;
-      blockedImages += 1;
+      if (!allowRemote && fetches(css)) blockedImages += 1;
     }
   });
 
@@ -227,14 +275,15 @@ function clean(source: string, options: PrepareOptions) {
     }
 
     const style = node.getAttribute("style");
-    if (!allowRemote && style && fetches(style)) {
-      if ("style" in node) stripDeclarations((node as HTMLElement).style);
-      if (fetches(node.getAttribute("style") ?? "")) node.removeAttribute("style");
-      blockedImages += 1;
-    }
-    if (dropDarkText && "style" in node) {
-      const css = (node as HTMLElement).style;
-      if (css?.color && isDark(css.color)) css.removeProperty("color");
+    if (style) {
+      const css = (node as HTMLElement).style as CSSStyleDeclaration | undefined;
+      const fetching = !allowRemote && fetches(style);
+      if (css) stripDeclarations(css, allowRemote);
+      if (fetching) {
+        blockedImages += 1;
+        if (fetches(node.getAttribute("style") ?? "")) node.removeAttribute("style");
+      }
+      if (dropDarkText && css?.color && isDark(css.color)) css.removeProperty("color");
     }
 
     if (tag === "a") {
@@ -244,7 +293,7 @@ function clean(source: string, options: PrepareOptions) {
   });
 
   try {
-    const html = DOMPurify.sanitize(source, {
+    const html = DOMPurify.sanitize(source.slice(0, MAX_HTML), {
       FORBID_TAGS: [
         "script",
         "iframe",
@@ -255,6 +304,10 @@ function clean(source: string, options: PrepareOptions) {
         "form",
         "input",
         "button",
+        "textarea",
+        "select",
+        "option",
+        "dialog",
         "base",
         "link",
         "meta",
@@ -296,7 +349,8 @@ export function splitQuoted(html: string): { html: string; quoted: string | null
   const holder = doc.createElement("div");
   for (const quote of quotes) {
     const before = quote.previousElementSibling;
-    if (before && /wrote:\s*$/i.test(before.textContent ?? "") && !before.matches(QUOTE)) {
+    const tail = (before?.textContent ?? "").slice(-200);
+    if (before && /wrote:\s*$/i.test(tail) && !before.matches(QUOTE)) {
       holder.append(before);
     }
     holder.append(quote);
