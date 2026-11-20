@@ -304,7 +304,12 @@ function MessageItem({
 
   if (outbound) {
     return (
-      <li className="rounded-[14px] border border-border bg-surface px-4 py-3.5">
+      <li
+        className={cx(
+          "rounded-[14px] border bg-surface px-4 py-3.5",
+          message.is_draft ? "border-dashed border-accent/50" : "border-border",
+        )}
+      >
         <button
           type="button"
           onClick={toggle}
@@ -312,7 +317,7 @@ function MessageItem({
           title={fullTime(when)}
           className="block max-w-full truncate text-left font-display text-[11.5px] font-semibold uppercase tracking-[0.04em] text-accent"
         >
-          {first ? "You wrote" : "Your reply"} ·{" "}
+          {message.is_draft ? "Draft, not sent" : first ? "You wrote" : "Your reply"} ·{" "}
           <span className="font-mono font-medium normal-case tracking-normal">
             {shortTime(when)}
           </span>
