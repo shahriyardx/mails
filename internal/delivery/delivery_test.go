@@ -236,6 +236,20 @@ func TestBounceKinds(t *testing.T) {
 	}
 }
 
+// failed_7d counts by sending time: a draft saved 40 days ago that bounced
+// today is in it.
+func TestOverviewCountsFailuresWhenSent(t *testing.T) {
+	e := setup(t, topic)
+	if _, err := e.pool.Exec(context.Background(), `UPDATE message SET delivery_status = 'bounced',
+		created_at = now() - interval '40 days', sent_at = now() - interval '1 hour' WHERE id = 'msg_1'`); err != nil {
+		t.Fatal(err)
+	}
+	o, err := e.svc.GetOverview(context.Background())
+	if err != nil || o.Failed != 1 || o.Sent24h != 1 {
+		t.Fatalf("overview = %+v %v", o, err)
+	}
+}
+
 func TestSuppressionCRUD(t *testing.T) {
 	e := setup(t, topic)
 	ctx := context.Background()

@@ -237,6 +237,33 @@ func TestIdempotencyAndBatch(t *testing.T) {
 	}
 }
 
+// A retried reply with the same Idempotency-Key replays the first answer
+// instead of sending the reply twice.
+func TestReplyIsIdempotent(t *testing.T) {
+	e := setup(t)
+	k := e.key(t, apikey.Input{Scopes: []string{"*"}})
+	e.receive(t, "sales@a.test", "Question")
+	var thread string
+	if err := e.pool.QueryRow(context.Background(), `SELECT id FROM thread`).Scan(&thread); err != nil {
+		t.Fatal(err)
+	}
+	body := map[string]any{"text": "Answer"}
+	first := e.call(t, k, "POST", "/threads/"+thread+"/reply", body, "Idempotency-Key", "reply-1")
+	again := e.call(t, k, "POST", "/threads/"+thread+"/reply", body, "Idempotency-Key", "reply-1")
+	if first.code != 202 || again.code != 202 || again.header.Get("Idempotency-Replayed") != "true" || first.body["id"] != again.body["id"] {
+		t.Fatalf("replay: %d %d %s %s", first.code, again.code, first.raw, again.raw)
+	}
+	if e.ses.SentCount() != 1 {
+		t.Fatalf("sent %d times", e.ses.SentCount())
+	}
+	if r := e.call(t, k, "POST", "/threads/"+thread+"/reply", map[string]any{"text": "Other"}, "Idempotency-Key", "reply-1"); r.code != 409 {
+		t.Fatalf("changed body: %d", r.code)
+	}
+	if r := e.call(t, k, "POST", "/threads/"+thread+"/reply", map[string]any{"text": "x", "template": "t"}); r.code != 422 {
+		t.Fatalf("unknown field: %d", r.code)
+	}
+}
+
 func TestRateLimitAndSuppressions(t *testing.T) {
 	e := setup(t)
 	limit := 2
@@ -291,6 +318,45 @@ func TestStatsWindowIsBounded(t *testing.T) {
 	} {
 		if r := e.call(t, k, "GET", "/stats"+c.query, nil); r.code != c.want {
 			t.Errorf("%s: %d, want %d (%s)", c.query, r.code, c.want, r.raw)
+		}
+	}
+}
+
+// Sent mail counts on the day it went out: a draft saved 40 days ago and
+// sent today is in today's numbers everywhere, not missing from some.
+func TestStatsCountSentMailWhenSent(t *testing.T) {
+	e := setup(t)
+	k := e.key(t, apikey.Input{Scopes: []string{"*"}})
+	now := time.Now().UTC()
+	if _, err := e.pool.Exec(context.Background(), `
+		INSERT INTO thread (id, mailbox_id, subject, last_message_at) VALUES ('thr_1', 'mbx_a', 'x', $1)`, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.pool.Exec(context.Background(), `
+		INSERT INTO message (id, thread_id, mailbox_id, from_address, subject, folder, is_outbound, delivery_status,
+			created_at, received_at, sent_at)
+		VALUES ('msg_old', 'thr_1', 'mbx_a', 'sales@a.test', 'x', 'sent', true, 'delivered', $1::timestamptz - interval '40 days', $1, $1)`,
+		now.Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	r := e.call(t, k, "GET", "/stats?days=7", nil)
+	if r.code != 200 {
+		t.Fatalf("stats: %d %s", r.code, r.raw)
+	}
+	if got := r.body["sending"].(map[string]any)["sent"]; got != 1.0 {
+		t.Errorf("sending.sent = %v, want 1", got)
+	}
+	days := r.body["days"].([]any)
+	var sent float64
+	for _, d := range days {
+		sent += d.(map[string]any)["sent"].(float64)
+	}
+	if sent != 1 {
+		t.Errorf("days sent = %v, want 1", sent)
+	}
+	for _, b := range r.body["mailboxes"].([]any) {
+		if b := b.(map[string]any); b["id"] == "mbx_a" && b["sent"] != 1.0 {
+			t.Errorf("mailbox sent = %v, want 1", b["sent"])
 		}
 	}
 }

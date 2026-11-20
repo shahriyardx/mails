@@ -615,3 +615,81 @@ func TestDraftFileListIsAuthoritative(t *testing.T) {
 		t.Fatal("sent files do not match the list")
 	}
 }
+
+// hookOnSend runs fn while SES has the message, as an owner acting in
+// another tab mid-send would.
+type hookOnSend struct {
+	*sesfake.Fake
+	fn func()
+}
+
+func (h hookOnSend) SendRaw(ctx context.Context, m ses.RawEmail) (string, error) {
+	h.fn()
+	return h.Fake.SendRaw(ctx, m)
+}
+
+// A draft claimed by an in-flight send cannot be trashed, moved or deleted
+// out from under it, and if its row is gone anyway the sent mail is still
+// recorded.
+func TestClaimedDraftSurvivesThreadActions(t *testing.T) {
+	tests := []struct {
+		name string
+		act  func(e *env, threadID, draftID string) error
+	}{
+		{"trash", func(e *env, thr, _ string) error {
+			_, err := e.s.Mail.DeleteThreads(context.Background(), nil, []string{thr}, false)
+			return err
+		}},
+		{"move to inbox", func(e *env, thr, _ string) error {
+			inbox := "inbox"
+			_, err := e.s.Mail.ChangeThreads(context.Background(), nil, []string{thr}, mail.ThreadChange{Folder: &inbox})
+			return err
+		}},
+		{"permanent delete", func(e *env, thr, _ string) error {
+			_, err := e.s.Mail.DeleteThreads(context.Background(), nil, []string{thr}, true)
+			return err
+		}},
+		{"trash then empty", func(e *env, thr, _ string) error {
+			if _, err := e.s.Mail.DeleteThreads(context.Background(), nil, []string{thr}, false); err != nil {
+				return err
+			}
+			_, err := e.s.Mail.EmptyTrash(context.Background(), nil, "", "")
+			return err
+		}},
+		{"row gone", func(e *env, _, id string) error {
+			_, err := e.pool.Exec(context.Background(), `DELETE FROM message WHERE id = $1`, id)
+			return err
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := setup(t)
+			ctx := context.Background()
+			d, err := e.s.SaveDraft(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Text: "x"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var actErr error
+			e.s.SES = hookOnSend{Fake: e.ses, fn: func() { actErr = tt.act(e, d.ThreadID, d.ID) }}
+			res, err := e.s.Send(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Text: "x", DraftID: d.ID})
+			if err != nil {
+				t.Fatalf("send: %v", err)
+			}
+			if actErr != nil {
+				t.Fatalf("action: %v", actErr)
+			}
+			var folder string
+			var draft bool
+			if err := e.pool.QueryRow(ctx, `SELECT folder::text, is_draft FROM message WHERE id = $1 AND ses_message_id = $2`,
+				res.ID, *res.SESMessageID).Scan(&folder, &draft); err != nil || folder != "sent" || draft {
+				t.Fatalf("recorded: %s draft=%v %v", folder, draft, err)
+			}
+			var stuck, threads int
+			_ = e.pool.QueryRow(ctx, `SELECT count(*) FROM message WHERE folder <> 'sent'`).Scan(&stuck)
+			_ = e.pool.QueryRow(ctx, `SELECT count(*) FROM thread WHERE id = $1`, res.ThreadID).Scan(&threads)
+			if stuck != 0 || threads != 1 || e.ses.SentCount() != 1 {
+				t.Fatalf("other messages=%d thread rows=%d sent=%d", stuck, threads, e.ses.SentCount())
+			}
+		})
+	}
+}

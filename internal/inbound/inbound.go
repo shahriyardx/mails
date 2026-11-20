@@ -23,6 +23,7 @@ import (
 	"github.com/shahriyardx/mails/internal/forwarding"
 	"github.com/shahriyardx/mails/internal/id"
 	"github.com/shahriyardx/mails/internal/mail"
+	"github.com/shahriyardx/mails/internal/mailbox"
 	"github.com/shahriyardx/mails/internal/realtime"
 )
 
@@ -102,6 +103,7 @@ type mailboxRow struct {
 // Ingest stores the message once per recipient mailbox and works out where
 // the worker should forward it.
 func (s *Service) Ingest(ctx context.Context, p *Payload, files []Attachment) (Result, error) {
+	stripNUL(p, files)
 	recipients := p.Recipients
 	if len(recipients) == 0 && p.To != "" {
 		recipients = []string{p.To}
@@ -187,6 +189,44 @@ func (s *Service) emitReceived(ctx context.Context, r Received, p *Payload, hasF
 	}}})
 }
 
+// stripNUL drops NUL bytes from every text the payload carries: Postgres
+// text cannot hold them, and any sender can put one in a header or body.
+func stripNUL(p *Payload, files []Attachment) {
+	str := func(v *string) {
+		if v != nil {
+			*v = strings.ReplaceAll(*v, "\x00", "")
+		}
+	}
+	list := func(vs []string) {
+		for i := range vs {
+			str(&vs[i])
+		}
+	}
+	people := func(as []addr.Address) {
+		for i := range as {
+			str(&as[i].Name)
+			str(&as[i].Address)
+		}
+	}
+	str(&p.To)
+	list(p.Recipients)
+	str(&p.From.Name)
+	str(&p.From.Address)
+	people(p.ToAddresses)
+	people(p.CcAddresses)
+	list(p.References)
+	for _, v := range []*string{&p.Subject, p.ReplyTo, p.Text, p.HTML, p.MessageID, p.InReplyTo, p.Date, p.RawKey,
+		p.Auth.SPF, p.Auth.DKIM, p.Auth.DMARC, p.MailedBy, p.SignedBy, p.TLS} {
+		str(v)
+	}
+	for i := range files {
+		f := &files[i]
+		for _, v := range []*string{&f.Filename, &f.ContentType, &f.R2Key, f.ContentID} {
+			str(v)
+		}
+	}
+}
+
 // removeOwn drops forward targets on our own domains: forwarding there
 // would send the message straight back in, forever.
 func removeOwn(ctx context.Context, q db.Querier, list []string) []string {
@@ -223,18 +263,19 @@ func (s *Service) resolveMailbox(ctx context.Context, address string) (*mailboxR
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("resolve mailbox: %w", err)
 	}
-	var domainID string
-	err = s.DB.QueryRow(ctx, `SELECT id FROM domain WHERE name = $1 AND auto_create_mailboxes`, domain).Scan(&domainID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
-	}
+	// Auto-create follows the closest domain covering the address, the one
+	// its mailbox is filed under.
+	dom, err := mailbox.Covering(ctx, s.DB, address)
 	if err != nil {
 		return nil, fmt.Errorf("auto-create lookup: %w", err)
+	}
+	if dom == nil || !dom.AutoCreate {
+		return nil, nil
 	}
 	// Two messages to a new address can arrive at once.
 	_, err = s.DB.Exec(ctx, `INSERT INTO mailbox (id, address, domain, domain_id, display_name, color)
 		VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (address) DO NOTHING`,
-		id.New("mbx"), address, domain, domainID, addr.LocalOf(address), addr.Color(address))
+		id.New("mbx"), address, domain, dom.ID, addr.LocalOf(address), addr.Color(address))
 	if err != nil {
 		return nil, fmt.Errorf("auto-create mailbox: %w", err)
 	}

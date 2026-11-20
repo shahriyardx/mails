@@ -96,7 +96,8 @@ func (s *Service) ChangeThreads(ctx context.Context, allowed, ids []string, c Th
 }
 
 // move puts a thread's messages in folder. Drafts never move: the composer
-// only looks for them in drafts.
+// only looks for them in drafts. Neither does a draft claimed by a send in
+// flight (folder 'drafts', is_draft false): the send records it as sent.
 //
 //   - trash: every message, remembering where it was for restore.
 //   - inbox: received mail to inbox, our own mail back to sent.
@@ -107,15 +108,15 @@ func move(ctx context.Context, tx pgx.Tx, threadIDs []string, folder string) err
 	switch folder {
 	case "trash":
 		sql = `UPDATE message SET previous_folder = folder, folder = 'trash'
-			WHERE thread_id = ANY($1) AND NOT is_draft AND folder <> 'trash'`
+			WHERE thread_id = ANY($1) AND NOT is_draft AND folder NOT IN ('trash', 'drafts')`
 	case "inbox":
 		sql = `UPDATE message SET previous_folder = NULL,
 			folder = CASE WHEN is_outbound THEN 'sent'::folder ELSE 'inbox'::folder END
-			WHERE thread_id = ANY($1) AND NOT is_draft`
+			WHERE thread_id = ANY($1) AND NOT is_draft AND folder <> 'drafts'`
 	default:
 		sql = `UPDATE message SET previous_folder = NULL,
 			folder = CASE WHEN is_outbound THEN 'sent'::folder ELSE $2::folder END
-			WHERE thread_id = ANY($1) AND NOT is_draft AND (NOT is_outbound OR folder = 'trash')`
+			WHERE thread_id = ANY($1) AND NOT is_draft AND folder <> 'drafts' AND (NOT is_outbound OR folder = 'trash')`
 	}
 	args := []any{threadIDs}
 	if strings.Contains(sql, "$2") {
@@ -245,13 +246,19 @@ func (s *Service) DeleteThreads(ctx context.Context, allowed, ids []string, perm
 			}
 		}
 		if len(purge) > 0 {
-			if keys, err = objectKeys(ctx, tx, "m.thread_id = ANY($1)", purge); err != nil {
+			// A draft claimed by a send in flight stays (and so does its
+			// thread): the send records it as sent.
+			const cond = "m.thread_id = ANY($1) AND NOT (m.folder = 'drafts' AND NOT m.is_draft)"
+			if keys, err = objectKeys(ctx, tx, cond, purge); err != nil {
 				return err
 			}
-			if _, err := tx.Exec(ctx, `DELETE FROM thread WHERE id = ANY($1)`, purge); err != nil {
+			if _, err := tx.Exec(ctx, `DELETE FROM message m WHERE `+cond, purge); err != nil {
 				return fmt.Errorf("purge threads: %w", err)
 			}
 			if keys, err = unusedKeys(ctx, tx, keys); err != nil {
+				return err
+			}
+			if err := recomputeAll(ctx, tx, purge); err != nil {
 				return err
 			}
 		}

@@ -499,17 +499,24 @@ func (s *Service) record(ctx context.Context, p *prepared, status, sesID, reason
 	}
 	var dropped []string
 	err := pgx.BeginFunc(ctx, s.DB, func(tx pgx.Tx) error {
-		if threadID == "" {
+		newThread := func() error {
 			threadID = id.New("thr")
 			if _, err := tx.Exec(ctx, `INSERT INTO thread (id, mailbox_id, subject, last_message_at) VALUES ($1, $2, $3, $4)`,
 				threadID, p.box.ID, p.in.Subject, now); err != nil {
 				return fmt.Errorf("insert thread: %w", err)
+			}
+			return nil
+		}
+		if threadID == "" {
+			if err := newThread(); err != nil {
+				return err
 			}
 		}
 		args := []any{msgID, threadID, p.box.ID, rfcID, nilIfEmpty(p.in.InReplyTo), nonNil(p.in.References),
 			p.from.Name, p.box.Address, addrs(p.in.To), addrs(p.in.Cc), addrs(p.in.Bcc), nilIfEmpty(p.in.ReplyTo), p.in.Subject,
 			addr.Snippet(p.text, p.html), nilIfEmpty(p.text), nilIfEmpty(p.html), sesPtr, status, reasonPtr,
 			nilIfEmpty(p.in.APIKeyID), len(p.raw), sentAt, now}
+		insert := true
 		if p.in.DraftID != "" {
 			tag, err := tx.Exec(ctx, `UPDATE message SET thread_id = $2, mailbox_id = $3, rfc_message_id = $4, in_reply_to = $5,
 				"references" = $6, from_name = $7, from_address = $8, to_addrs = $9, cc_addrs = $10, bcc_addrs = $11, reply_to = $12,
@@ -520,16 +527,34 @@ func (s *Service) record(ctx context.Context, p *prepared, status, sesID, reason
 			if err != nil {
 				return fmt.Errorf("send draft: %w", err)
 			}
-			if tag.RowsAffected() == 0 {
-				return httpx.NotFound("No such draft")
+			if insert = tag.RowsAffected() == 0; insert {
+				// The claimed draft went away while SES had the mail. The
+				// mail is out (or queued to go), so a 404 would invite a
+				// resend: record it as a new message, in a new thread if
+				// its own went too.
+				slog.Warn("claimed draft gone mid-send, recording a new message", "draft", p.in.DraftID)
+				msgID = id.New("msg")
+				var exists bool
+				if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM thread WHERE id = $1)`, threadID).Scan(&exists); err != nil {
+					return fmt.Errorf("check thread: %w", err)
+				}
+				if !exists {
+					if err := newThread(); err != nil {
+						return err
+					}
+				}
+				args[0], args[1] = msgID, threadID
 			}
-		} else if _, err := tx.Exec(ctx, `INSERT INTO message (id, thread_id, mailbox_id, rfc_message_id, in_reply_to, "references",
+		}
+		if insert {
+			if _, err := tx.Exec(ctx, `INSERT INTO message (id, thread_id, mailbox_id, rfc_message_id, in_reply_to, "references",
 				from_name, from_address, to_addrs, cc_addrs, bcc_addrs, reply_to, subject, snippet, text_body, html_body,
 				ses_message_id, delivery_status, delivery_error, api_key_id, size_bytes, sent_at, received_at,
 				folder, is_outbound, is_read)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, 'sent', true, true)`,
-			args...); err != nil {
-			return fmt.Errorf("insert message: %w", err)
+				args...); err != nil {
+				return fmt.Errorf("insert message: %w", err)
+			}
 		}
 		if err := attachFiles(ctx, tx, msgID, p.in.DraftID != "", p.staged, &dropped); err != nil {
 			return err
@@ -548,10 +573,8 @@ func (s *Service) record(ctx context.Context, p *prepared, status, sesID, reason
 				return fmt.Errorf("enqueue: %w", err)
 			}
 		}
-		for _, a := range append(append([]addr.Address{}, p.in.To...), p.in.Cc...) {
-			if err := mail.TouchContact(ctx, tx, a); err != nil {
-				return err
-			}
+		if err := mail.TouchContacts(ctx, tx, append(append([]addr.Address{}, p.in.To...), p.in.Cc...)); err != nil {
+			return err
 		}
 		if p.draftThread != "" && p.draftThread != threadID {
 			if err := mail.Recompute(ctx, tx, p.draftThread); err != nil {
