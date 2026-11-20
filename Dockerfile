@@ -4,11 +4,12 @@
 # compiles for the target, so a multi-arch build never emulates arm64.
 
 # 1. The dashboard. Built once, embedded into the Go binary.
-FROM --platform=$BUILDPLATFORM node:22-alpine AS web
-RUN corepack enable
+FROM --platform=$BUILDPLATFORM node:26-alpine AS web
+# Node 25+ ships without corepack; install the pnpm major the lockfiles use.
+RUN npm install -g pnpm@12 --ignore-scripts
 WORKDIR /src/web
 COPY web/package.json web/pnpm-lock.yaml* web/pnpm-workspace.yaml* ./
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY web/ ./
 RUN pnpm build
 
