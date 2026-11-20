@@ -473,23 +473,17 @@ func TestQueuedDraftComesBackWhenRecordFails(t *testing.T) {
 	}
 }
 
-func TestDeleteStuckClaimedDraft(t *testing.T) {
+// A draft claimed by a send still talking to SES is not a draft any more:
+// deleting it would leave sent mail with no record.
+func TestClaimedDraftCannotBeDeleted(t *testing.T) {
 	e := setup(t)
 	ctx := context.Background()
-	stuck, _ := e.s.SaveDraft(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Text: "x"})
-	queued, _ := e.s.SaveDraft(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Text: "y"})
-	if _, err := e.pool.Exec(ctx, `UPDATE message SET is_draft = false WHERE id = ANY($1)`, []string{stuck.ID, queued.ID}); err != nil {
+	d, _ := e.s.SaveDraft(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Text: "x"})
+	if _, err := e.pool.Exec(ctx, `UPDATE message SET is_draft = false WHERE id = $1`, d.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.pool.Exec(ctx, `INSERT INTO send_job (id, message_id, mailbox_id, from_address, recipients, raw_mime, next_attempt_at)
-		VALUES ('job_1', $1, 'mbx_1', 'me@a.test', '{a@b.test}', '', now())`, queued.ID); err != nil {
-		t.Fatal(err)
-	}
-	if err := e.s.DeleteDraft(ctx, nil, stuck.ID); err != nil {
-		t.Fatalf("stuck draft: %v", err)
-	}
-	if err := e.s.DeleteDraft(ctx, nil, queued.ID); code(err) != 404 {
-		t.Fatalf("draft with a job: %v, want 404", err)
+	if err := e.s.DeleteDraft(ctx, nil, d.ID); code(err) != 404 {
+		t.Fatalf("delete claimed draft: %v, want 404", err)
 	}
 }
 

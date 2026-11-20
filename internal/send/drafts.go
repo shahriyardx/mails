@@ -90,12 +90,10 @@ func (s *Service) SaveDraft(ctx context.Context, in Input) (*Result, error) {
 	return &Result{ID: msgID, ThreadID: threadID, From: p.box.Address, To: addr.Addresses(in.To), Subject: in.Subject, Status: "draft"}, nil
 }
 
-// DeleteDraft discards a draft and its files. A draft left claimed by a
-// send that never recorded (folder drafts, not is_draft, no job) can go too.
+// DeleteDraft discards a draft and its files.
 func (s *Service) DeleteDraft(ctx context.Context, allowed []string, draftID string) error {
 	var threadID, mailboxID string
-	err := s.DB.QueryRow(ctx, `SELECT thread_id, mailbox_id FROM message m WHERE id = $1
-		AND (is_draft OR (folder = 'drafts' AND NOT EXISTS (SELECT 1 FROM send_job j WHERE j.message_id = m.id)))`, draftID).Scan(&threadID, &mailboxID)
+	err := s.DB.QueryRow(ctx, `SELECT thread_id, mailbox_id FROM message WHERE id = $1 AND is_draft`, draftID).Scan(&threadID, &mailboxID)
 	if err == pgx.ErrNoRows || (err == nil && allowed != nil && !contains(allowed, mailboxID)) {
 		return httpx.NotFound("No such draft")
 	}
