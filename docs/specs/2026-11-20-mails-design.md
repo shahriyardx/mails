@@ -285,7 +285,7 @@ color, gentle steps between surfaces.
 
 ### Design notes
 
-`DESIGN.md` is rewritten to describe this system and replaces the current
+`docs/design.md` (was `DESIGN.md`) is rewritten to describe this system and replaces the current
 one (indigo accent, Radix, light-first).
 
 ## Docs

@@ -1,5 +1,5 @@
 /* Soothing dark: the only theme. Values follow the "Color: soothing dark"
-   table in specs/2026-11-20-mails-design.md. Every grey sits at hue 85 with
+   table in docs/specs/2026-11-20-mails-design.md. Every grey sits at hue 85 with
    chroma at or below 0.01. Surfaces are mixed from --foreground into
    --background in srgb (an oklch mix of two greys drifts in hue).
 

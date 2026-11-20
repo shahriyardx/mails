@@ -5,7 +5,7 @@ binary. Sends through Amazon SES, receives through a Cloudflare Email Worker,
 stores mail in Postgres and attachments in Cloudflare R2. Public REST API,
 webhooks, a Node SDK and a browser extension.
 
-**Read first:** `specs/2026-11-20-mails-design.md`. Its top section ("Go
+**Read first:** `docs/specs/2026-11-20-mails-design.md`. Its top section ("Go
 rewrite") overrides the rest. Scope (what stays, what goes), the API list and
 the UI system are decided there. Do not re-ask the owner about them.
 
@@ -109,7 +109,7 @@ worker/               Cloudflare Email Worker; `pnpm build` writes dist/index.js
                       embedded by worker/embed.go and deployed from the dashboard
 packages/sdk          Node SDK @shahriyardx/mails
 packages/extension    Browser extension "Mails" (WXT)
-specs/                design spec
+docs/                 design notes (design.md) and the original spec (specs/)
 ```
 
 New server features go in their own package under `internal/` (for example
@@ -186,7 +186,7 @@ Notes:
 - Reporting is set up from Settings -> Reporting or `mails ses-setup-events`;
   the configuration set and topic are saved in `settings` (env vars win).
 - Demo data: `mails seed-demo` / `--remove`. Screenshots: `COOKIE=$(mails
-  session) pnpm shots` in web/. Look and rules: DESIGN.md.
+  session) pnpm shots` in web/. Look and rules: docs/design.md.
 
 Still to verify by hand on the real setup: send one mail through SES and
 receive one through the worker (needs real AWS, Cloudflare and R2 keys).
