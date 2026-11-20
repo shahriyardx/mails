@@ -114,8 +114,6 @@ type Result struct {
 	Subject      string   `json:"subject"`
 	Status       string   `json:"status"`
 	Error        *string  `json:"error,omitempty"`
-	ScheduledAt  *string  `json:"scheduled_at"`
-	Test         bool     `json:"test"`
 }
 
 // prepared is a validated message, ready to go out or be saved.
@@ -234,6 +232,9 @@ func (s *Service) prepare(ctx context.Context, in *Input, draft bool) (*prepared
 		return nil, httpx.Invalid("from", "from: "+from.Address+" is not on a domain verified for sending")
 	} else if err != nil {
 		return nil, err
+	}
+	if in.APIKeyID != "" && in.DraftID != "" {
+		return nil, httpx.Invalid("draft_id", "draft_id: Drafts belong to the dashboard")
 	}
 	if in.Allowed != nil && !contains(in.Allowed, box.ID) {
 		return nil, httpx.Forbidden("This API key cannot send as " + box.Address)

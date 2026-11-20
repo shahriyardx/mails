@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,6 +34,9 @@ type Service struct {
 	InboundSecret string
 	R2Bucket      string
 	Script        []byte
+	// TrustAuthResults turns on the worker's reading of Cloudflare's
+	// Authentication-Results header (WORKER_TRUST_AUTH_RESULTS).
+	TrustAuthResults bool
 }
 
 // ErrNotConnected means no Cloudflare token is stored.
@@ -188,7 +192,7 @@ func (s *Service) Deploy(ctx context.Context) error {
 		{Type: "plain_text", Name: "STORE_RAW", Text: "true"},
 		{Type: "plain_text", Name: "MAX_ATTACHMENT_BYTES", Text: maxAttBytes},
 		{Type: "plain_text", Name: "FORWARD_TO", Text: ""},
-		{Type: "plain_text", Name: "TRUST_AUTH_RESULTS", Text: "false"},
+		{Type: "plain_text", Name: "TRUST_AUTH_RESULTS", Text: strconv.FormatBool(s.TrustAuthResults)},
 		{Type: "secret_text", Name: "INBOUND_WEBHOOK_SECRET", Text: s.InboundSecret},
 	})
 	return explain(err, "Workers Scripts -> Edit and Workers R2 Storage -> Edit")

@@ -26,6 +26,9 @@ type Config struct {
 	SESDKIMSelector    string `env:"SES_DKIM_SELECTOR" envDefault:"mail"`
 
 	InboundSecret string `env:"INBOUND_WEBHOOK_SECRET,required"`
+	// Passed to the worker on deploy: read SPF/DKIM/DMARC from Cloudflare's
+	// Authentication-Results header. See worker/PAYLOAD.md before enabling.
+	WorkerTrustAuthResults bool `env:"WORKER_TRUST_AUTH_RESULTS" envDefault:"false"`
 
 	R2AccountID       string `env:"R2_ACCOUNT_ID"`
 	R2AccessKeyID     string `env:"R2_ACCESS_KEY_ID"`

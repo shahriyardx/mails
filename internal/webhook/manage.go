@@ -315,6 +315,13 @@ func (s *Service) Replay(ctx context.Context, visible *Scope, deliveryID string)
 	if err != nil {
 		return nil, fmt.Errorf("load delivery: %w", err)
 	}
+	var enabled bool
+	if err := s.DB.QueryRow(ctx, `SELECT enabled FROM webhook WHERE id = $1`, hookID).Scan(&enabled); err != nil {
+		return nil, fmt.Errorf("load webhook: %w", err)
+	}
+	if !enabled {
+		return nil, httpx.Conflict("The endpoint is turned off. Turn it on, then replay")
+	}
 	return s.sendNow(ctx, hookID, event, eventID, payload, attempt+1)
 }
 

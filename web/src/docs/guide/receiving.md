@@ -122,16 +122,14 @@ below.
 **These are `null` until you turn them on.** They come from the
 `Authentication-Results` header Cloudflare adds, and nothing in a message
 proves Cloudflare wrote it: a sender can forge one. So the worker ignores the
-header unless its variable `TRUST_AUTH_RESULTS` is `"true"`, and Mails
-deploys it as `"false"`.
+header unless its variable `TRUST_AUTH_RESULTS` is `"true"`. Mails deploys
+the worker with that variable set from `WORKER_TRUST_AUTH_RESULTS`, which is
+`false` by default.
 
 Turn it on only after checking, in a raw `.eml` from R2, that
 `Authentication-Results: mx.cloudflare.net; …` is the topmost such header on
-every message. Set the variable on the `mails-inbound` worker in the
-Cloudflare dashboard (Workers → mails-inbound → Settings → Variables).
-
-> **Warning:** Pressing **Deploy worker** again sets `TRUST_AUTH_RESULTS`
-> back to `"false"`. Set it again after every redeploy.
+every message. Then set `WORKER_TRUST_AUTH_RESULTS=true`, restart Mails, and
+press **Deploy worker** again.
 
 Even then the worker reads only the topmost header, only when its
 authserv-id is exactly `mx.cloudflare.net`, and only when it parses strictly.

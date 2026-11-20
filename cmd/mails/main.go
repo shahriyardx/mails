@@ -115,6 +115,7 @@ func run() error {
 	cf := &cloudflare.Service{
 		DB: pool, Box: box, NewAPI: cloudflare.NewAPI, AppURL: cfg.AppURL,
 		InboundSecret: cfg.InboundSecret, R2Bucket: cfg.R2Bucket, Script: worker.Script,
+		TrustAuthResults: cfg.WorkerTrustAuthResults,
 	}
 	mailboxes := &mailbox.Service{DB: pool, Receiving: func(ctx context.Context, d string) any { return cf.EnsureSubdomainReceiving(ctx, d) }}
 	sender := &send.Service{

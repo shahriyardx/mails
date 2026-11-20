@@ -139,8 +139,19 @@ func (a *API) stats(_ http.ResponseWriter, r *http.Request, c *caller) (int, any
 	if err != nil {
 		return 0, nil, err
 	}
-	if dayList == nil {
-		dayList = []statDay{}
+	// One row per day in the window, mail or not, so charts need no gaps.
+	byDay := make(map[string]statDay, len(dayList))
+	for _, d := range dayList {
+		byDay[d.Day] = d
+	}
+	dayList = []statDay{}
+	for d := since.UTC().Truncate(24 * time.Hour); d.Before(until); d = d.AddDate(0, 0, 1) {
+		key := d.Format("2006-01-02")
+		row, ok := byDay[key]
+		if !ok {
+			row = statDay{Day: key}
+		}
+		dayList = append(dayList, row)
 	}
 	if boxes == nil {
 		boxes = []statMailbox{}

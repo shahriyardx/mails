@@ -425,6 +425,7 @@ func findThread(ctx context.Context, tx pgx.Tx, mailboxID string, p *Payload, su
 }
 
 type actions struct {
+	moved    bool
 	folder   string
 	markRead bool
 	star     bool
@@ -467,8 +468,10 @@ func applyFilters(ctx context.Context, tx pgx.Tx, p *Payload, folder string) (ac
 		if active == 0 || !ok {
 			continue
 		}
-		if r.Folder != nil {
-			act.folder = *r.Folder
+		// Highest priority first, so the first matching rule picks the
+		// folder; flags and labels add up.
+		if r.Folder != nil && !act.moved {
+			act.folder, act.moved = *r.Folder, true
 		}
 		act.markRead = act.markRead || r.MarkRead
 		act.star = act.star || r.Star

@@ -53,6 +53,7 @@ The app will not start without these.
 | `GITHUB_CLIENT_ID` | From step 1 |
 | `GITHUB_CLIENT_SECRET` | From step 1 |
 | `INBOUND_WEBHOOK_SECRET` | Shared with the Cloudflare worker. Generate: `openssl rand -hex 32` |
+| `WORKER_TRUST_AUTH_RESULTS` | `false` by default. See [Receiving mail](/docs/guide/receiving) before turning it on |
 
 > **Warning:** `SECRET` is load-bearing. Change it later and the stored
 > Cloudflare token can no longer be read; you will have to connect it again

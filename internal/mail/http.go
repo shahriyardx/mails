@@ -97,8 +97,10 @@ func timeParam(q url.Values, name string) (*time.Time, error) {
 	if v == "" {
 		return nil, nil
 	}
-	if t, err := time.Parse(time.RFC3339, v); err == nil {
-		return &t, nil
+	for _, layout := range []string{time.RFC3339, "2006-01-02"} {
+		if t, err := time.Parse(layout, v); err == nil {
+			return &t, nil
+		}
 	}
 	if ms, err := strconv.ParseInt(v, 10, 64); err == nil {
 		t := time.UnixMilli(ms)

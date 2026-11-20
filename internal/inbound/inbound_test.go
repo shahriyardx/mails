@@ -308,3 +308,16 @@ func TestHandler(t *testing.T) {
 		t.Fatalf("unknown: %d %s", w.Code, w.Body)
 	}
 }
+
+func TestHighestPriorityFilterPicksFolder(t *testing.T) {
+	s, pool, _ := setup(t)
+	ctx := context.Background()
+	_, _ = pool.Exec(ctx, `INSERT INTO filter_rule (id, name, priority, match_from, action_folder) VALUES
+		('flt_hi', 'hi', 10, 'sender.test', 'archive'), ('flt_lo', 'lo', 1, 'sender.test', 'trash')`)
+	res, _ := s.Ingest(ctx, msg("hi@a.test", "", "x"), nil)
+	var folder string
+	_ = pool.QueryRow(ctx, `SELECT folder::text FROM message WHERE id = $1`, res.Stored[0]).Scan(&folder)
+	if folder != "archive" {
+		t.Fatalf("folder = %s, want the high-priority rule's archive", folder)
+	}
+}

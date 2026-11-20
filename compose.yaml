@@ -1,6 +1,6 @@
 services:
-  # The app. `docker compose up -d` runs both; for local development run
-  # only postgres and `go run ./cmd/mails`.
+  # The app, behind the "app" profile: `docker compose --profile app up -d`
+  # runs both. For development run only postgres and `go run ./cmd/mails`.
   mails:
     build: .
     container_name: mails

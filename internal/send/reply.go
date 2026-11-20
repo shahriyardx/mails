@@ -33,6 +33,9 @@ type ReplyInput struct {
 // Reply sends an answer to the last message of a thread, from the thread's
 // mailbox.
 func (s *Service) Reply(ctx context.Context, threadID string, in ReplyInput) (*Result, error) {
+	if strings.TrimSpace(in.Text) == "" && strings.TrimSpace(in.HTML) == "" {
+		return nil, httpx.Invalid("text", "text: Give text or html")
+	}
 	t, err := s.Mail.GetThread(ctx, in.Allowed, threadID, true)
 	if err != nil {
 		return nil, err
