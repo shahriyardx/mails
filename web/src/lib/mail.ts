@@ -47,6 +47,22 @@ export function mailHref(
   return `/mail/${encodeURIComponent(segment)}/${folder}${qs ? `?${qs}` : ""}`;
 }
 
+/**
+ * Where a swiped row goes. Left archives, right deletes; both slide the row
+ * away, except in Trash, where delete asks first, so the row springs back.
+ */
+export function swipeOutcome(
+  offsetX: number,
+  velocityX: number,
+  folder: ViewFolder,
+  far = 96,
+): { action: "archive" | "delete" | null; slideOut: boolean } {
+  const isFar = Math.abs(offsetX) > far || Math.abs(velocityX) > 600;
+  if (!isFar || offsetX === 0) return { action: null, slideOut: false };
+  if (offsetX < 0) return { action: "archive", slideOut: true };
+  return { action: "delete", slideOut: folder !== "trash" };
+}
+
 // ---- Addresses ------------------------------------------------------------
 
 export const EMAIL = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;

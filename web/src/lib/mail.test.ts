@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayGroup, formatStamp } from "./mail";
+import { dayGroup, formatStamp, swipeOutcome } from "./mail";
 
 // Thursday 20 Nov 2026, 15:00 local time.
 const now = new Date(2026, 10, 20, 15, 0);
@@ -31,5 +31,18 @@ describe("formatStamp", () => {
     [at(2024, 0, 5), "Jan 24"],
   ])("%s -> %s", (value, want) => {
     expect(formatStamp(value, now)).toBe(want);
+  });
+});
+
+describe("swipeOutcome", () => {
+  it.each([
+    ["short drag", 40, 0, "inbox", { action: null, slideOut: false }],
+    ["left archives", -120, 0, "inbox", { action: "archive", slideOut: true }],
+    ["right deletes", 120, 0, "inbox", { action: "delete", slideOut: true }],
+    ["fast flick", 30, 900, "inbox", { action: "delete", slideOut: true }],
+    // Delete in Trash opens a confirm dialog; Cancel must not leave the row off-screen.
+    ["right in trash asks first", 120, 0, "trash", { action: "delete", slideOut: false }],
+  ] as const)("%s", (_, offset, velocity, folder, want) => {
+    expect(swipeOutcome(offset, velocity, folder)).toEqual(want);
   });
 });

@@ -16,7 +16,7 @@ import { spatial } from "@/components/kit/motion";
 import { errorMessage, useThreads } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { useIsTouch } from "@/lib/hooks";
-import { dayGroup, displayName, formatStamp } from "@/lib/mail";
+import { dayGroup, displayName, formatStamp, swipeOutcome } from "@/lib/mail";
 import type { Thread, ThreadFilter, ViewFolder } from "@/lib/types";
 import { LabelMenu } from "./label-menu";
 import { movableFolder, useThreadActions } from "./use-thread-actions";
@@ -344,12 +344,15 @@ function Row({
 
   // Touch: swipe left archives, right moves to trash; the action shows underneath.
   function onDragEnd(_: unknown, info: PanInfo) {
-    const far = Math.abs(info.offset.x) > SWIPE || Math.abs(info.velocity.x) > 600;
-    if (far && info.offset.x < 0) {
-      void animate(x, -window.innerWidth, spatial).then(onArchive);
-    } else if (far && info.offset.x > 0) {
-      void animate(x, window.innerWidth, spatial).then(onDelete);
+    const { action, slideOut } = swipeOutcome(info.offset.x, info.velocity.x, folder, SWIPE);
+    const run = action === "archive" ? onArchive : action === "delete" ? onDelete : null;
+    if (!run) {
+      void animate(x, 0, spatial);
+    } else if (slideOut) {
+      void animate(x, Math.sign(info.offset.x) * window.innerWidth, spatial).then(run);
     } else {
+      // Trash: delete asks first, so the row comes back while the dialog is up.
+      run();
       void animate(x, 0, spatial);
     }
   }
