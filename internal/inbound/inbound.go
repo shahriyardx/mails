@@ -23,6 +23,7 @@ import (
 	"github.com/shahriyardx/mails/internal/forwarding"
 	"github.com/shahriyardx/mails/internal/id"
 	"github.com/shahriyardx/mails/internal/mail"
+	"github.com/shahriyardx/mails/internal/mailbox"
 	"github.com/shahriyardx/mails/internal/realtime"
 )
 
@@ -223,18 +224,19 @@ func (s *Service) resolveMailbox(ctx context.Context, address string) (*mailboxR
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("resolve mailbox: %w", err)
 	}
-	var domainID string
-	err = s.DB.QueryRow(ctx, `SELECT id FROM domain WHERE name = $1 AND auto_create_mailboxes`, domain).Scan(&domainID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
-	}
+	// Auto-create follows the closest domain covering the address, the one
+	// its mailbox is filed under.
+	dom, err := mailbox.Covering(ctx, s.DB, address)
 	if err != nil {
 		return nil, fmt.Errorf("auto-create lookup: %w", err)
+	}
+	if dom == nil || !dom.AutoCreate {
+		return nil, nil
 	}
 	// Two messages to a new address can arrive at once.
 	_, err = s.DB.Exec(ctx, `INSERT INTO mailbox (id, address, domain, domain_id, display_name, color)
 		VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (address) DO NOTHING`,
-		id.New("mbx"), address, domain, domainID, addr.LocalOf(address), addr.Color(address))
+		id.New("mbx"), address, domain, dom.ID, addr.LocalOf(address), addr.Color(address))
 	if err != nil {
 		return nil, fmt.Errorf("auto-create mailbox: %w", err)
 	}

@@ -176,12 +176,29 @@ func TestRouting(t *testing.T) {
 	if res, err := s.Ingest(ctx, msg("new@auto.test", "", "x"), nil); err != nil || len(res.Stored) != 1 {
 		t.Fatalf("auto: %+v %v", res, err)
 	}
+	// ...and on a subdomain it covers, filed under it.
+	res, err := s.Ingest(ctx, msg("new@sub.auto.test", "", "x"), nil)
+	if err != nil || len(res.Stored) != 1 {
+		t.Fatalf("auto on subdomain: %+v %v", res, err)
+	}
+	var domainID string
+	_ = pool.QueryRow(ctx, `SELECT domain_id FROM mailbox WHERE address = 'new@sub.auto.test'`).Scan(&domainID)
+	if domainID != "dom_auto" {
+		t.Fatalf("auto-created mailbox domain = %q", domainID)
+	}
+	// A closer domain without auto-create wins over its parent's.
+	if _, err := pool.Exec(ctx, `INSERT INTO domain (id, name, region) VALUES ('dom_off', 'off.auto.test', 'us-east-1')`); err != nil {
+		t.Fatal(err)
+	}
+	if res, err := s.Ingest(ctx, msg("new@off.auto.test", "", "x"), nil); err != nil || len(res.Stored) != 0 {
+		t.Fatalf("closer domain without auto-create: %+v %v", res, err)
+	}
 	// Catch-all takes anything on its domain.
 	if _, err := pool.Exec(ctx, `UPDATE mailbox SET is_catch_all = true WHERE id = 'mbx_hi'`); err != nil {
 		t.Fatal(err)
 	}
 	var mbx string
-	res, _ := s.Ingest(ctx, msg("random@a.test", "", "x"), nil)
+	res, _ = s.Ingest(ctx, msg("random@a.test", "", "x"), nil)
 	_ = pool.QueryRow(ctx, `SELECT mailbox_id FROM message WHERE id = $1`, res.Stored[0]).Scan(&mbx)
 	if mbx != "mbx_hi" {
 		t.Fatalf("catch-all mailbox = %q", mbx)
@@ -257,6 +274,14 @@ func TestForwardAnswer(t *testing.T) {
 	res, _ = s.Ingest(ctx, msg("ghost@a.test", "", "z"), nil)
 	if len(res.Stored) != 0 || len(res.Forward) != 1 || res.Forward[0] != "all@x.test" {
 		t.Fatalf("unknown forward = %+v", res)
+	}
+	// An unknown address on a subdomain a.test covers follows a.test's
+	// rules, like its mailboxes would.
+	_, _ = pool.Exec(ctx, `INSERT INTO forward_address (id, address, verified_at) VALUES ('fwa_d', 'dom@x.test', now());
+		INSERT INTO forward_rule (id, address_id, domain_id) VALUES ('fwr_d', 'fwa_d', 'dom_a')`)
+	res, _ = s.Ingest(ctx, msg("ghost@sub.a.test", "", "z"), nil)
+	if len(res.Stored) != 0 || len(res.Forward) != 2 || res.Forward[0] != "all@x.test" || res.Forward[1] != "dom@x.test" {
+		t.Fatalf("unknown subdomain forward = %+v", res)
 	}
 }
 

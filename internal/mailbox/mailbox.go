@@ -102,18 +102,21 @@ type Input struct {
 	Color       string  `json:"color" validate:"max=64"`
 }
 
-type coveringDomain struct {
-	ID       string
-	Name     string
-	Sendable bool
+// CoveringDomain is the domain an address sits on or under.
+type CoveringDomain struct {
+	ID         string
+	Name       string
+	Sendable   bool
+	AutoCreate bool
 }
 
-// covering returns the domain an address sits on or under, or nil.
-func (s *Service) covering(ctx context.Context, address string) (*coveringDomain, error) {
-	rows, _ := s.DB.Query(ctx, `SELECT id, name, status = 'verified' AND sending_enabled FROM domain`)
-	all, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (coveringDomain, error) {
-		var d coveringDomain
-		return d, r.Scan(&d.ID, &d.Name, &d.Sendable)
+// Covering returns the closest domain covering address (addr.Covering:
+// itself, else its nearest parent), or nil.
+func Covering(ctx context.Context, q db.Querier, address string) (*CoveringDomain, error) {
+	rows, _ := q.Query(ctx, `SELECT id, name, status = 'verified' AND sending_enabled, auto_create_mailboxes FROM domain`)
+	all, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (CoveringDomain, error) {
+		var d CoveringDomain
+		return d, r.Scan(&d.ID, &d.Name, &d.Sendable, &d.AutoCreate)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("query domains: %w", err)
@@ -126,6 +129,10 @@ func (s *Service) covering(ctx context.Context, address string) (*coveringDomain
 		return &all[i], nil
 	}
 	return nil, nil
+}
+
+func (s *Service) covering(ctx context.Context, address string) (*CoveringDomain, error) {
+	return Covering(ctx, s.DB, address)
 }
 
 // Create adds a mailbox on a domain this instance has, or under one. The

@@ -13,8 +13,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/shahriyardx/mails/internal/addr"
 	"github.com/shahriyardx/mails/internal/db"
+	"github.com/shahriyardx/mails/internal/mailbox"
 )
 
 // ForMailbox returns the addresses mail delivered to a mailbox is copied to.
@@ -32,16 +32,21 @@ ORDER BY fa.address`, mailboxID)
 }
 
 // ForUnknown returns where mail for an address with no mailbox goes: the
-// rules of its domain, then the instance's. Empty when the domain is not ours.
+// rules of the closest domain covering it (where a mailbox there would be
+// filed), then the instance's. Empty when no domain of ours covers it.
 func ForUnknown(ctx context.Context, q db.Querier, address string) ([]string, error) {
+	dom, err := mailbox.Covering(ctx, q, address)
+	if err != nil || dom == nil {
+		return nil, err
+	}
 	return collect(ctx, q, `
 SELECT DISTINCT fa.address FROM forward_rule fr
 JOIN forward_address fa ON fa.id = fr.address_id
-JOIN domain d ON d.name = $1
+JOIN domain d ON d.id = $1
 WHERE fa.verified_at IS NOT NULL AND (
 	fr.domain_id = d.id
 	OR (NOT d.forward_off AND fr.domain_id IS NULL AND fr.mailbox_id IS NULL))
-ORDER BY fa.address`, addr.DomainOf(address))
+ORDER BY fa.address`, dom.ID)
 }
 
 func collect(ctx context.Context, q db.Querier, sql string, arg string) ([]string, error) {
