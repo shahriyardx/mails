@@ -4,12 +4,12 @@
 #   scripts/release.sh 0.1.5        (or: make release VERSION=0.1.5)
 #
 # Needs: go, pnpm, docker with buildx, gh (logged in), `docker login ghcr.io`,
-# and the compose Postgres for the Go tests. `npm login` is optional: without
-# it the Node SDK is skipped (publish it later with `make publish-sdk`).
+# and the compose Postgres for the Go tests. The Node SDK is versioned on its
+# own and is not part of an app release: publish it with `make publish-sdk`.
 #
 # Steps: checks, tests, dashboard, server binaries (linux/darwin x
 # amd64/arm64), extension zips, image (started once before it is pushed),
-# git tag, GitHub release with the CHANGELOG section and the files, SDK.
+# git tag, GitHub release with the CHANGELOG section and the files.
 # SKIP_TESTS=1 skips the tests. DRY_RUN=1 builds and checks everything,
 # then stops before pushing, tagging or uploading anything.
 set -euo pipefail
@@ -104,12 +104,5 @@ else
   gh release create "$TAG" --verify-tag --title "Mails $TAG" --notes "$notes" >/dev/null
 fi
 gh release upload "$TAG" "$OUT"/*.tar.gz "$OUT/checksums.txt" "$OUT"/*.zip --clobber
-
-say "Node SDK"
-if npm whoami >/dev/null 2>&1; then
-  make publish-sdk VERSION="$VERSION"
-else
-  echo "npm is not logged in: skipped (later: npm login && make publish-sdk VERSION=$VERSION)"
-fi
 
 say "Done: $TAG, image $IMAGE:$VERSION"

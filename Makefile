@@ -46,11 +46,11 @@ push-image: web ## Build Linux binaries here and push the image to ghcr (run `do
 	docker buildx build --builder mails-builder --platform linux/amd64,linux/arm64 -f Dockerfile.release \
 		-t $(IMAGE):$(VERSION) -t $(IMAGE):latest --push dist/image
 
-publish-sdk: ## Test and publish the Node SDK to npm at VERSION (run `npm login` first)
-	@test -n "$(VERSION)" || (echo "No version: tag a release or pass VERSION=1.2.3"; exit 1)
+publish-sdk: ## Test and publish the Node SDK to npm at SDK_VERSION (run `npm login` first)
+	@test -n "$(SDK_VERSION)" || (echo "Pass SDK_VERSION=1.2.3 (the SDK is versioned on its own)"; exit 1)
 	@npm whoami >/dev/null 2>&1 || (echo "Not logged in to npm: run npm login"; exit 1)
 	cd packages/sdk && pnpm install --frozen-lockfile --ignore-scripts && pnpm typecheck && pnpm test
-	cd packages/sdk && npm pkg set version=$(VERSION) && npm publish --access public; \
+	cd packages/sdk && npm pkg set version=$(SDK_VERSION) && npm publish --access public; \
 		status=$$?; git checkout -- package.json; exit $$status
 
 clean: ## Remove build output
