@@ -238,22 +238,22 @@ export function useCounts(scope: { mailbox?: string; domain?: string } = {}) {
 type ThreadPages = InfiniteData<Page<Thread>>;
 
 /** Applies fn to every cached thread list, keeping a snapshot to roll back. */
-function editLists(client: QueryClient, fn: (t: Thread) => Thread | null) {
+function editLists(client: QueryClient, fn: (t: Thread, filter: ThreadFilter) => Thread | null) {
   const snapshot = client.getQueriesData<ThreadPages>({ queryKey: keys.threads() });
-  client.setQueriesData<ThreadPages>({ queryKey: keys.threads() }, (data) =>
-    data
-      ? {
-          ...data,
-          pages: data.pages.map((page) => ({
-            ...page,
-            data: page.data.flatMap((t) => {
-              const next = fn(t);
-              return next ? [next] : [];
-            }),
-          })),
-        }
-      : data,
-  );
+  for (const [key, data] of snapshot) {
+    if (!data) continue;
+    const filter = (key[1] ?? {}) as ThreadFilter;
+    client.setQueryData<ThreadPages>(key, {
+      ...data,
+      pages: data.pages.map((page) => ({
+        ...page,
+        data: page.data.flatMap((t) => {
+          const next = fn(t, filter);
+          return next ? [next] : [];
+        }),
+      })),
+    });
+  }
   return () => {
     for (const [key, data] of snapshot) client.setQueryData(key, data);
   };
@@ -276,21 +276,36 @@ export function useChangeThreads() {
       api<{ ids: string[] }>("/api/app/threads", { method: "PATCH", body: { ids, ...change } }),
     onMutate: async ({ ids, change }) => {
       await client.cancelQueries({ queryKey: keys.threads() });
-      const set = new Set(ids);
-      return editLists(client, (t) => {
-        if (!set.has(t.id)) return t;
-        if (change.folder) return null;
-        return {
-          ...t,
-          ...(change.is_read !== undefined && {
-            unread_count: change.is_read ? 0 : Math.max(1, t.unread_count),
-          }),
-          ...(change.is_starred !== undefined && { is_starred: change.is_starred }),
-        };
-      });
+      return changeLists(client, ids, change);
     },
     onError: (_error, _vars, rollback) => rollback?.(),
     onSettled: (_data, _error, { ids }) => refreshThreads(client, ids),
+  });
+}
+
+const MOVED_OUT = new Set(["inbox", "archive", "spam", "trash"]);
+
+/**
+ * The optimistic part of useChangeThreads. A moved thread leaves only the
+ * Inbox, Archive, Spam or Trash list it is moving out of; Starred, Sent,
+ * Drafts and label views keep it (the server keeps it there too, or the
+ * refetch says otherwise). Read/star flip in place. Returns the rollback.
+ */
+export function changeLists(client: QueryClient, ids: string[], change: ThreadChange) {
+  const set = new Set(ids);
+  return editLists(client, (t, filter) => {
+    if (!set.has(t.id)) return t;
+    if (change.folder) {
+      const leaves = MOVED_OUT.has(filter.folder ?? "") && filter.folder !== change.folder;
+      return leaves ? null : t;
+    }
+    return {
+      ...t,
+      ...(change.is_read !== undefined && {
+        unread_count: change.is_read ? 0 : Math.max(1, t.unread_count),
+      }),
+      ...(change.is_starred !== undefined && { is_starred: change.is_starred }),
+    };
   });
 }
 

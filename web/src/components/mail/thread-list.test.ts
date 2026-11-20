@@ -104,4 +104,9 @@ describe("ThreadList", () => {
     expect(actions.setRead).toHaveBeenCalledWith(["B"], true);
   });
 
+  it("does not offer Archive on rows already in Archive", async () => {
+    state.threads = [thread("A")];
+    await render("archive");
+    expect(button("Archive")).toBeUndefined();
+  });
 });

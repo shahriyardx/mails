@@ -549,7 +549,7 @@ function Row({
               label={thread.is_starred ? "Unstar" : "Star"}
               onClick={onStar}
             />
-            {folder !== "trash" && (
+            {folder !== "trash" && folder !== "archive" && (
               <IconButton size="xs" icon="archive" label="Archive" onClick={onArchive} />
             )}
             <IconButton
