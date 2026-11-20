@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import {
   Avatar,
   Badge,
@@ -137,6 +137,7 @@ function Conversation({
   const composer = useComposer();
   const discardDraft = useDeleteDraft();
   const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
   const [purging, setPurging] = useState(false);
   const messages = thread.messages ?? [];
   const last = messages.findLast((m) => !m.is_draft) ?? messages.at(-1);
@@ -202,7 +203,11 @@ function Conversation({
         description={thread.subject || "(no subject)"}
         consequences="It is already in Trash. This removes its messages and attachments for good."
         confirmLabel="Delete forever"
-        onConfirm={() => actions.purge([thread.id])}
+        onConfirm={async () => {
+          await actions.purge([thread.id]);
+          // It is gone: staying would refetch it and show an error.
+          navigate(backHref);
+        }}
       />
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-3 pb-24 sm:px-8 md:pb-10 lg:pt-9.5">
