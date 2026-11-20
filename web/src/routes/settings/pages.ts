@@ -119,4 +119,11 @@ export const SETTINGS_PAGES: SettingsPage[] = [
     group: "Insights",
     load: () => import("./metrics"),
   },
+  {
+    path: "reporting",
+    title: "Reporting",
+    icon: "bar_chart",
+    group: "Insights",
+    load: () => import("./reporting"),
+  },
 ];

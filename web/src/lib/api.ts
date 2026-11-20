@@ -48,6 +48,7 @@ import type {
   Page,
   Preferences,
   PushState,
+  ReportingStatus,
   SendResult,
   Setup,
   Suppression,
@@ -1031,6 +1032,32 @@ export function useMetrics(range: number, domainId?: string) {
     queryFn: ({ signal }) =>
       api<Metrics>("/api/app/metrics", { query: { range, domain_id: domainId }, signal }),
     placeholderData: (previous) => previous,
+  });
+}
+
+export function useReporting() {
+  return useQuery({
+    queryKey: ["reporting"],
+    queryFn: ({ signal }) => api<ReportingStatus>("/api/app/reporting", { signal }),
+  });
+}
+
+/** Creates or repairs the whole reporting chain in AWS. */
+export function useSetUpReporting() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<ReportingStatus>("/api/app/reporting/setup", { method: "POST" }),
+    onSuccess: (status) => client.setQueryData(["reporting"], status),
+  });
+}
+
+/** Chooses the optional SES events; required ones always stay on. */
+export function useReportingEvents() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (types: string[]) =>
+      api<ReportingStatus>("/api/app/reporting/events", { method: "PUT", body: { types } }),
+    onSuccess: (status) => client.setQueryData(["reporting"], status),
   });
 }
 

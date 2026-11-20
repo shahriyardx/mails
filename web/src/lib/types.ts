@@ -613,3 +613,19 @@ export interface LiveEvent {
   type: "mail.received" | "thread.updated" | "message.updated" | string;
   data?: { thread_id?: string; thread_ids?: string[]; message_id?: string };
 }
+
+/** GET /api/app/reporting (internal/reporting Status). */
+export interface ReportingStatus {
+  name: string;
+  endpoint: string;
+  configuration_set: boolean;
+  destination: boolean;
+  types: string[];
+  topic_arn: string;
+  subscription: "confirmed" | "pending" | "missing";
+  active: boolean;
+  required: string[];
+  optional: string[];
+  env_managed: boolean;
+  error?: string;
+}

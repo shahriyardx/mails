@@ -73,8 +73,8 @@ The app will not start without these.
 | `AWS_REGION` | `us-east-1` | The region SES is set up in. SES is per region |
 | `AWS_ACCESS_KEY_ID` | | IAM → Users → your user → Security credentials → Create access key |
 | `AWS_SECRET_ACCESS_KEY` | | Shown once, beside the key id |
-| `SES_CONFIGURATION_SET` | | The configuration set attached to every send. Step 6 |
-| `SES_SNS_TOPIC_ARN` | | The SNS topic SES publishes events to. **Required for delivery reporting.** Step 6 |
+| `SES_CONFIGURATION_SET` | | The configuration set attached to every send. Leave empty to use **Settings → Reporting**. Step 6 |
+| `SES_SNS_TOPIC_ARN` | | The SNS topic SES publishes events to. Leave empty to use **Settings → Reporting**. Step 6 |
 | `SES_MAIL_FROM_PREFIX` | `mail` | The return path becomes `mail.yourdomain.com` |
 | `SES_DKIM_SELECTOR` | `mail` | The selector for the DKIM keys Mails generates |
 
@@ -205,7 +205,26 @@ shows. See [Sending domains](/docs/guide/domains).
 
 Without this every message stays at `sent` forever: no delivered, no bounces,
 no automatic blocking, and no `email.delivered` or `email.bounced` webhooks.
-It is all set up in the AWS console, in the same region as SES.
+
+**The easy way:** open **Settings → Reporting** and press **Set up
+reporting**. Mails creates the SNS topic (only SES in your account may
+publish to it), the configuration set `mails-events`, the event destination
+and the HTTPS subscription, saves them, and uses them at once. No restart.
+The same from a shell:
+
+```sh
+mails ses-setup-events
+```
+
+It needs `APP_URL` to be a public https address, and AWS keys allowed to use
+SNS (`sns:CreateTopic`, `sns:GetTopicAttributes`, `sns:SetTopicAttributes`,
+`sns:Subscribe`, `sns:ListSubscriptionsByTopic`,
+`sns:GetSubscriptionAttributes`) and SES configuration sets
+(`ses:CreateConfigurationSet`, `ses:*ConfigurationSetEventDestination*`).
+
+**By hand**, in the AWS console in the same region as SES, if you would
+rather not give the keys those permissions. `SES_CONFIGURATION_SET` and
+`SES_SNS_TOPIC_ARN` set this way win over the dashboard.
 
 1. **Create an SNS topic.** SNS → Topics → Create topic → Standard. Any name,
    e.g. `mails-events`. Copy its ARN; it looks like
@@ -302,6 +321,8 @@ The binary has four subcommands besides running the server:
 | `mails` | Run the server |
 | `mails migrate` | Apply database migrations and exit |
 | `mails reset-owner` | Remove the owner and every session. The next GitHub sign-in claims the instance. Mail and settings stay |
+| `mails ses-setup-events` | Set up delivery reporting in AWS, the same as **Settings → Reporting**. Reads `DATABASE_URL`, `APP_URL` and the AWS variables |
+| `mails seed-demo` | Add demo mail to the default mailbox (or `--mailbox=ADDRESS`; an empty instance gets `hello@demo.invalid`). `--remove` takes exactly that mail out again |
 | `mails vapid-keys` | Print a new VAPID key pair for Web Push |
 | `mails help` | List these |
 
