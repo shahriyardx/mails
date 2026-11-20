@@ -96,6 +96,7 @@ jobs:
             dist/*.tar.gz
             dist/checksums.txt
             dist/image
+          if-no-files-found: error
           retention-days: 1
 
   # Publishes what binaries built. It holds the write tokens and runs no
@@ -177,6 +178,9 @@ jobs:
         with:
           name: extension
           path: packages/extension/.output/*.zip
+          # .output is a hidden folder, which upload-artifact skips by default.
+          include-hidden-files: true
+          if-no-files-found: error
           retention-days: 1
 
   # Builds and packs the SDK without the npm token; sdk-publish publishes
@@ -208,6 +212,7 @@ jobs:
         with:
           name: sdk
           path: packages/sdk/*.tgz
+          if-no-files-found: error
           retention-days: 1
 
   sdk-publish:
