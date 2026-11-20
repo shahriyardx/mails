@@ -139,8 +139,8 @@ function LabelDialog({ label, onClose }: { label: Label | "new" | null; onClose:
         },
       );
     } else {
-      update.mutate({ id: label.id, name: name.trim(), color }, { onError });
-      onClose();
+      // Close once saved: on an error the typed edit stays to fix.
+      update.mutate({ id: label.id, name: name.trim(), color }, { onSuccess: onClose, onError });
     }
   }
 
@@ -172,7 +172,7 @@ function LabelDialog({ label, onClose }: { label: Label | "new" | null; onClose:
             type="submit"
             form="label-form"
             variant="primary"
-            loading={create.isPending}
+            loading={create.isPending || update.isPending}
             disabled={!valid}
           >
             {isNew ? "Add label" : "Save"}

@@ -353,11 +353,14 @@ function EditMailbox({ mailbox, onDone }: { mailbox: Mailbox; onDone: () => void
         is_default: settings.is_default,
       },
       {
-        onSuccess: () => toast.success("Mailbox saved"),
+        // Close once saved: on an error the typed edit stays to fix.
+        onSuccess: () => {
+          toast.success("Mailbox saved");
+          onDone();
+        },
         onError: (error) => toast.error(errorMessage(error)),
       },
     );
-    onDone();
   }
 
   return (
@@ -367,7 +370,12 @@ function EditMailbox({ mailbox, onDone }: { mailbox: Mailbox; onDone: () => void
         <Button type="button" variant="ghost" onClick={onDone}>
           Cancel
         </Button>
-        <Button type="submit" variant="primary" disabled={!settings.display_name.trim()}>
+        <Button
+          type="submit"
+          variant="primary"
+          loading={update.isPending}
+          disabled={!settings.display_name.trim()}
+        >
           Save
         </Button>
       </div>
