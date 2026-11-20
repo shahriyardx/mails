@@ -25,6 +25,7 @@ import (
 	"github.com/shahriyardx/mails/internal/config"
 	"github.com/shahriyardx/mails/internal/domain"
 	"github.com/shahriyardx/mails/internal/httpx"
+	"github.com/shahriyardx/mails/internal/inbound"
 	"github.com/shahriyardx/mails/internal/mailbox"
 	"github.com/shahriyardx/mails/internal/realtime"
 )
@@ -38,6 +39,7 @@ type Deps struct {
 	Hub       *realtime.Hub
 	Domains   *domain.Service
 	Mailboxes *mailbox.Service
+	Inbound   *inbound.Service
 }
 
 // New builds the router. web is the built React app (web/dist).
@@ -51,7 +53,7 @@ func New(d *Deps, web fs.FS) http.Handler {
 		})
 
 		// Machine callers: no session cookie involved.
-		// api.Post("/inbound", ...)      inbound.Handler
+		api.Method("POST", "/inbound", inbound.Handler(d.Inbound, d.Cfg.InboundSecret))
 		// api.Post("/ses/events", ...)   delivery.SNSHandler
 
 		// Everything that reads or writes the session cookie.

@@ -16,6 +16,7 @@ import (
 	"github.com/shahriyardx/mails/internal/config"
 	"github.com/shahriyardx/mails/internal/db"
 	"github.com/shahriyardx/mails/internal/domain"
+	"github.com/shahriyardx/mails/internal/inbound"
 	"github.com/shahriyardx/mails/internal/mailbox"
 	"github.com/shahriyardx/mails/internal/realtime"
 	"github.com/shahriyardx/mails/internal/server"
@@ -54,16 +55,18 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	hub := realtime.NewHub()
 	deps := &server.Deps{
 		DB:   pool,
 		Cfg:  cfg,
 		Auth: auth.New(pool, cfg),
-		Hub:  realtime.NewHub(),
+		Hub:  hub,
 		Domains: &domain.Service{
 			DB: pool, SES: sesClient, DNS: net.DefaultResolver, Region: cfg.AWSRegion,
 			Selector: cfg.SESDKIMSelector, MailFromPrefix: cfg.SESMailFromPrefix, Now: time.Now,
 		},
 		Mailboxes: &mailbox.Service{DB: pool},
+		Inbound:   &inbound.Service{DB: pool, Hub: hub, Now: time.Now},
 	}
 	// Background workers (outbox, webhook retries) start here with ctx.
 

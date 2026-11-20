@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/shahriyardx/mails/internal/addr"
+	"github.com/shahriyardx/mails/internal/db"
 	"github.com/shahriyardx/mails/internal/httpx"
 	"github.com/shahriyardx/mails/internal/id"
 )
@@ -37,17 +38,12 @@ func (m *Mailbox) From() addr.Address { return addr.Address{Name: m.DisplayName,
 
 const columns = `id, address, domain, domain_id, display_name, signature, is_catch_all, is_default, color, forward_off, created_at`
 
-// Querier is a pool or a transaction.
-type Querier interface {
-	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
-}
-
 // Service holds what mailbox operations need.
 type Service struct {
 	DB *pgxpool.Pool
 }
 
-func query(ctx context.Context, q Querier, where string, args ...any) ([]*Mailbox, error) {
+func query(ctx context.Context, q db.Querier, where string, args ...any) ([]*Mailbox, error) {
 	rows, _ := q.Query(ctx, `SELECT `+columns+` FROM mailbox `+where, args...)
 	list, err := pgx.CollectRows(rows, pgx.RowToAddrOfStructByName[Mailbox])
 	if err != nil {
