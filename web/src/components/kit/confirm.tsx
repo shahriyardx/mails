@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./dialog";
+import { Icon } from "./icon";
 import { Input } from "./input";
 import { toast } from "./toast";
 
@@ -87,11 +88,27 @@ export function ConfirmDialog({
               void confirm();
             }}
           >
-            <label htmlFor={inputId} className="text-[13px]">
-              Type <span className="font-mono font-medium">{phrase}</span> to confirm
-            </label>
+            <p className="text-[13px]">
+              Type{" "}
+              <button
+                type="button"
+                title="Click to copy"
+                onClick={() =>
+                  navigator.clipboard.writeText(phrase).then(
+                    () => toast("Copied"),
+                    () => toast.error("Could not copy. Type it instead."),
+                  )
+                }
+                className="inline-flex items-center gap-1 rounded-md bg-tonal px-1.5 py-0.5 font-mono font-medium transition-colors hover:bg-tonal-hover focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                {phrase}
+                <Icon name="content_copy" size={14} className="text-muted-foreground" />
+              </button>{" "}
+              to confirm
+            </p>
             <Input
               id={inputId}
+              aria-label={`Type ${phrase} to confirm`}
               value={typed}
               onChange={(event) => setTyped(event.target.value)}
               autoComplete="off"
