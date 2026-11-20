@@ -1,0 +1,192 @@
+# Runs when a GitHub release is published (tag like v1.2.0). It ships:
+#   - the server image to ghcr.io/<owner>/mails (:1.2.0, :1.2, :latest), amd64 + arm64
+#   - server binaries (linux/darwin, amd64/arm64) attached to the release
+#   - the browser extension zips (Chrome, Firefox, Edge) attached to the release
+#   - the Node SDK to npm, only when the NPM_TOKEN secret is set
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build (for example v1.2.0)
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  TAG: ${{ github.event.release.tag_name || inputs.tag }}
+
+concurrency:
+  group: release-${{ github.event.release.tag_name || inputs.tag }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5437:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Web tests and build
+        working-directory: web
+        run: pnpm install --frozen-lockfile && pnpm test && pnpm build
+      - name: Go tests
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5437/postgres?sslmode=disable
+        run: go vet ./... && go test ./...
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ env.TAG }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.TAG }}
+            type=raw,value=latest,enable=${{ !github.event.release.prerelease }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  binaries:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build dashboard
+        working-directory: web
+        run: pnpm install --frozen-lockfile && pnpm build
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            os=${target%/*}; arch=${target#*/}
+            name="mails_${TAG#v}_${os}_${arch}"
+            CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath -ldflags="-s -w" -o "dist/$name/mails" ./cmd/mails
+            tar -C "dist/$name" -czf "dist/$name.tar.gz" mails
+          done
+          (cd dist && sha256sum *.tar.gz > checksums.txt)
+      - name: Attach to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$TAG" dist/*.tar.gz dist/checksums.txt --clobber
+
+  extension:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: packages/extension
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pnpm install --frozen-lockfile
+      - name: Set version from tag
+        run: npm pkg set version="${TAG#v}"
+      - run: pnpm test
+      - name: Zip for Chrome, Firefox and Edge
+        run: pnpm zip:all
+      - name: Attach to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$TAG" .output/*.zip --clobber
+
+  sdk:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm provenance
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    defaults:
+      run:
+        working-directory: packages/sdk
+    steps:
+      - name: Skip without NPM_TOKEN
+        if: env.NODE_AUTH_TOKEN == ''
+        working-directory: .
+        run: echo "NPM_TOKEN is not set; the SDK is not published."
+      - uses: actions/checkout@v4
+        if: env.NODE_AUTH_TOKEN != ''
+        with:
+          ref: ${{ env.TAG }}
+      - uses: pnpm/action-setup@v4
+        if: env.NODE_AUTH_TOKEN != ''
+        with:
+          version: 12
+      - uses: actions/setup-node@v4
+        if: env.NODE_AUTH_TOKEN != ''
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - if: env.NODE_AUTH_TOKEN != ''
+        run: |
+          pnpm install --frozen-lockfile
+          npm pkg set version="${TAG#v}"
+          pnpm build
+          npm publish --access public --provenance

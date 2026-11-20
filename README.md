@@ -24,6 +24,10 @@ docker compose --profile app up -d
 Open `APP_URL` and sign in with GitHub. The setup page walks you through the
 rest.
 
+Each release publishes the image `ghcr.io/shahriyardx/mails` (`:latest` or a
+version such as `:1.2.0`), server binaries and the browser extension zips on
+the [releases page](https://github.com/shahriyardx/mails/releases).
+
 ## Development
 
 Needs Go 1.27, Node 22 with pnpm, and Docker.
