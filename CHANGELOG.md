@@ -6,6 +6,13 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-11-21
+
+### Fixed
+
+- "One at a time" reading layout: an open conversation shows a Back
+  button at every screen width (it was shown only on small screens).
+
 ### Changed
 
 - Folded sidebar: the Mailboxes and Labels groups are hidden (a column of
@@ -105,7 +112,8 @@ First release of Mails, the Go rewrite.
   subdomains, live updates that stopped after an error, and more. Every fix
   has a test.
 
-[Unreleased]: https://github.com/shahriyardx/mails/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/shahriyardx/mails/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/shahriyardx/mails/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/shahriyardx/mails/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/shahriyardx/mails/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/shahriyardx/mails/compare/v0.1.3...v0.1.4

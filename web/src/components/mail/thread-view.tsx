@@ -91,10 +91,13 @@ export function ThreadView({
   threadId,
   backHref,
   folder,
+  stacked = false,
 }: {
   threadId: string;
   backHref: string;
   folder: string;
+  /** One-at-a-time layout: the list is hidden at every width, so Back always shows. */
+  stacked?: boolean;
 }) {
   const query = useThread(threadId);
   const thread = query.data;
@@ -121,17 +124,27 @@ export function ThreadView({
       />
     );
   }
-  return <Conversation key={thread.id} thread={thread} backHref={backHref} folder={folder} />;
+  return (
+    <Conversation
+      key={thread.id}
+      thread={thread}
+      backHref={backHref}
+      folder={folder}
+      stacked={stacked}
+    />
+  );
 }
 
 function Conversation({
   thread,
   backHref,
   folder,
+  stacked,
 }: {
   thread: Thread;
   backHref: string;
   folder: string;
+  stacked: boolean;
 }) {
   const actions = useThreadActions();
   const composer = useComposer();
@@ -219,7 +232,7 @@ function Conversation({
                 icon="arrow_back"
                 label="Back to the list"
                 size="sm"
-                className="-ml-2 lg:hidden"
+                className={cn("-ml-2", !stacked && "lg:hidden")}
                 render={<Link to={backHref} />}
                 nativeButton={false}
               />
