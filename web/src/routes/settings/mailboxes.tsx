@@ -295,10 +295,7 @@ function CreateMailbox({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Add a mailbox</DialogTitle>
-          <DialogDescription>
-            On a domain you have, or a subdomain of one. For a new subdomain, Mails publishes its MX
-            records in Cloudflare when the parent domain already receives here.
-          </DialogDescription>
+          <DialogDescription>On one of your domains, or a subdomain of one.</DialogDescription>
         </DialogHeader>
         <form id="create-mailbox" className="flex flex-col gap-4" onSubmit={submit}>
           <Field label="Address" error={address && !valid ? "Not an email address" : undefined}>

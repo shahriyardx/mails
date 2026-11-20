@@ -581,41 +581,44 @@ function Deliveries({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-3">
-          <Choice
-            label="Endpoint"
-            value={filter.webhook_id ?? ALL}
-            onChange={(v) => set("webhook_id", v)}
-            options={Object.fromEntries([
-              [ALL, "All endpoints"],
-              ...hooks.map((h) => [h.id, h.description || h.url]),
-            ])}
-          />
-          <Choice
-            label="Event"
-            value={filter.event ?? ALL}
-            onChange={(v) => set("event", v)}
-            options={Object.fromEntries([
-              [ALL, "All events"],
-              ...[...events, "webhook.test"].map((e) => [e, e]),
-            ])}
-          />
-          <Choice
-            label="Result"
-            value={filter.succeeded ?? ALL}
-            onChange={(v) => set("succeeded", v)}
-            options={{ [ALL]: "Any result", true: "Succeeded", false: "Failed" }}
+      {/* No endpoint, nothing to filter. */}
+      {hooks.length > 0 && (
+        <div className="flex items-center gap-2">
+          <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-3">
+            <Choice
+              label="Endpoint"
+              value={filter.webhook_id ?? ALL}
+              onChange={(v) => set("webhook_id", v)}
+              options={Object.fromEntries([
+                [ALL, "All endpoints"],
+                ...hooks.map((h) => [h.id, h.description || h.url]),
+              ])}
+            />
+            <Choice
+              label="Event"
+              value={filter.event ?? ALL}
+              onChange={(v) => set("event", v)}
+              options={Object.fromEntries([
+                [ALL, "All events"],
+                ...[...events, "webhook.test"].map((e) => [e, e]),
+              ])}
+            />
+            <Choice
+              label="Result"
+              value={filter.succeeded ?? ALL}
+              onChange={(v) => set("succeeded", v)}
+              options={{ [ALL]: "Any result", true: "Succeeded", false: "Failed" }}
+            />
+          </div>
+          <IconButton
+            icon="refresh"
+            label="Refresh"
+            className="self-start"
+            loading={deliveries.isRefetching && !deliveries.isFetchingNextPage}
+            onClick={() => deliveries.refetch()}
           />
         </div>
-        <IconButton
-          icon="refresh"
-          label="Refresh"
-          className="self-start"
-          loading={deliveries.isRefetching && !deliveries.isFetchingNextPage}
-          onClick={() => deliveries.refetch()}
-        />
-      </div>
+      )}
 
       {deliveries.isPending ? (
         <List aria-busy="true">
@@ -628,9 +631,7 @@ function Deliveries({
       ) : deliveries.isError ? (
         <LoadError error={deliveries.error} retry={deliveries.refetch} />
       ) : rows.length === 0 ? (
-        <p className={cn(emptyBox, "text-muted-foreground")}>
-          Nothing sent yet. Calls show up here as soon as an endpoint is called.
-        </p>
+        <p className={cn(emptyBox, "text-muted-foreground")}>Nothing sent yet.</p>
       ) : (
         <List>
           {rows.map((d) => (

@@ -200,9 +200,7 @@ function FilterDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{filter === "new" ? "New filter" : "Edit filter"}</DialogTitle>
-          <DialogDescription>
-            Leave a condition empty to ignore that field. At least one is needed.
-          </DialogDescription>
+          <DialogDescription>Fill in at least one condition.</DialogDescription>
         </DialogHeader>
         <form id="filter-form" className="flex flex-col gap-4" onSubmit={submit} noValidate>
           <div className="grid gap-4 sm:grid-cols-[1fr_7rem]">
