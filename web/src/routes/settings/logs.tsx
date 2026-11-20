@@ -2,22 +2,12 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { Choice } from "@/components/app/choice";
 import { CopyButton } from "@/components/app/copy";
-import {
-  Button,
-  Icon,
-  IconButton,
-  Input,
-  List,
-  Skeleton,
-  Tabs,
-  TabsList,
-  TabsTab,
-} from "@/components/kit";
+import { Button, Icon, Input, List, Skeleton, Tabs, TabsList, TabsTab } from "@/components/kit";
 import { errorMessage, useApiKeys, useLogs, useMessage } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { formatAddress, formatDateTime, formatStamp, mailHref } from "@/lib/mail";
 import type { DeliveryStatus, LogFilter, LogRow } from "@/lib/types";
-import { emptyBox, LoadError, Notice, StatusDot } from "./parts";
+import { emptyBox, LoadError, Notice, PageAction, StatusDot } from "./parts";
 
 const ANY = "any";
 
@@ -94,24 +84,23 @@ export default function Logs() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-end justify-between gap-3">
-        <Tabs
-          value={direction}
-          onValueChange={(v) => setDirection(v as LogFilter["direction"])}
-          className="min-w-0 flex-1"
-        >
-          <TabsList>
-            <TabsTab value="sending">Sending</TabsTab>
-            <TabsTab value="receiving">Receiving</TabsTab>
-          </TabsList>
-        </Tabs>
-        <IconButton
+      {/* On the title row, like Overview, so the tab line runs the full width. */}
+      <PageAction>
+        <Button
+          variant="outline"
           icon="refresh"
-          label="Refresh"
           loading={logs.isRefetching && !logs.isFetchingNextPage}
           onClick={() => logs.refetch()}
-        />
-      </div>
+        >
+          Refresh
+        </Button>
+      </PageAction>
+      <Tabs value={direction} onValueChange={(v) => setDirection(v as LogFilter["direction"])}>
+        <TabsList>
+          <TabsTab value="sending">Sending</TabsTab>
+          <TabsTab value="receiving">Receiving</TabsTab>
+        </TabsList>
+      </Tabs>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-[1fr_auto_auto_auto]">
         <div className="relative col-span-2 md:col-span-1">
@@ -171,8 +160,8 @@ export default function Logs() {
           {q || status !== ANY
             ? "Nothing matches."
             : sending
-              ? "Mail you send, from the app or the API, shows up here."
-              : "Mail that arrives shows up here."}
+              ? "Nothing sent yet."
+              : "Nothing received yet."}
         </p>
       ) : (
         <List>
@@ -304,9 +293,7 @@ function MessageDetail({ row, outbound }: { row: LogRow; outbound: boolean }) {
             <section aria-label="What happened" className="flex flex-col gap-2">
               <h3 className="text-[13px] font-semibold">What happened</h3>
               {events.length === 0 ? (
-                <p className="text-[13px] text-muted-foreground">
-                  No delivery events yet. They arrive from SES as the mail moves.
-                </p>
+                <p className="text-[13px] text-muted-foreground">No delivery events yet.</p>
               ) : (
                 <ol className="flex flex-col divide-y divide-border rounded-[10px] border border-border">
                   {events.map((e) => {

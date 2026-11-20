@@ -100,10 +100,7 @@ export default function Notifications() {
         </PageAction>
       )}
 
-      <Section
-        title="This browser"
-        description="A notice when mail arrives, even with Mails closed. Clicking it opens the conversation."
-      >
+      <div className="space-y-3">
         {!enabled ? (
           <Notice tone="warning">
             <p>
@@ -128,33 +125,18 @@ export default function Notifications() {
         <div className="rounded-[14px] border border-border bg-surface p-4">
           <SwitchRow
             label="Notify me on this browser"
-            description={
-              on
-                ? "New mail is announced here. Other browsers and phones are set up on their own."
-                : "The browser asks for permission the first time."
-            }
             checked={on}
             disabled={!usable || working}
             onCheckedChange={(next) => void (next ? turnOn() : turnOff())}
           />
         </div>
-      </Section>
+      </div>
 
       {enabled && (
-        <Section title="Browsers" description="Every browser set up to be notified.">
+        <Section title="All browsers">
           {browsers.length === 0 ? (
             <div className={emptyBox}>
               <p className="text-muted-foreground">No browser is notified yet.</p>
-              <Button
-                variant="primary"
-                icon="notifications"
-                className="mt-4"
-                disabled={!usable}
-                loading={working}
-                onClick={() => void turnOn()}
-              >
-                Notify this browser
-              </Button>
             </div>
           ) : (
             <List>
@@ -163,7 +145,6 @@ export default function Notifications() {
                 return (
                   <ListRow
                     key={b.id}
-                    icon="notifications"
                     title={
                       <span className="flex items-center gap-2">
                         <span className="truncate">{b.label ?? "A browser"}</span>

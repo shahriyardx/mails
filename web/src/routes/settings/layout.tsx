@@ -33,25 +33,28 @@ export function Component() {
 
       <main className="min-w-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-190 px-4 pt-4 pb-16 sm:px-8 md:pt-12">
-          <header className="mb-8 flex flex-wrap items-start gap-x-4 gap-y-3">
+          <header className="mb-8 flex items-start gap-x-2">
             <IconButton
               icon="menu"
               label="Open settings menu"
               className="-ml-2 md:hidden"
               onClick={() => setNavOpen(true)}
             />
-            <div className="min-w-0 flex-1 basis-64">
-              <h1 className="text-[28px] leading-tight font-bold sm:text-[30px]">
-                {current?.title ?? "Settings"}
-              </h1>
-              {current?.description && (
-                <p className="mt-1.5 text-muted-foreground">{current.description}</p>
-              )}
+            {/* When the action wraps under the title (phones), it lines up with it. */}
+            <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-4 gap-y-3">
+              <div className="min-w-0 flex-1 basis-64">
+                <h1 className="text-[28px] leading-tight font-bold sm:text-[30px]">
+                  {current?.title ?? "Settings"}
+                </h1>
+                {current?.description && (
+                  <p className="mt-1.5 text-muted-foreground">{current.description}</p>
+                )}
+              </div>
+              <div
+                ref={setSlot}
+                className="flex shrink-0 flex-wrap items-center gap-2 empty:hidden sm:pt-1.5"
+              />
             </div>
-            <div
-              ref={setSlot}
-              className="flex shrink-0 items-center gap-2 empty:hidden sm:pt-1.5"
-            />
           </header>
           <PageActionSlot.Provider value={slot}>
             <Outlet />
@@ -109,7 +112,7 @@ function Nav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => vo
         ))}
       </nav>
       <div className="-mx-1 flex shrink-0 items-center justify-end px-1">
-        <AccountMenu />
+        <AccountMenu docs={false} />
       </div>
     </SidebarFrame>
   );

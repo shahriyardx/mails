@@ -461,7 +461,7 @@ function MessageItem({
                     {file.filename}
                   </span>
                   <span className="block font-mono text-[11px] text-muted-foreground">
-                    {formatBytes(file.size_bytes)} · download
+                    {formatBytes(file.size_bytes)}
                   </span>
                 </span>
               </a>
@@ -585,11 +585,7 @@ function MessageItem({
 function DeliveryBadge({ message }: { message: Message }) {
   const bad = ["bounced", "complained", "rejected", "failed"].includes(message.status ?? "");
   return (
-    <Badge
-      size="sm"
-      tone={bad ? "danger" : "neutral"}
-      title={message.error ?? `SES: ${message.status}`}
-    >
+    <Badge size="sm" tone={bad ? "danger" : "neutral"} title={message.error ?? undefined}>
       {message.opened_at
         ? `opened${message.open_count > 1 ? ` ${message.open_count}×` : ""}`
         : message.status}
@@ -621,7 +617,7 @@ function AuthLine({ message }: { message: Message }) {
       <span className="font-medium">
         {failed.length ? `${failed.map(([n]) => n).join(", ")} did not pass` : "Sender verified"}
       </span>
-      <span className="truncate">· {detail}</span>
+      {failed.length > 0 && <span className="truncate">· {detail}</span>}
     </p>
   );
 }

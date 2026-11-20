@@ -12,8 +12,17 @@ import {
 } from "@/components/kit";
 import { useSignOut } from "@/lib/api";
 
-/** The owner's avatar, opening settings, docs and sign out. */
-export function AccountMenu() {
+/**
+ * The owner's avatar, opening sign out and the links the screen around it
+ * does not already show (`settings`, `docs`).
+ */
+export function AccountMenu({
+  settings = false,
+  docs = true,
+}: {
+  settings?: boolean;
+  docs?: boolean;
+}) {
   const owner = useOwner();
   const signOut = useSignOut();
   return (
@@ -34,13 +43,17 @@ export function AccountMenu() {
           </span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuLinkItem icon="settings" render={<Link to="/settings" />}>
-          Settings
-        </DropdownMenuLinkItem>
-        <DropdownMenuLinkItem icon="menu_book" render={<Link to="/docs" />}>
-          Docs
-        </DropdownMenuLinkItem>
-        <DropdownMenuSeparator />
+        {settings && (
+          <DropdownMenuLinkItem icon="settings" render={<Link to="/settings" />}>
+            Settings
+          </DropdownMenuLinkItem>
+        )}
+        {docs && (
+          <DropdownMenuLinkItem icon="menu_book" render={<Link to="/docs" />}>
+            Docs
+          </DropdownMenuLinkItem>
+        )}
+        {(settings || docs) && <DropdownMenuSeparator />}
         <DropdownMenuItem icon="logout" onClick={() => signOut.mutate()}>
           Sign out
         </DropdownMenuItem>

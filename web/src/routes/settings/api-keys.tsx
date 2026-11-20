@@ -99,7 +99,6 @@ export default function ApiKeys() {
         ) : list.length === 0 ? (
           <div className={emptyBox}>
             <p className="text-muted-foreground">No API keys yet.</p>
-            <div className="mt-4">{newKey}</div>
           </div>
         ) : (
           <List>
@@ -124,8 +123,11 @@ export default function ApiKeys() {
                     >
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-semibold">{key.name}</span>
-                        <span className="block truncate font-mono text-xs text-muted-foreground">
-                          {key.prefix} · {describeScopes(keys.data.areas, key.scopes)} · {used}
+                        <span className="block font-mono text-xs text-muted-foreground">
+                          {key.prefix}
+                          {/* Open, the details below say the rest. */}
+                          {!expanded &&
+                            ` · ${describeScopes(keys.data.areas, key.scopes)} · ${used}`}
                         </span>
                       </span>
                       {key.revoked_at && <StatusDot tone="off">Revoked</StatusDot>}
@@ -192,32 +194,16 @@ export default function ApiKeys() {
 
       <Section
         title="Using a key"
-        description={
-          <>
-            Send it as a Bearer token to <code className="font-mono">/api/v1</code>. The docs list
-            every route and the scope each one needs.
-          </>
-        }
         action={
-          <div className="flex shrink-0 gap-1">
-            <Button
-              size="sm"
-              variant="ghost"
-              icon="menu_book"
-              render={<Link to="/docs/api/index" />}
-              nativeButton={false}
-            >
-              API docs
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              render={<Link to="/docs/api/scopes" />}
-              nativeButton={false}
-            >
-              Scopes and reach
-            </Button>
-          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            icon="menu_book"
+            render={<Link to="/docs/api/index" />}
+            nativeButton={false}
+          >
+            API docs
+          </Button>
         }
       >
         <CodeBlock
@@ -339,7 +325,7 @@ function CreateKeyDialog({
           <ReachPicker domains={domains} mailboxes={mailboxes} choice={reach} onChange={setReach} />
           <Field
             label="Rate limit"
-            description="Requests per minute. Leave empty for the default (300)."
+            description="Requests per minute."
             error={rateValid ? undefined : "A whole number from 1 to 100000."}
           >
             <Input
@@ -392,18 +378,17 @@ function ScopePicker({
 
   return (
     <div className="flex flex-col gap-3">
-      <Field label="What it may do" description={hint}>
+      <Field
+        label="What it may do"
+        description={full ? "Everything, including what the API adds later." : hint}
+      >
         <Choice
           value={choice.preset}
           onChange={(id) => onChange({ type: "preset", id })}
           options={options}
         />
       </Field>
-      {full ? (
-        <p className="text-[13px] text-muted-foreground">
-          Everything, including anything the API adds later. Choose Custom to narrow it.
-        </p>
-      ) : (
+      {!full && (
         <ul className="flex flex-col divide-y divide-border rounded-[10px] border border-border">
           {catalog.areas.map((area) => {
             const level = levelOf(area, choice.scopes);

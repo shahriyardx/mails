@@ -23,12 +23,12 @@ import { Sidebar } from "@/components/mail/sidebar";
 import { ThreadList } from "@/components/mail/thread-list";
 import { ThreadView } from "@/components/mail/thread-view";
 import {
-  useCounts,
   useEmptyTrash,
   useLabels,
   useMailboxes,
   usePreferences,
   useSavePreferences,
+  useThreads,
 } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { FOLDER_META, isFolder, mailHref, parseScope, type Scope } from "@/lib/mail";
@@ -40,6 +40,7 @@ export function Component() {
   const [search, setSearch] = useSearchParams();
   const composer = useComposer();
   const prefs = usePreferences();
+  const mailboxes = useMailboxes();
   const [navOpen, setNavOpen] = useState(false);
 
   const folder = params.folder;
@@ -90,10 +91,9 @@ export function Component() {
   listQuery.delete("t");
   listQuery.delete("reply");
   const backHref = `${mailHref(scope, folder)}${listQuery.size ? `?${listQuery}` : ""}`;
-  const hrefFor = (id: string, reply?: string) => {
+  const hrefFor = (id: string) => {
     const next = new URLSearchParams(listQuery);
     next.set("t", id);
-    if (reply) next.set("reply", reply);
     return `${mailHref(scope, folder)}?${next}`;
   };
 
@@ -162,7 +162,7 @@ export function Component() {
           activeId={threadId}
           hrefFor={hrefFor}
           compact={compact}
-          showMailbox={scope.kind !== "mailbox"}
+          showMailbox={scope.kind !== "mailbox" && (mailboxes.data?.length ?? 0) > 1}
         />
       </section>
 
@@ -177,12 +177,7 @@ export function Component() {
           <ThreadView threadId={threadId} backHref={backHref} folder={folder} />
         ) : (
           <div className="grid flex-1 place-items-center px-6 text-center">
-            <div className="space-y-1">
-              <p className="font-display text-[15px] font-semibold">Nothing open</p>
-              <p className="text-[13px] text-muted-foreground">
-                Pick a conversation to read it here.
-              </p>
-            </div>
+            <p className="text-[13px] text-muted-foreground">No conversation open</p>
           </div>
         )}
       </main>
@@ -240,23 +235,14 @@ function ListHeader({
 }) {
   const labels = useLabels();
   const mailboxes = useMailboxes();
-  const counts = useCounts(
-    scope.kind === "mailbox"
-      ? { mailbox: scope.id }
-      : scope.kind === "domain"
-        ? { domain: scope.domain }
-        : {},
-  );
   const title = q
     ? "Search"
     : label
       ? (labels.data?.find((l) => l.id === label)?.name ?? "Label")
       : FOLDER_META[folder].label;
-  // Folder counts are unread threads, except Starred and Drafts (totals).
-  const unreadCount =
-    !label && folder !== "starred" && folder !== "drafts" && folder !== "sent"
-      ? (counts.data?.folders[folder] ?? 0)
-      : 0;
+  // Nothing in Sent or Drafts is unread, so there is nothing to filter by.
+  const canUnread = Boolean(label) || (folder !== "sent" && folder !== "drafts");
+  const boxChips = (mailboxes.data?.length ?? 0) > 1;
 
   const chipHref = (target: Scope | string, keepUnread: boolean) => {
     const next = new URLSearchParams(listQuery);
@@ -275,7 +261,7 @@ function ListHeader({
           onClick={onMenu}
         />
         <h1 className="min-w-0 flex-1 truncate text-[26px] leading-tight font-bold">{title}</h1>
-        {folder === "trash" && !label && <EmptyTrash scope={filter} />}
+        {folder === "trash" && !label && !q && <EmptyTrash scope={filter} />}
         <Tooltip label="Search (/)">
           <IconButton
             icon="search"
@@ -288,39 +274,43 @@ function ListHeader({
             }}
           />
         </Tooltip>
-        <ViewMenu unread={unread} onUnread={onUnread} />
+        <ViewMenu />
       </div>
 
       {searching && (
         <SearchBox key={q} value={q} onCommit={onSearch} onClose={() => onSearching(false)} />
       )}
 
-      <div className="-mx-4 mt-3 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:-mx-5.5 md:px-5.5">
-        <Chip to={chipHref("all", false)} active={scope.kind === "all" && !unread}>
-          All
-        </Chip>
-        <Chip
-          to={chipHref(scope, true)}
-          active={unread}
-          onClick={(event) => {
-            event.preventDefault();
-            onUnread(!unread);
-          }}
-        >
-          Unread{unreadCount > 0 && ` · ${unreadCount}`}
-        </Chip>
-        {(mailboxes.data?.length ?? 0) > 1 &&
-          mailboxes.data!.map((box) => (
+      {(canUnread || boxChips) && (
+        <div className="-mx-4 mt-3 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:-mx-5.5 md:px-5.5">
+          <Chip to={chipHref("all", false)} active={scope.kind === "all" && !unread}>
+            All
+          </Chip>
+          {canUnread && (
             <Chip
-              key={box.id}
-              to={chipHref(box.id, true)}
-              active={scope.kind === "mailbox" && scope.id === box.id}
-              title={box.address}
+              to={chipHref(scope, true)}
+              active={unread}
+              onClick={(event) => {
+                event.preventDefault();
+                onUnread(!unread);
+              }}
             >
-              {box.address.split("@")[0]}@
+              Unread
             </Chip>
-          ))}
-      </div>
+          )}
+          {boxChips &&
+            mailboxes.data!.map((box) => (
+              <Chip
+                key={box.id}
+                to={chipHref(box.id, true)}
+                active={scope.kind === "mailbox" && scope.id === box.id}
+                title={box.address}
+              >
+                {box.address.split("@")[0]}@
+              </Chip>
+            ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -412,7 +402,7 @@ function SearchBox({
   );
 }
 
-function ViewMenu({ unread, onUnread }: { unread: boolean; onUnread: (on: boolean) => void }) {
+function ViewMenu() {
   const prefs = usePreferences();
   const save = useSavePreferences();
   const density = prefs.data?.density ?? "comfortable";
@@ -423,10 +413,6 @@ function ViewMenu({ unread, onUnread }: { unread: boolean; onUnread: (on: boolea
         <DropdownMenuTrigger render={<IconButton icon="tune" label="View options" />} />
       </Tooltip>
       <DropdownMenuContent className="w-56">
-        <DropdownMenuCheckboxItem checked={unread} onCheckedChange={onUnread}>
-          Unread only
-        </DropdownMenuCheckboxItem>
-        <DropdownMenuSeparator />
         <DropdownMenuLabel>Density</DropdownMenuLabel>
         <DropdownMenuCheckboxItem
           checked={density === "comfortable"}
@@ -462,6 +448,9 @@ function ViewMenu({ unread, onUnread }: { unread: boolean; onUnread: (on: boolea
 function EmptyTrash({ scope }: { scope: ThreadFilter }) {
   const [open, setOpen] = useState(false);
   const empty = useEmptyTrash();
+  // The same query as the list below, so this reads the cache.
+  const threads = useThreads(scope);
+  if (!threads.data?.pages[0]?.data.length) return null;
   return (
     <>
       <Button variant="destructive" size="sm" icon="delete_forever" onClick={() => setOpen(true)}>

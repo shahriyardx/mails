@@ -223,7 +223,7 @@ function DocsNav({ current, onNavigate }: { current: string; onNavigate?: () => 
         )}
       </nav>
       <div className="-mx-1 flex shrink-0 items-center justify-end px-1">
-        <AccountMenu />
+        <AccountMenu settings docs={false} />
       </div>
     </SidebarFrame>
   );
@@ -339,7 +339,11 @@ const COMPONENTS: Components = {
   },
   table: ({ node: _, ...props }) => (
     <div className="my-5 overflow-x-auto rounded-xl border border-border">
-      <table className="w-full min-w-lg border-collapse text-left text-[13px]" {...props} />
+      {/* A header row of empty cells (a key/value table) is hidden. */}
+      <table
+        className="w-full min-w-lg border-collapse text-left text-[13px] [&_thead:not(:has(th:not(:empty)))]:hidden [&_thead:not(:has(th:not(:empty)))+tbody_tr:first-child_td]:border-t-0"
+        {...props}
+      />
     </div>
   ),
   th: ({ node: _, ...props }) => (

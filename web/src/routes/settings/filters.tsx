@@ -51,12 +51,7 @@ export default function Filters() {
       </PageAction>
       {filters.data.length === 0 ? (
         <div className={emptyBox}>
-          <p className="text-muted-foreground">
-            No filters yet. New mail lands in the inbox as it is.
-          </p>
-          <Button variant="primary" icon="add" className="mt-4" onClick={add}>
-            New filter
-          </Button>
+          <p className="text-muted-foreground">No filters yet.</p>
         </div>
       ) : (
         <List>
@@ -70,10 +65,6 @@ export default function Filters() {
           ))}
         </List>
       )}
-      <p className="text-[13px] leading-relaxed text-muted-foreground">
-        A filter matches when each condition it sets is found in that field, ignoring case. Higher
-        priority runs first: the first match picks the folder; labels, read and star add up.
-      </p>
       <FilterDialog filter={editing} onClose={() => setEditing(null)} labels={labels.data ?? []} />
     </div>
   );
@@ -209,9 +200,7 @@ function FilterDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{filter === "new" ? "New filter" : "Edit filter"}</DialogTitle>
-          <DialogDescription>
-            Leave a condition empty to ignore that field. At least one is needed.
-          </DialogDescription>
+          <DialogDescription>Fill in at least one condition.</DialogDescription>
         </DialogHeader>
         <form id="filter-form" className="flex flex-col gap-4" onSubmit={submit} noValidate>
           <div className="grid gap-4 sm:grid-cols-[1fr_7rem]">
@@ -222,7 +211,7 @@ function FilterDialog({
                 placeholder="Newsletters"
               />
             </Field>
-            <Field label="Priority" error={errors.priority}>
+            <Field label="Priority" description="Higher runs first." error={errors.priority}>
               <Input
                 value={form.priority}
                 onChange={(event) => set("priority", event.target.value)}
