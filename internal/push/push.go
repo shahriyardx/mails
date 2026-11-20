@@ -19,6 +19,7 @@ import (
 	"github.com/shahriyardx/mails/internal/httpx"
 	"github.com/shahriyardx/mails/internal/id"
 	"github.com/shahriyardx/mails/internal/inbound"
+	"github.com/shahriyardx/mails/internal/safehttp"
 )
 
 // giveUpAfter drops a browser that failed this many sends in a row.
@@ -47,11 +48,14 @@ type Service struct {
 	DB        *pgxpool.Pool
 	PublicKey string
 	Send      Sender // nil when VAPID keys are not set: push is off
+	// CheckURL vets an endpoint before it is stored; nil uses safehttp.
+	CheckURL func(ctx context.Context, endpoint string) error
 }
 
-// WebPush is the real Sender.
+// WebPush is the real Sender. The endpoint comes from a browser, so the
+// client refuses private and loopback addresses (see safehttp).
 func WebPush(publicKey, privateKey, subject string) Sender {
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := safehttp.Client(15*time.Second, false)
 	return func(ctx context.Context, sub Subscription, payload []byte) (int, error) {
 		res, err := webpush.SendNotificationWithContext(ctx, payload,
 			&webpush.Subscription{Endpoint: sub.Endpoint, Keys: webpush.Keys{P256dh: sub.P256dh, Auth: sub.Auth}},
@@ -66,11 +70,14 @@ func WebPush(publicKey, privateKey, subject string) Sender {
 
 // Subscribe remembers a browser. Re-subscribing refreshes its keys.
 func (s *Service) Subscribe(ctx context.Context, sub Subscription, label string) error {
-	u, err := url.Parse(sub.Endpoint)
-	if err != nil || u.Scheme != "https" || u.Host == "" || sub.P256dh == "" || sub.Auth == "" {
+	check := s.CheckURL
+	if check == nil {
+		check = func(ctx context.Context, u string) error { return safehttp.CheckURL(ctx, u, false) }
+	}
+	if sub.P256dh == "" || sub.Auth == "" || check(ctx, sub.Endpoint) != nil {
 		return httpx.Invalid("endpoint", "Not a push subscription")
 	}
-	_, err = s.DB.Exec(ctx, `INSERT INTO push_subscription (id, endpoint, p256dh, auth, label) VALUES ($1, $2, $3, $4, nullif($5, ''))
+	_, err := s.DB.Exec(ctx, `INSERT INTO push_subscription (id, endpoint, p256dh, auth, label) VALUES ($1, $2, $3, $4, nullif($5, ''))
 		ON CONFLICT (endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth, label = excluded.label,
 			failures = 0, last_seen_at = now()`, id.New("psh"), sub.Endpoint, sub.P256dh, sub.Auth, label)
 	if err != nil {

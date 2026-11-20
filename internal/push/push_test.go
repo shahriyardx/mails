@@ -3,6 +3,7 @@ package push_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/shahriyardx/mails/internal/db/dbtest"
@@ -16,13 +17,18 @@ func TestNotifyDropsGoneAndFailing(t *testing.T) {
 		status int
 		err    error
 	}{
-		"https://push.test/ok":    {201, nil},
-		"https://push.test/gone":  {410, nil},
-		"https://push.test/flaky": {0, errors.New("timeout")},
+		"https://ok.push.example.com/x":    {201, nil},
+		"https://gone.push.example.com/x":  {410, nil},
+		"https://flaky.push.example.com/x": {0, errors.New("timeout")},
 	}
 	s := &push.Service{DB: pool, Send: func(_ context.Context, sub push.Subscription, _ []byte) (int, error) {
 		r := results[sub.Endpoint]
 		return r.status, r.err
+	}, CheckURL: func(_ context.Context, u string) error {
+		if !strings.HasPrefix(u, "https://") {
+			return errors.New("not https")
+		}
+		return nil
 	}}
 	if err := s.Subscribe(ctx, push.Subscription{Endpoint: "http://insecure.test", P256dh: "k", Auth: "a"}, ""); err == nil {
 		t.Fatal("accepted a non-https endpoint")
@@ -36,7 +42,7 @@ func TestNotifyDropsGoneAndFailing(t *testing.T) {
 		s.Notify(ctx, push.Payload{Title: "t"})
 	}
 	list, _ := s.Browsers(ctx)
-	if len(list) != 1 || list[0].Endpoint != "https://push.test/ok" {
+	if len(list) != 1 || list[0].Endpoint != "https://ok.push.example.com/x" {
 		t.Fatalf("left = %+v", list)
 	}
 	off := &push.Service{DB: pool}
