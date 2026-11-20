@@ -1,28 +1,13 @@
 import { type ThreadPatch, replyUrl, threadUrl } from "@/lib/api";
-import { cx, displayName, formatAddress, formatBytes, fullTime, shortTime } from "@/lib/format";
+import { cx, displayName, formatBytes, fullTime, shortTime } from "@/lib/format";
 import { openTab } from "@/lib/hooks";
 import { prepareEmail, textToHtml } from "@/lib/sanitize";
 import type { Settings } from "@/lib/settings";
+import type { Theme } from "@/lib/theme";
 import { type ApiMessage, type ApiThread, VIEW_FOLDER, type View } from "@/lib/types";
-import {
-  Archive,
-  ArrowLeft,
-  ChevronDown,
-  ExternalLink,
-  Forward,
-  Image as ImageIcon,
-  Mail,
-  MailOpen,
-  Paperclip,
-  Reply,
-  ReplyAll,
-  ShieldAlert,
-  Star,
-  Trash2,
-} from "lucide-react";
 import { useMemo, useState } from "react";
 import { EmailFrame } from "./email-frame";
-import { Avatar, Button, IconButton, Spinner } from "./kit";
+import { Avatar, Button, EmptyState, Icon, IconButton, LabelChip, Spinner } from "./kit";
 
 /**
  * A conversation, read.
@@ -31,6 +16,9 @@ import { Avatar, Button, IconButton, Spinner } from "./kit";
  * 400-pixel popup with no drafts, no attachments and no signature would be a
  * worse version of something that already exists one click away, so every
  * reply hands over to the dashboard with the box already open.
+ *
+ * Shaped like the web reading pane: received mail reads as a letter, the
+ * owner's own messages sit in a "YOUR REPLY" panel.
  */
 
 interface Props {
@@ -39,17 +27,15 @@ interface Props {
   error: string | null;
   view: View;
   settings: Settings;
+  theme: Theme;
   onBack: () => void;
   onPatch: (patch: ThreadPatch) => void;
   onTrash: () => void;
   /** Whether the back arrow is worth drawing; in two panes it is not. */
   showBack: boolean;
   /**
-   * Whether there is a whole window to fill rather than 400 pixels.
-   *
-   * Only changes how wide the text is allowed to run: a line of body copy
-   * stretched across a desktop monitor is unreadable, so it is capped and
-   * centred instead.
+   * Whether there is a whole window to fill rather than 400 pixels. Caps and
+   * centres the column, since body copy across a monitor is unreadable.
    */
   roomy?: boolean;
 }
@@ -60,6 +46,7 @@ export function ThreadView({
   error,
   view,
   settings,
+  theme,
   onBack,
   onPatch,
   onTrash,
@@ -68,7 +55,7 @@ export function ThreadView({
 }: Props) {
   const folder = VIEW_FOLDER[view];
   /** The column everything in here lines up to. */
-  const column = roomy ? "mx-auto w-full max-w-[860px]" : "w-full";
+  const column = roomy ? "mx-auto w-full max-w-[700px]" : "w-full";
 
   if (loading && !thread) {
     return (
@@ -80,145 +67,127 @@ export function ThreadView({
 
   if (error) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
-        <div className="text-[13.5px] font-semibold">That conversation would not open</div>
-        <div className="text-[12.5px] text-muted-foreground">{error}</div>
-        {showBack ? (
-          <Button size="sm" variant="outline" onClick={onBack}>
-            Back
-          </Button>
-        ) : null}
-      </div>
+      <EmptyState
+        icon="error"
+        title="That conversation would not open"
+        body={error}
+        action={
+          showBack ? (
+            <Button variant="outline" icon="arrow_back" onClick={onBack}>
+              Back
+            </Button>
+          ) : null
+        }
+      />
     );
   }
 
   if (!thread) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center">
-        <div className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-          <MailOpen className="size-5" />
-        </div>
-        <div className="text-[14px] font-semibold">Nothing open</div>
-        <p className="max-w-[280px] text-[12.5px] leading-relaxed text-muted-foreground">
-          Pick a conversation on the left and it will be read here.
-        </p>
-      </div>
+      <EmptyState
+        icon="mail"
+        title="Nothing open"
+        body="Pick a conversation on the left and it will be read here."
+      />
     );
   }
 
   const messages = thread.messages ?? [];
   const unread = thread.unread_count > 0;
+  const inApp = () => openTab(threadUrl(settings, thread, folder));
+  const reply = (mode: "reply" | "replyAll" | "forward") =>
+    openTab(replyUrl(settings, thread, folder, mode));
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* toolbar */}
-      <div className="shrink-0 border-b border-border bg-card px-2 py-1.5">
-        <div className={cx("flex items-center gap-0.5", column, roomy && "px-2")}>
-          {showBack ? (
-            <IconButton label="Back" onClick={onBack}>
-              <ArrowLeft />
-            </IconButton>
-          ) : null}
+      <div className="shrink-0 border-b border-border px-2 py-1.5">
+        <div className={cx("flex items-center gap-0.5", column, roomy && "px-4")}>
+          {showBack ? <IconButton icon="arrow_back" label="Back" onClick={onBack} /> : null}
 
-          <IconButton
-            label={thread.is_starred ? "Remove star" : "Star"}
-            active={thread.is_starred}
-            onClick={() => onPatch({ is_starred: !thread.is_starred })}
-          >
-            <Star className={thread.is_starred ? "fill-warn text-warn" : undefined} />
-          </IconButton>
-
-          <IconButton
-            label={unread ? "Mark as read" : "Mark as unread"}
-            onClick={() => onPatch({ is_read: unread })}
-          >
-            {unread ? <MailOpen /> : <Mail />}
-          </IconButton>
-
-          <IconButton label="Archive" onClick={() => onPatch({ folder: "archive" })}>
-            <Archive />
-          </IconButton>
-
-          <IconButton label="Mark as spam" onClick={() => onPatch({ folder: "spam" })}>
-            <ShieldAlert />
-          </IconButton>
-
-          <IconButton label="Delete" tone="danger" onClick={onTrash}>
-            <Trash2 />
-          </IconButton>
-
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto flex items-center gap-0.5">
             <IconButton
-              label="Open in Mails"
-              onClick={() => openTab(threadUrl(settings, thread, folder))}
-            >
-              <ExternalLink />
-            </IconButton>
-            <Button
-              size="sm"
-              pill
-              onClick={() => openTab(replyUrl(settings, thread, folder, "reply"))}
-            >
-              <Reply />
-              Reply
-            </Button>
+              icon="archive"
+              label="Archive"
+              onClick={() => onPatch({ folder: "archive" })}
+            />
+            <IconButton
+              icon="star"
+              filled={thread.is_starred}
+              label={thread.is_starred ? "Remove star" : "Star"}
+              className={thread.is_starred ? "text-accent" : undefined}
+              onClick={() => onPatch({ is_starred: !thread.is_starred })}
+            />
+            <IconButton
+              icon={unread ? "mark_email_read" : "mark_email_unread"}
+              label={unread ? "Mark as read" : "Mark as unread"}
+              onClick={() => onPatch({ is_read: unread })}
+            />
+            <IconButton
+              icon="report"
+              label="Mark as spam"
+              onClick={() => onPatch({ folder: "spam" })}
+            />
+            <IconButton icon="delete" label="Delete" tone="danger" onClick={onTrash} />
+            <IconButton icon="open_in_new" label="Open in Mails" onClick={inApp} />
           </div>
         </div>
       </div>
 
       {/* the conversation */}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className={cx("px-4 pb-6 pt-4", column, roomy && "px-6 pt-6")}>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <h1 className="text-[16px] font-semibold leading-tight tracking-[-0.015em]">
-              {thread.subject?.trim() || "(no subject)"}
-            </h1>
-            {(thread.labels ?? []).map((label) => (
-              <span
-                key={label.id}
-                className="pill border-transparent font-medium"
-                style={{ backgroundColor: `${label.color}1f`, color: label.color }}
-              >
-                <span className="size-1.5 rounded-full" style={{ backgroundColor: label.color }} />
-                {label.name}
-              </span>
-            ))}
-          </div>
+        <div className={cx("px-4 pt-4 pb-6", column, roomy && "px-6 pt-8")}>
+          {(thread.labels ?? []).length > 0 ? (
+            <div className="mb-2.5 flex flex-wrap gap-1">
+              {(thread.labels ?? []).map((label) => (
+                <LabelChip key={label.id} name={label.name} color={label.color} />
+              ))}
+            </div>
+          ) : null}
+
+          <h1
+            className={cx(
+              "font-semibold leading-tight text-foreground",
+              roomy ? "text-[28px]" : "text-[19px]",
+            )}
+          >
+            {thread.subject?.trim() || "(no subject)"}
+          </h1>
 
           {thread.mailbox ? (
-            <div className="mt-1 font-mono text-[11.5px] text-muted-foreground">
+            <div className="mt-1.5 flex items-center gap-1.5 font-mono text-[11.5px] text-muted-foreground">
+              {thread.mailbox_color ? (
+                <span
+                  aria-hidden
+                  className="size-2 rounded-[2px]"
+                  style={{ background: thread.mailbox_color }}
+                />
+              ) : null}
               {thread.mailbox}
             </div>
           ) : null}
 
-          <div className="mt-4 space-y-2">
+          <ol className="mt-5 space-y-5">
             {messages.map((message, index) => (
-              <MessagePanel
+              <MessageItem
                 key={message.id}
                 message={message}
+                first={index === 0}
+                theme={theme}
                 defaultOpen={index === messages.length - 1}
-                onOpenInApp={() => openTab(threadUrl(settings, thread, folder))}
+                onOpenInApp={inApp}
               />
             ))}
-          </div>
+          </ol>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              pill
-              onClick={() => openTab(replyUrl(settings, thread, folder, "replyAll"))}
-            >
-              <ReplyAll />
-              Reply to all
+          <div className="mt-6 flex flex-wrap gap-2">
+            <Button variant="primary" icon="reply" onClick={() => reply("reply")}>
+              Reply
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              pill
-              onClick={() => openTab(replyUrl(settings, thread, folder, "forward"))}
-            >
-              <Forward />
+            <Button icon="reply_all" onClick={() => reply("replyAll")}>
+              Reply all
+            </Button>
+            <Button icon="forward" onClick={() => reply("forward")}>
               Forward
             </Button>
           </div>
@@ -230,12 +199,16 @@ export function ThreadView({
 
 /* ------------------------------------------------------------- one message */
 
-function MessagePanel({
+function MessageItem({
   message,
+  first,
+  theme,
   defaultOpen,
   onOpenInApp,
 }: {
   message: ApiMessage;
+  first: boolean;
+  theme: Theme;
   defaultOpen: boolean;
   /** Downloading a file needs the key in a header, which a link cannot carry,
    *  so an attachment hands the reader to the dashboard instead. */
@@ -243,6 +216,7 @@ function MessagePanel({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [showImages, setShowImages] = useState(false);
+  const outbound = message.direction === "outbound";
 
   const prepared = useMemo(() => {
     if (message.html?.trim()) return prepareEmail(message.html, { showRemoteImages: showImages });
@@ -254,98 +228,129 @@ function MessagePanel({
 
   const attachments = (message.attachments ?? []).filter((file) => !file.is_inline);
   const when = message.sent_at ?? message.received_at;
+  const toggle = () => setOpen(!open);
 
-  return (
-    <div className="overflow-hidden rounded-[11px] border border-border bg-card">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition hover:bg-accent/50"
-      >
-        <Avatar name={message.from.name} address={message.from.address} size="sm" />
-        <span className="min-w-0 flex-1">
-          <span className="flex items-baseline gap-2">
-            <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">
-              {displayName(message.from)}
-            </span>
-            <span
-              title={fullTime(when)}
-              className="shrink-0 text-[11px] tabular-nums text-muted-foreground"
-            >
-              {shortTime(when)}
-            </span>
+  const snippet = (
+    <button
+      type="button"
+      onClick={toggle}
+      className="mt-1.5 block w-full truncate text-left text-[13px] text-muted-foreground"
+    >
+      {message.snippet || "No preview"}
+    </button>
+  );
+
+  const body = (
+    <div className="mt-3">
+      {!outbound ? (
+        <div className="mb-2 truncate text-xs text-muted-foreground">
+          to {message.to.map((entry) => displayName(entry)).join(", ") || "undisclosed"}
+        </div>
+      ) : null}
+      {message.cc.length > 0 ? (
+        <div className="mb-2 truncate font-mono text-[11px] text-muted-foreground">
+          cc {message.cc.map((entry) => entry.address).join(", ")}
+        </div>
+      ) : null}
+
+      {prepared.blockedImages > 0 ? (
+        <div className="mb-3 flex items-center gap-2 rounded-lg bg-tonal px-3 py-2 text-xs text-soft-foreground">
+          <Icon name="hide_image" size={16} />
+          <span className="flex-1">
+            {prepared.blockedImages} remote{" "}
+            {prepared.blockedImages === 1 ? "image is" : "images are"} not loaded
           </span>
-          <span className="block truncate text-[11.5px] text-muted-foreground">
-            {open
-              ? `to ${message.to.map((entry) => displayName(entry)).join(", ") || "undisclosed"}`
-              : message.snippet || ""}
-          </span>
-        </span>
-        <ChevronDown
-          className={cx(
-            "size-4 shrink-0 text-muted-foreground transition-transform",
-            open && "rotate-180",
-          )}
-        />
-      </button>
+          <button
+            type="button"
+            onClick={() => setShowImages(true)}
+            className="rounded font-semibold text-accent hover:underline"
+          >
+            Show
+          </button>
+        </div>
+      ) : null}
 
-      {open ? (
-        <div className="border-t border-border px-3 py-3">
-          <div className="mb-2 space-y-0.5 font-mono text-[11px] text-muted-foreground">
-            <div className="truncate">from {formatAddress(message.from)}</div>
-            {message.cc.length > 0 ? (
-              <div className="truncate">
-                cc {message.cc.map((entry) => entry.address).join(", ")}
-              </div>
-            ) : null}
-          </div>
+      {prepared.html ? (
+        <EmailFrame html={prepared.html} allowRemote={showImages} theme={theme} />
+      ) : (
+        <div className="text-[13px] italic text-muted-foreground">This message has no body.</div>
+      )}
 
-          {prepared.blockedImages > 0 ? (
+      {attachments.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {attachments.map((file) => (
             <button
+              key={file.id}
               type="button"
-              onClick={() => setShowImages(true)}
-              className="mb-2 flex w-full items-center gap-2 rounded-[9px] border border-warn/30 bg-warn-soft px-2.5 py-1.5 text-left text-[11.5px]"
+              onClick={onOpenInApp}
+              title={`${file.filename}: open in Mails to download`}
+              className="flex max-w-full items-center gap-2.5 rounded-[10px] border border-border bg-surface px-2.5 py-2 text-left transition-colors hover:bg-tonal"
             >
-              <ImageIcon className="size-3.5 shrink-0" />
-              <span className="flex-1">
-                {prepared.blockedImages} remote{" "}
-                {prepared.blockedImages === 1 ? "image is" : "images are"} not loaded
+              <Icon name="description" className="text-muted-foreground" />
+              <span className="min-w-0">
+                <span className="block max-w-48 truncate text-[12.5px] font-medium">
+                  {file.filename}
+                </span>
+                <span className="block font-mono text-[10.5px] text-muted-foreground">
+                  {file.size_bytes ? `${formatBytes(file.size_bytes)} · ` : ""}open in Mails
+                </span>
               </span>
-              <span className="font-medium underline">Show</span>
             </button>
-          ) : null}
-
-          {prepared.html ? (
-            <EmailFrame html={prepared.html} allowRemote={showImages} />
-          ) : (
-            <div className="text-[12.5px] italic text-muted-foreground">
-              This message has no body.
-            </div>
-          )}
-
-          {attachments.length > 0 ? (
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {attachments.map((file) => (
-                <button
-                  key={file.id}
-                  type="button"
-                  onClick={onOpenInApp}
-                  title={`${file.filename} — open in Mails to download`}
-                  className="inline-flex max-w-full items-center gap-1.5 rounded-[8px] border border-border bg-muted/60 px-2 py-1 text-[11.5px] transition hover:bg-accent"
-                >
-                  <Paperclip className="size-3 shrink-0 text-muted-foreground" />
-                  <span className="truncate">{file.filename}</span>
-                  {file.size_bytes ? (
-                    <span className="shrink-0 text-muted-foreground">
-                      {formatBytes(file.size_bytes)}
-                    </span>
-                  ) : null}
-                </button>
-              ))}
-            </div>
-          ) : null}
+          ))}
         </div>
       ) : null}
     </div>
+  );
+
+  if (outbound) {
+    return (
+      <li className="rounded-[14px] border border-border bg-surface px-4 py-3.5">
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={open}
+          title={fullTime(when)}
+          className="block max-w-full truncate text-left font-display text-[11.5px] font-semibold uppercase tracking-[0.04em] text-accent"
+        >
+          {first ? "You wrote" : "Your reply"} ·{" "}
+          <span className="font-mono font-medium normal-case tracking-normal">
+            {shortTime(when)}
+          </span>
+        </button>
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+          to {message.to.map((entry) => displayName(entry)).join(", ") || "undisclosed"}
+        </p>
+        {open ? body : snippet}
+      </li>
+    );
+  }
+
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 text-left"
+      >
+        <Avatar name={message.from.name} address={message.from.address} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[13.5px] font-semibold">
+            {displayName(message.from)}
+          </span>
+          <span
+            title={fullTime(when)}
+            className="block truncate font-mono text-[11px] text-muted-foreground"
+          >
+            {message.from.address} · {shortTime(when)}
+          </span>
+        </span>
+        <Icon
+          name="expand_more"
+          className={cx("text-muted-foreground transition-transform", open && "rotate-180")}
+        />
+      </button>
+      {open ? body : snippet}
+    </li>
   );
 }

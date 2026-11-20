@@ -1,10 +1,10 @@
-import { Button, Choice, Field, Input, Spinner, Switch } from "@/components/kit";
-import { ApiError, listMailboxes, whoami } from "@/lib/api";
+import { Button, Choice, Field, Icon, Input, Logo, Spinner, Switch } from "@/components/kit";
+import { ApiError, canReadMail, listMailboxes, whoami } from "@/lib/api";
 import { cx } from "@/lib/format";
 import { useSettings } from "@/lib/hooks";
 import { type Settings, normalizeBase, originPattern } from "@/lib/settings";
+import { type ThemeChoice, useTheme } from "@/lib/theme";
 import type { ApiIdentity, ApiMailbox } from "@/lib/types";
-import { ExternalLink, KeyRound, ShieldCheck, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { browser } from "wxt/browser";
 
@@ -25,6 +25,7 @@ type Status =
 
 export function Options() {
   const { settings, update } = useSettings();
+  useTheme(settings?.theme);
 
   const [baseUrl, setBaseUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
@@ -156,24 +157,26 @@ export function Options() {
   }
 
   return (
-    <div className="min-h-screen bg-background py-10">
-      <div className="mx-auto w-full max-w-[640px] space-y-6 px-6">
-        <header>
-          <h1 className="text-[20px] font-semibold tracking-[-0.02em]">Mails</h1>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">
+    <div className="min-h-screen bg-background">
+      <div className="mx-auto w-full max-w-[640px] px-6 pt-8 pb-12">
+        <div className="mb-10 flex items-center gap-2.5">
+          <Logo />
+          <span className="font-display text-[19px] font-bold tracking-[-0.02em]">Mails</span>
+        </div>
+
+        <header className="mb-8">
+          <h1 className="text-[30px] leading-tight font-bold">Extension settings</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Your inbox in the toolbar. Self-hosted, so you say where it lives.
           </p>
         </header>
 
         {/* ------------------------------------------------------ connection */}
-        <section className="rounded-[14px] border border-border bg-card p-5 shadow-raise">
-          <h2 className="mb-1 text-[14px] font-semibold">Instance</h2>
-          <p className="mb-4 text-[12.5px] text-muted-foreground">
-            The address of your Mails and a key it will accept. The key is kept in this browser
-            only and is never synced to your account.
-          </p>
-
-          <div className="space-y-4">
+        <Section
+          title="Instance"
+          description="The address of your Mails and a key it will accept. The key is kept in this browser only and is never synced to your account."
+        >
+          <div className="space-y-4 p-5">
             <Field label="Address" hint="For example https://mail.example.com">
               <Input
                 value={baseUrl}
@@ -181,6 +184,7 @@ export function Options() {
                 placeholder="https://mail.example.com"
                 spellCheck={false}
                 autoComplete="off"
+                className="font-mono text-[13px]"
               />
             </Field>
 
@@ -195,23 +199,24 @@ export function Options() {
                 type="password"
                 spellCheck={false}
                 autoComplete="off"
+                className="font-mono text-[13px]"
               />
             </Field>
 
             <div className="flex flex-wrap items-center gap-2">
               <Button
+                variant="primary"
                 size="md"
-                pill
+                icon="key"
                 busy={status.state === "checking"}
                 disabled={!baseUrl.trim() || !apiKey.trim()}
                 onClick={() => void connect()}
               >
-                <KeyRound />
                 {settings.baseUrl ? "Reconnect" : "Connect"}
               </Button>
 
               {settings.baseUrl ? (
-                <Button size="md" variant="ghost" pill onClick={() => void disconnect()}>
+                <Button size="md" variant="ghost" icon="logout" onClick={() => void disconnect()}>
                   Disconnect
                 </Button>
               ) : null}
@@ -221,48 +226,43 @@ export function Options() {
                   href={`${normalizeBase(baseUrl)}/settings/api-keys`}
                   target="_blank"
                   rel="noreferrer"
-                  className="ml-auto inline-flex items-center gap-1 text-[12.5px] text-muted-foreground hover:text-foreground"
+                  className="ml-auto inline-flex items-center gap-1 rounded text-[13px] font-medium text-accent hover:underline"
                 >
                   Make a key
-                  <ExternalLink className="size-3.5" />
+                  <Icon name="open_in_new" size={16} />
                 </a>
               ) : null}
             </div>
 
             <StatusLine status={status} />
           </div>
-        </section>
+        </Section>
 
         {/* --------------------------------------------------------- watching */}
         {mailboxes.length > 0 ? (
-          <section className="rounded-[14px] border border-border bg-card p-5 shadow-raise">
-            <h2 className="mb-1 text-[14px] font-semibold">Mailboxes</h2>
-            <p className="mb-3 text-[12.5px] text-muted-foreground">
-              Which addresses the popup shows.
-            </p>
-
-            <div className="space-y-1">
+          <Section title="Mailboxes" description="Which addresses the popup shows.">
+            <div className="p-2">
               <label
                 className={cx(
-                  "flex cursor-pointer items-start gap-2.5 rounded-[9px] px-2 py-2 transition",
-                  watchingAll ? "bg-primary-soft/60" : "hover:bg-accent",
+                  "flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2.5 transition-colors",
+                  watchingAll ? "bg-selected" : "hover:bg-box",
                 )}
               >
                 <input
                   type="checkbox"
                   checked={watchingAll}
                   onChange={(event) => watchEvery(event.target.checked)}
-                  className="mt-0.5 size-3.5 accent-[var(--primary)]"
+                  className="mt-0.5 size-4 accent-[var(--primary)]"
                 />
                 <span>
-                  <span className="block text-[12.5px] font-medium">Every mailbox</span>
-                  <span className="block text-[11.5px] text-muted-foreground">
+                  <span className="block text-sm font-medium">Every mailbox</span>
+                  <span className="block text-[13px] text-muted-foreground">
                     Including addresses added later, without coming back here.
                   </span>
                 </span>
               </label>
 
-              <div className="my-1 h-px bg-border" />
+              <div className="mx-3 my-1 h-px bg-border" />
 
               {mailboxes.map((mailbox) => {
                 const chosen = watchingAll || picked.has(mailbox.id);
@@ -270,8 +270,8 @@ export function Options() {
                   <label
                     key={mailbox.id}
                     className={cx(
-                      "flex cursor-pointer items-center gap-2.5 rounded-[9px] px-2 py-1.5 transition",
-                      chosen ? "bg-primary-soft/60" : "hover:bg-accent",
+                      "flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 transition-colors",
+                      chosen && !watchingAll ? "bg-selected" : "hover:bg-box",
                       watchingAll && "opacity-60",
                     )}
                   >
@@ -279,11 +279,20 @@ export function Options() {
                       type="checkbox"
                       checked={chosen}
                       onChange={(event) => watchOne(mailbox.id, event.target.checked)}
-                      className="size-3.5 accent-[var(--primary)]"
+                      className="size-4 accent-[var(--primary)]"
                     />
-                    <span className="font-mono text-[12.5px]">{mailbox.address}</span>
+                    <span
+                      aria-hidden
+                      className="size-2 shrink-0 rounded-[2px]"
+                      style={{ background: mailbox.color }}
+                    />
+                    <span className="min-w-0 truncate font-mono text-[13px]">
+                      {mailbox.address}
+                    </span>
                     {mailbox.is_default ? (
-                      <span className="pill border-border text-muted-foreground">default</span>
+                      <span className="rounded-md bg-tonal px-1.5 py-px text-[11px] font-medium text-soft-foreground">
+                        default
+                      </span>
                     ) : null}
                   </label>
                 );
@@ -293,26 +302,24 @@ export function Options() {
             {/* Both of these states are allowed. Neither is obvious from six
                 ticked or six empty boxes, so each one says what it means. */}
             {!watchingAll && picked.size === 0 ? (
-              <p className="mt-3 flex items-start gap-2 rounded-[10px] border border-warn/30 bg-warn-soft px-3 py-2 text-[12px]">
-                <TriangleAlert className="mt-px size-3.5 shrink-0 text-warn" />
+              <p className="mx-4 mb-4 flex items-start gap-2 rounded-lg bg-destructive-soft px-3 py-2 text-[13px] text-destructive">
+                <Icon name="warning" size={16} className="mt-0.5" />
                 Nothing is picked, so the popup will be empty and no mail will be announced.
               </p>
             ) : null}
 
             {!watchingAll && picked.size === mailboxes.length && mailboxes.length > 0 ? (
-              <p className="mt-3 text-[12px] text-muted-foreground">
+              <p className="mx-5 mb-4 text-[13px] text-muted-foreground">
                 That is every address there is today. An address added later will not appear unless{" "}
-                <strong className="font-medium">Every mailbox</strong> is on.
+                <strong className="font-medium text-soft-foreground">Every mailbox</strong> is on.
               </p>
             ) : null}
-          </section>
+          </Section>
         ) : null}
 
         {/* ------------------------------------------------------ preferences */}
-        <section className="rounded-[14px] border border-border bg-card p-5 shadow-raise">
-          <h2 className="mb-2 text-[14px] font-semibold">Notifications</h2>
-
-          <div className="divide-y divide-border">
+        <Section title="Notifications">
+          <div className="divide-y divide-border px-5">
             <Switch
               label="Tell me about new mail"
               hint="A notification for anything unread that arrived since the last check."
@@ -325,24 +332,41 @@ export function Options() {
               checked={settings.badge}
               onChange={(value) => void update({ badge: value })}
             />
+            <div className="py-4">
+              <Field label="Check for new mail every" hint="Minutes between checks.">
+                <Choice
+                  label="Check for new mail every"
+                  value={settings.pollMinutes}
+                  onChange={(minutes) => void update({ pollMinutes: minutes })}
+                  options={[1, 2, 5, 10, 15, 30, 60].map((minutes) => ({
+                    value: minutes,
+                    label: minutes === 60 ? "1 hr" : `${minutes} min`,
+                  }))}
+                />
+              </Field>
+            </div>
           </div>
+        </Section>
 
-          <div className="mt-4 space-y-4">
-            <Field label="Check for new mail every" hint="Minutes between checks.">
-              <Choice
-                label="Check for new mail every"
-                value={settings.pollMinutes}
-                onChange={(minutes) => void update({ pollMinutes: minutes })}
-                options={[1, 2, 5, 10, 15, 30, 60].map((minutes) => ({
-                  value: minutes,
-                  label: minutes === 60 ? "1 hr" : `${minutes} min`,
-                }))}
-              />
-            </Field>
+        <Section
+          title="Appearance"
+          description="System follows your computer's light or dark setting."
+        >
+          <div className="p-5">
+            <Choice<ThemeChoice>
+              label="Theme"
+              value={settings.theme}
+              onChange={(theme) => void update({ theme })}
+              options={[
+                { value: "system", label: "System", icon: "contrast" },
+                { value: "dark", label: "Dark", icon: "dark_mode" },
+                { value: "light", label: "Light", icon: "light_mode" },
+              ]}
+            />
           </div>
-        </section>
+        </Section>
 
-        <p className="pb-8 text-center text-[11.5px] text-muted-foreground">
+        <p className="mt-10 text-center text-xs text-muted-foreground">
           Mail is read straight from your instance. Nothing passes through anybody else.
         </p>
       </div>
@@ -350,12 +374,33 @@ export function Options() {
   );
 }
 
+/** A settings section: a Sora heading and one flat panel, as on the web. */
+function Section({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="mt-8">
+      <h2 className="text-[17px] font-semibold">{title}</h2>
+      {description ? (
+        <p className="mt-0.5 text-[13px] text-muted-foreground">{description}</p>
+      ) : null}
+      <div className="mt-3 rounded-[14px] border border-border bg-surface">{children}</div>
+    </section>
+  );
+}
+
 function StatusLine({ status }: { status: Status }) {
   if (status.state === "ok") {
     const { identity } = status;
     return (
-      <div className="flex items-start gap-2 rounded-[10px] border border-ok/30 bg-ok-soft px-3 py-2 text-[12.5px]">
-        <ShieldCheck className="mt-px size-4 shrink-0 text-ok" />
+      <div className="flex items-start gap-2.5 rounded-[10px] border border-border bg-box px-3 py-2.5 text-[13px]">
+        <Icon name="verified_user" className="mt-px text-[#5fbf8a]" />
         <div className="min-w-0">
           <div className="font-medium">
             Connected as “{identity.name}”
@@ -363,13 +408,17 @@ function StatusLine({ status }: { status: Status }) {
           </div>
           <div className="text-muted-foreground">
             {identity.mode === "test" ? "Test key — it will not show live mail. " : ""}
-            {identity.reachable_mailboxes}{" "}
+            <span className="font-mono text-xs">{identity.reachable_mailboxes}</span>{" "}
             {identity.reachable_mailboxes === 1 ? "mailbox" : "mailboxes"} in reach ·{" "}
-            {identity.scopes.join(", ") || "no scopes"}
+            <span className="font-mono text-xs">
+              {identity.scopes.includes("*")
+                ? "full access"
+                : identity.scopes.join(", ") || "no scopes"}
+            </span>
           </div>
-          {!identity.scopes.some((scope) => scope.startsWith("mail")) ? (
-            <div className="mt-1 flex items-center gap-1 text-warn">
-              <TriangleAlert className="size-3.5" />
+          {!canReadMail(identity.scopes) ? (
+            <div className="mt-1 flex items-center gap-1.5 text-destructive">
+              <Icon name="warning" size={16} />
               This key has no mail scope, so there will be nothing to read.
             </div>
           ) : null}
@@ -380,11 +429,11 @@ function StatusLine({ status }: { status: Status }) {
 
   if (status.state === "error") {
     return (
-      <div className="flex items-start gap-2 rounded-[10px] border border-destructive/30 bg-danger-soft px-3 py-2 text-[12.5px]">
-        <TriangleAlert className="mt-px size-4 shrink-0 text-destructive" />
+      <div className="flex items-start gap-2.5 rounded-[10px] bg-destructive-soft px-3 py-2.5 text-[13px] text-destructive">
+        <Icon name="error" className="mt-px" />
         <div className="min-w-0">
           <div className="font-medium">{status.message}</div>
-          {status.hint ? <div className="text-muted-foreground">{status.hint}</div> : null}
+          {status.hint ? <div className="text-xs">{status.hint}</div> : null}
         </div>
       </div>
     );
@@ -392,12 +441,12 @@ function StatusLine({ status }: { status: Status }) {
 
   if (status.state === "checking") {
     return (
-      <div className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
+      <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
         <Spinner />
         Asking the instance who this key is…
       </div>
     );
   }
 
-  return <div className="text-[12.5px] text-muted-foreground">Not connected yet.</div>;
+  return <div className="text-[13px] text-muted-foreground">Not connected yet.</div>;
 }

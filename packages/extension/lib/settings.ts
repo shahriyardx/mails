@@ -1,4 +1,5 @@
 import { browser } from "wxt/browser";
+import type { ThemeChoice } from "./theme";
 
 /**
  * What the reader told us once, kept in this browser.
@@ -29,6 +30,8 @@ export interface Settings {
   /** Play the browser's notification sound is the browser's business; this
    *  only decides whether the toolbar number is drawn. */
   badge: boolean;
+  /** Dark, light, or follow the system (lib/theme.ts). */
+  theme: ThemeChoice;
 }
 
 export const DEFAULTS: Settings = {
@@ -39,6 +42,7 @@ export const DEFAULTS: Settings = {
   notifications: true,
   pollMinutes: 2,
   badge: true,
+  theme: "system",
 };
 
 const KEY = "settings";

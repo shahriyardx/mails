@@ -3,29 +3,43 @@ import type { Address, ApiThread } from "./types";
 /**
  * The small presentational decisions, kept out of the components.
  *
- * The avatar hues and the initials rule match src/components/kit/avatar.tsx
- * on purpose: the same sender must look the same in the toolbar as in the tab
- * next to it, or the popup reads as a different product.
+ * The avatar hue, the initials rule and the day groups are copies of
+ * web/src/components/kit/avatar.tsx and web/src/lib/mail.ts on purpose: the
+ * same sender must look the same in the toolbar as in the tab next to it.
  */
 
-const HUES = [12, 42, 78, 112, 152, 185, 215, 245, 278, 305, 330, 352];
-
-export function hueFor(seed: string) {
+/** A stable hue (0-359) for an address, so a person keeps their colour. */
+export function hueFor(key: string) {
   let hash = 0;
-  for (let index = 0; index < seed.length; index += 1) {
-    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
-  }
-  return HUES[hash % HUES.length] as number;
+  for (const char of key.toLowerCase()) hash = (hash * 31 + char.charCodeAt(0)) | 0;
+  return Math.abs(hash) % 360;
 }
 
+/** "Ada Lovelace" -> AL; a single word or a bare address gives one letter. */
 export function initialsFor(name?: string | null, address?: string | null) {
-  const source = (name ?? "").trim() || (address ?? "").split("@")[0] || "?";
-  const words = source.split(/[\s._-]+/).filter(Boolean);
-  if (words.length === 0) return "?";
-  if (words.length === 1) return (words[0] as string).slice(0, 2).toUpperCase();
-  const first = words[0] as string;
-  const last = words[words.length - 1] as string;
-  return ((first[0] ?? "") + (last[0] ?? "")).toUpperCase();
+  const words = (name ?? "").replace(/[<>"]/g, "").trim().split(/\s+/).filter(Boolean);
+  if (words.length > 1)
+    return ((words[0] as string)[0]! + (words.at(-1) as string)[0]!).toUpperCase();
+  return (words[0] ?? address ?? "?").slice(0, 1).toUpperCase();
+}
+
+const startOfDay = (date: Date) =>
+  new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+
+/**
+ * The day heading a thread sits under in the list: Today, Yesterday,
+ * Earlier this week (weeks start on Monday), then the date itself.
+ */
+export function dayGroup(value: string, now = new Date()) {
+  const date = new Date(value);
+  const days = Math.round((startOfDay(now) - startOfDay(date)) / DAY);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days <= (now.getDay() + 6) % 7) return "Earlier this week";
+  const weekday = date.toLocaleDateString("en-GB", { weekday: "short" });
+  const day = date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const year = date.getFullYear() === now.getFullYear() ? "" : ` ${date.getFullYear()}`;
+  return `${weekday} ${day}${year}`;
 }
 
 /** A person, as short as it can be while still naming them. */

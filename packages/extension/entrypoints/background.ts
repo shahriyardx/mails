@@ -59,13 +59,13 @@ async function paintBadge(count: number, settings: Settings) {
   const text = !settings.badge || count === 0 ? "" : count > 99 ? "99+" : String(count);
   try {
     await browser.action.setBadgeText({ text });
-    await browser.action.setBadgeBackgroundColor({ color: "#c1bdb7" }); // --primary
+    await browser.action.setBadgeBackgroundColor({ color: "#a99cf5" }); // --primary (dark)
     // Firefox picks its own text colour, and picks a poor one against grey.
     // Chrome grew this call later than the rest, so it is allowed to be absent.
     const action = browser.action as typeof browser.action & {
       setBadgeTextColor?: (details: { color: string }) => Promise<void>;
     };
-    await action.setBadgeTextColor?.({ color: "#171613" }); // --background
+    await action.setBadgeTextColor?.({ color: "#16151a" }); // --background (dark)
   } catch {
     // A browser that cannot paint a badge still polls and notifies.
   }

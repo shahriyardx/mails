@@ -253,43 +253,54 @@ export function textToHtml(text: string) {
   return `<div style="white-space:pre-wrap">${linked}</div>`;
 }
 
+/** Frame colours per theme: --soft-foreground, --muted-foreground, --input. */
+const FRAME_THEME = {
+  dark: { text: "#b9b7c3", muted: "#94929f", line: "#3a3942" },
+  light: { text: "#4b4957", muted: "#686574", line: "#d4d1de" },
+} as const;
+
 /**
- * The stylesheet the frame carries. Kept close to the web app's so a message
- * does not change shape between the popup and the tab.
+ * The stylesheet the frame carries, in the page's theme. Kept close to the
+ * web app's frameStyles so a message does not change shape between the popup
+ * and the tab. The frame loads no web fonts (font-src data:), so Inter only
+ * where it is installed, else the system sans.
  */
-export const FRAME_STYLES = `
+export function frameStyles(theme: "dark" | "light") {
+  const colors = FRAME_THEME[theme];
+  return `
   html { scrollbar-width: none; }
   html::-webkit-scrollbar { width: 0; height: 0; }
-  :root { color-scheme: dark; }
+  :root { color-scheme: ${theme}; }
   body {
     margin: 0;
     padding: 0;
-    font-family: "Google Sans Flex Variable", ui-sans-serif, system-ui, sans-serif;
-    font-size: 13px;
-    line-height: 1.55;
-    color: oklch(0.88 0.01 85);
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: ${colors.text};
     background: transparent;
     word-break: break-word;
     overflow-wrap: anywhere;
   }
   img { max-width: 100%; height: auto; }
   table { max-width: 100%; }
-  a { color: oklch(0.88 0.01 85); text-decoration: underline; }
+  a { color: ${colors.text}; text-decoration: underline; }
   blockquote {
     margin: 8px 0 8px 4px;
     padding-left: 12px;
-    border-left: 2px solid oklch(0.36 0.008 85);
-    color: oklch(0.66 0.008 85);
+    border-left: 2px solid ${colors.line};
+    color: ${colors.muted};
   }
   pre { white-space: pre-wrap; word-break: break-word; }
   img[data-blocked-src] {
     width: 22px !important;
     height: 22px !important;
     max-width: 22px;
-    background: repeating-linear-gradient(45deg, oklch(0.88 0.01 85 / 0.12), oklch(0.88 0.01 85 / 0.12) 5px, transparent 5px, transparent 10px);
-    border: 1px dashed oklch(0.66 0.008 85);
+    background: repeating-linear-gradient(45deg, ${colors.line}, ${colors.line} 5px, transparent 5px, transparent 10px);
+    border: 1px dashed ${colors.muted};
     border-radius: 3px;
   }
   body > *:first-child { margin-top: 0; }
   body > *:last-child { margin-bottom: 0; }
 `;
+}

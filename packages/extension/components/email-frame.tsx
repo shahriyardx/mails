@@ -1,4 +1,5 @@
-import { FRAME_STYLES, frameCsp } from "@/lib/sanitize";
+import { frameCsp, frameStyles } from "@/lib/sanitize";
+import type { Theme } from "@/lib/theme";
 import { useEffect, useRef, useState } from "react";
 
 /**
@@ -22,9 +23,11 @@ interface Props {
   html: string;
   /** The reader asked for remote images; the CSP lets them through. */
   allowRemote: boolean;
+  /** The page's resolved theme, for the body's text colours. */
+  theme: Theme;
 }
 
-export function EmailFrame({ html, allowRemote }: Props) {
+export function EmailFrame({ html, allowRemote, theme }: Props) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(120);
 
@@ -32,7 +35,7 @@ export function EmailFrame({ html, allowRemote }: Props) {
     const element = frame.current;
     if (!element) return;
 
-    const document_ = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${frameCsp(allowRemote)}"><base target="_blank"><style>${FRAME_STYLES}</style></head><body>${html}</body></html>`;
+    const document_ = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${frameCsp(allowRemote)}"><base target="_blank"><style>${frameStyles(theme)}</style></head><body>${html}</body></html>`;
 
     element.srcdoc = document_;
 
@@ -78,7 +81,7 @@ export function EmailFrame({ html, allowRemote }: Props) {
       for (const observer of observers) observer.disconnect();
       for (const timer of timers) window.clearTimeout(timer);
     };
-  }, [html, allowRemote]);
+  }, [html, allowRemote, theme]);
 
   return (
     <iframe

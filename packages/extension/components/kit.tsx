@@ -1,83 +1,124 @@
 import { cx, hueFor, initialsFor } from "@/lib/format";
-import { Loader2 } from "lucide-react";
 import type React from "react";
 
 /**
  * The handful of controls the popup is built from.
  *
- * A deliberate miniature of src/components/kit: the same variants, the same
- * radii, the same one accent that only ever means state. Radix is not here —
- * nothing in the popup needs a portal or focus trap, and a dependency that
- * exists to solve those would be paying for nothing.
+ * A miniature of web/src/components/kit: the same variants, sizes, corners
+ * and tokens (docs/design.md). Base UI is not here: nothing in the popup
+ * needs a portal or focus trap.
  */
+
+/* -------------------------------------------------------------------- icon */
+
+/**
+ * A Material Symbols Rounded glyph (the self-hosted subset in public/fonts).
+ * Decorative: the control around it carries the accessible name.
+ */
+export function Icon({
+  name,
+  size = 18,
+  filled,
+  className,
+}: {
+  name: string;
+  size?: number;
+  filled?: boolean;
+  className?: string;
+}) {
+  return (
+    <span
+      aria-hidden
+      data-filled={filled || undefined}
+      className={cx("ms inline-grid shrink-0 place-items-center overflow-hidden", className)}
+      style={{ fontSize: size, width: size, height: size }}
+    >
+      {name}
+    </span>
+  );
+}
 
 /* ------------------------------------------------------------------ button */
 
-const BUTTON_VARIANTS = {
-  solid: "bg-primary text-primary-foreground hover:brightness-110",
-  soft: "bg-primary-soft text-primary-soft-foreground hover:brightness-[0.97]",
-  outline: "border border-border bg-transparent hover:bg-accent",
-  ghost: "bg-transparent hover:bg-accent text-foreground",
-  danger: "bg-destructive text-destructive-foreground hover:brightness-110",
+const TONES = {
+  primary:
+    "bg-primary text-primary-foreground hover:bg-[color-mix(in_srgb,var(--primary)_88%,var(--foreground))]",
+  tonal: "bg-tonal text-tonal-foreground hover:bg-tonal-hover",
+  outline:
+    "text-soft-foreground shadow-[inset_0_0_0_1px_var(--border)] hover:bg-tonal hover:text-foreground",
+  ghost: "text-soft-foreground hover:bg-tonal hover:text-foreground",
+  destructive:
+    "bg-destructive-soft text-destructive hover:bg-[color-mix(in_srgb,var(--destructive)_22%,var(--background))]",
 } as const;
+
+const BASE =
+  "inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap font-medium transition-colors disabled:pointer-events-none disabled:opacity-50";
 
 const BUTTON_SIZES = {
-  sm: "h-7 px-2.5 text-[12px] gap-1.5",
-  md: "h-8 px-3 text-[13px] gap-1.5",
-  lg: "h-9 px-4 text-[13.5px] gap-2",
+  xs: "h-7 rounded-[7px] px-2.5 text-xs",
+  sm: "h-8 rounded-lg px-3 text-[13px]",
+  md: "h-9.5 rounded-[10px] px-3.5 text-sm",
 } as const;
 
+const ICON_SIZE = { xs: 16, sm: 18, md: 18 } as const;
+
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: keyof typeof BUTTON_VARIANTS;
+  variant?: keyof typeof TONES;
   size?: keyof typeof BUTTON_SIZES;
-  pill?: boolean;
+  /** A Material Symbols name shown before the label. */
+  icon?: string;
+  /** Shows a spinner in place of the icon and blocks clicks. */
   busy?: boolean;
 }
 
 export function Button({
-  variant = "soft",
-  size = "md",
-  pill = false,
+  variant = "tonal",
+  size = "sm",
+  icon,
   busy = false,
   className,
   children,
   disabled,
   ...props
 }: ButtonProps) {
+  const glyph = busy ? "progress_activity" : icon;
   return (
     <button
       type="button"
       disabled={disabled || busy}
-      className={cx(
-        "inline-flex shrink-0 items-center justify-center font-medium transition",
-        "disabled:pointer-events-none disabled:opacity-45",
-        "[&_svg]:size-[15px] [&_svg]:shrink-0",
-        pill ? "rounded-full" : "rounded-[9px]",
-        BUTTON_VARIANTS[variant],
-        BUTTON_SIZES[size],
-        className,
-      )}
+      className={cx(BASE, TONES[variant], BUTTON_SIZES[size], className)}
       {...props}
     >
-      {busy ? <Loader2 className="animate-spin" /> : null}
+      {glyph ? (
+        <Icon
+          name={glyph}
+          size={ICON_SIZE[size]}
+          className={cx("-ml-0.5", busy && "animate-spin")}
+        />
+      ) : null}
       {children}
     </button>
   );
 }
 
-interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface IconButtonProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
+  /** Material Symbols name. */
+  icon: string;
+  /** The tooltip and the accessible name both. */
   label: string;
-  active?: boolean;
+  filled?: boolean;
+  spin?: boolean;
   tone?: "default" | "danger";
 }
 
-/** A square action. The label is the tooltip and the accessible name both. */
+/** A square icon-only action (30px, like the web kit's `xs`). */
 export function IconButton({
+  icon,
   label,
-  active = false,
+  filled,
+  spin,
   tone = "default",
   className,
-  children,
   ...props
 }: IconButtonProps) {
   return (
@@ -85,22 +126,42 @@ export function IconButton({
       type="button"
       title={label}
       aria-label={label}
-      aria-pressed={active || undefined}
       className={cx(
-        "inline-flex size-7 shrink-0 items-center justify-center rounded-[8px] transition",
-        "disabled:pointer-events-none disabled:opacity-35",
-        "[&_svg]:size-[15px]",
-        active
-          ? "bg-primary-soft text-primary-soft-foreground"
-          : tone === "danger"
-            ? "text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-            : "text-muted-foreground hover:bg-accent hover:text-foreground",
+        BASE,
+        "size-7.5 rounded-lg",
+        tone === "danger"
+          ? "text-soft-foreground hover:bg-destructive-soft hover:text-destructive"
+          : TONES.ghost,
         className,
       )}
       {...props}
     >
-      {children}
+      <Icon name={icon} size={18} filled={filled} className={cx(spin && "animate-spin")} />
     </button>
+  );
+}
+
+/* --------------------------------------------------------------------- chip */
+
+/** A round filter chip, like the web list's: the picked one is inverted. */
+export function Chip({
+  active,
+  className,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { active: boolean }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      className={cx(
+        "shrink-0 whitespace-nowrap rounded-full px-2.75 py-1 text-[12.5px] font-semibold transition-colors",
+        active
+          ? "bg-foreground text-background"
+          : "bg-tonal text-soft-foreground hover:bg-tonal-hover hover:text-foreground",
+        className,
+      )}
+      {...props}
+    />
   );
 }
 
@@ -110,8 +171,8 @@ export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInp
   return (
     <input
       className={cx(
-        "h-9 w-full rounded-[9px] border border-input bg-card px-3 text-[13px]",
-        "placeholder:text-muted-foreground focus:border-ring focus:outline-none",
+        "h-9.5 w-full rounded-lg border border-input bg-field px-3 text-sm text-foreground transition-[border-color,box-shadow]",
+        "placeholder:text-muted-foreground focus:border-primary focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--primary)_22%,transparent)] focus:outline-none",
         className,
       )}
       {...props}
@@ -129,12 +190,12 @@ interface FieldProps {
 export function Field({ label, hint, error, children }: FieldProps) {
   return (
     <label className="block space-y-1.5">
-      <span className="block text-[12.5px] font-medium">{label}</span>
+      <span className="block text-[13px] font-medium">{label}</span>
       {children}
       {error ? (
-        <span className="block text-[12px] text-destructive">{error}</span>
+        <span className="block text-xs text-destructive">{error}</span>
       ) : hint ? (
-        <span className="block text-[12px] text-muted-foreground">{hint}</span>
+        <span className="block text-xs text-muted-foreground">{hint}</span>
       ) : null}
     </label>
   );
@@ -149,10 +210,10 @@ interface SwitchProps {
 
 export function Switch({ checked, onChange, label, hint }: SwitchProps) {
   return (
-    <div className="flex items-start justify-between gap-4 py-2">
+    <div className="flex items-center justify-between gap-4 py-3">
       <div className="min-w-0">
-        <div className="text-[13px] font-medium">{label}</div>
-        {hint ? <div className="text-[12px] text-muted-foreground">{hint}</div> : null}
+        <div className="text-sm font-medium">{label}</div>
+        {hint ? <div className="text-[13px] text-muted-foreground">{hint}</div> : null}
       </div>
       <button
         type="button"
@@ -161,14 +222,14 @@ export function Switch({ checked, onChange, label, hint }: SwitchProps) {
         aria-label={label}
         onClick={() => onChange(!checked)}
         className={cx(
-          "relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition",
+          "relative h-5.5 w-9.5 shrink-0 rounded-full transition-colors",
           checked ? "bg-primary" : "bg-input",
         )}
       >
         <span
           className={cx(
-            "absolute top-0.5 size-4 rounded-full transition-all",
-            checked ? "left-[18px] bg-background" : "left-0.5 bg-foreground",
+            "absolute top-0.75 size-4 rounded-full transition-all",
+            checked ? "left-4.75 bg-primary-foreground" : "left-0.75 bg-foreground",
           )}
         />
       </button>
@@ -178,18 +239,14 @@ export function Switch({ checked, onChange, label, hint }: SwitchProps) {
 
 interface ChoiceProps<T extends string | number> {
   value: T;
-  options: { value: T; label: string }[];
+  options: { value: T; label: string; icon?: string }[];
   onChange: (value: T) => void;
   label: string;
 }
 
 /**
- * A row of options, one of which is on.
- *
- * Used where a `<select>` would otherwise be. A native select opens a list the
- * operating system draws, in its own colours and its own size, which in a
- * small dark panel arrives as a grey slab from somewhere else entirely. With
- * a handful of options there is no reason to hide them in the first place.
+ * A row of options, one of which is on: a segmented control in place of a
+ * `<select>`, whose list the operating system draws in its own colours.
  */
 export function Choice<T extends string | number>({
   value,
@@ -198,7 +255,7 @@ export function Choice<T extends string | number>({
   label,
 }: ChoiceProps<T>) {
   return (
-    <div className="flex flex-wrap gap-1 rounded-[10px] border border-input bg-muted/50 p-1">
+    <div className="flex flex-wrap gap-1 rounded-[10px] bg-tonal p-1">
       {options.map((option) => {
         const on = option.value === value;
         return (
@@ -209,12 +266,13 @@ export function Choice<T extends string | number>({
             aria-pressed={on}
             onClick={() => onChange(option.value)}
             className={cx(
-              "min-w-0 flex-1 rounded-[7px] px-2 py-1 text-[12px] font-medium transition",
+              "flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-[7px] px-2 py-1.5 text-[13px] font-medium transition-colors",
               on
-                ? "bg-card text-foreground shadow-raise"
-                : "text-muted-foreground hover:text-foreground",
+                ? "bg-surface-high text-foreground shadow-[0_0_0_1px_var(--input)]"
+                : "text-soft-foreground hover:text-foreground",
             )}
           >
+            {option.icon ? <Icon name={option.icon} size={16} /> : null}
             {option.label}
           </button>
         );
@@ -227,32 +285,33 @@ export function Choice<T extends string | number>({
 
 const AVATAR_SIZES = {
   sm: "size-7 text-[11px]",
-  md: "size-8 text-[11.5px]",
-  lg: "size-9 text-[12.5px]",
+  md: "size-9 text-[13px]",
 } as const;
 
-interface AvatarProps {
+/**
+ * Initials on a tint whose hue comes from the address (web's avatar). No
+ * picture: the dashboard's avatar endpoint needs a session, not an API key.
+ */
+export function Avatar({
+  name,
+  address,
+  size = "md",
+  className,
+}: {
   name?: string | null;
   address?: string | null;
   size?: keyof typeof AVATAR_SIZES;
   className?: string;
-}
-
-export function Avatar({ name, address, size = "md", className }: AvatarProps) {
-  const hue = hueFor((address || name || "?").toLowerCase());
+}) {
   return (
     <span
       aria-hidden
       className={cx(
-        "flex shrink-0 select-none items-center justify-center rounded-full font-semibold",
+        "avatar-tint inline-grid shrink-0 select-none place-items-center rounded-full font-semibold",
         AVATAR_SIZES[size],
         className,
       )}
-      style={{
-        // Low chroma: a hint of hue to tell people apart, never a colour.
-        backgroundColor: `oklch(0.34 0.025 ${hue})`,
-        color: `oklch(0.88 0.03 ${hue})`,
-      }}
+      style={{ "--h": hueFor(address || name || "?") } as React.CSSProperties}
     >
       {initialsFor(name, address)}
     </span>
@@ -261,12 +320,28 @@ export function Avatar({ name, address, size = "md", className }: AvatarProps) {
 
 /* ------------------------------------------------------------- odds and ends */
 
+/** The mark: a lavender diamond, as in the web sidebar. */
+export function Logo({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cx("inline-block size-2.5 shrink-0 rotate-45 rounded-[3px] bg-primary", className)}
+    />
+  );
+}
+
 export function Spinner({ className }: { className?: string }) {
-  return <Loader2 className={cx("size-4 animate-spin text-muted-foreground", className)} />;
+  return (
+    <Icon
+      name="progress_activity"
+      size={20}
+      className={cx("animate-spin text-muted-foreground", className)}
+    />
+  );
 }
 
 interface EmptyStateProps {
-  icon?: React.ReactNode;
+  icon?: string;
   title: string;
   body?: React.ReactNode;
   action?: React.ReactNode;
@@ -275,41 +350,24 @@ interface EmptyStateProps {
 export function EmptyState({ icon, title, body, action }: EmptyStateProps) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 px-8 py-12 text-center">
-      {icon ? <div className="mb-1 text-muted-foreground [&_svg]:size-7">{icon}</div> : null}
-      <div className="text-[14px] font-semibold">{title}</div>
-      {body ? <div className="text-[12.5px] text-muted-foreground">{body}</div> : null}
+      {icon ? (
+        <div className="mb-1 grid size-12 place-items-center rounded-full bg-tonal text-soft-foreground">
+          <Icon name={icon} size={24} />
+        </div>
+      ) : null}
+      <div className="font-display text-[15px] font-semibold">{title}</div>
+      {body ? <div className="text-[13px] text-muted-foreground">{body}</div> : null}
       {action ? <div className="mt-2">{action}</div> : null}
     </div>
   );
 }
 
-/** A coloured dot and a name, for a label chip. */
-export function LabelChip({
-  name,
-  color,
-  onRemove,
-}: {
-  name: string;
-  color: string;
-  onRemove?: () => void;
-}) {
+/** A label: its colour as a small square on a tonal chip (web's row labels). */
+export function LabelChip({ name, color }: { name: string; color: string }) {
   return (
-    <span
-      className="pill border-transparent font-medium"
-      style={{ backgroundColor: `${color}1f`, color }}
-    >
-      <span className="size-1.5 rounded-full" style={{ backgroundColor: color }} />
+    <span className="inline-flex items-center gap-1.5 rounded-md bg-tonal px-1.5 py-px text-[11px] font-medium text-soft-foreground">
+      <span aria-hidden className="size-1.5 rounded-[2px]" style={{ background: color }} />
       {name}
-      {onRemove ? (
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label={`Remove ${name}`}
-          className="-mr-0.5 ml-0.5 opacity-60 hover:opacity-100"
-        >
-          ×
-        </button>
-      ) : null}
     </span>
   );
 }
@@ -317,12 +375,12 @@ export function LabelChip({
 /** Rows of grey while the real thing is on its way. */
 export function RowSkeleton() {
   return (
-    <div className="flex gap-3 px-3 py-2.5">
-      <div className="size-8 shrink-0 animate-pulse rounded-full bg-muted" />
-      <div className="min-w-0 flex-1 space-y-1.5 py-0.5">
-        <div className="h-2.5 w-1/3 animate-pulse rounded bg-muted" />
-        <div className="h-2.5 w-3/4 animate-pulse rounded bg-muted" />
-        <div className="h-2.5 w-2/3 animate-pulse rounded bg-muted" />
+    <div className="mx-2 flex gap-3 px-3 py-2.5">
+      <div className="size-9 shrink-0 animate-pulse rounded-full bg-tonal" />
+      <div className="min-w-0 flex-1 space-y-2 py-0.5">
+        <div className="h-2.5 w-1/3 animate-pulse rounded bg-tonal" />
+        <div className="h-2.5 w-3/4 animate-pulse rounded bg-tonal" />
+        <div className="h-2.5 w-2/3 animate-pulse rounded bg-tonal" />
       </div>
     </div>
   );
