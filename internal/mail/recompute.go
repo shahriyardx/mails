@@ -19,11 +19,13 @@ func Recompute(ctx context.Context, q db.Querier, threadID string) error {
 	_, err := q.Exec(ctx, `
 WITH m AS (SELECT * FROM message WHERE thread_id = $1),
 latest AS (SELECT snippet, received_at FROM m ORDER BY received_at DESC, created_at DESC, id DESC LIMIT 1),
+-- people: everyone in the thread, earliest first; on one message the sender
+-- comes before its recipients, so participants[0] is who started it.
 -- The conversation keeps its first subject: replies may rename it, and
 -- threading by subject compares against this one.
 original AS (SELECT subject FROM m ORDER BY received_at, created_at, id LIMIT 1),
 people AS (
-	SELECT DISTINCT ON (address) address, name, ord FROM (
+	SELECT DISTINCT ON (address) address, name, ord, pri FROM (
 		SELECT from_address AS address, from_name AS name, 0 AS pri, received_at AS ord FROM m
 		UNION ALL
 		SELECT e->>'address', e->>'name', 1, m.received_at
@@ -39,7 +41,7 @@ UPDATE thread t SET
 	unread_count = (SELECT count(*) FROM m WHERE NOT is_read AND NOT is_outbound),
 	is_starred = (SELECT bool_or(is_starred) FROM m),
 	has_attachments = EXISTS (SELECT 1 FROM attachment a JOIN m ON a.message_id = m.id WHERE NOT a.is_inline),
-	participants = (SELECT coalesce(jsonb_agg(jsonb_build_object('name', name, 'address', address) ORDER BY ord, address), '[]') FROM people)
+	participants = (SELECT coalesce(jsonb_agg(jsonb_build_object('name', name, 'address', address) ORDER BY ord, pri, address), '[]') FROM people)
 FROM latest, original WHERE t.id = $1`, threadID)
 	if err != nil {
 		return fmt.Errorf("recompute thread %s: %w", threadID, err)

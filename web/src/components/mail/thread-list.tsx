@@ -317,7 +317,10 @@ function Row({
 }) {
   // Nothing in Sent is unread: you wrote it.
   const unread = folder !== "sent" && thread.unread_count > 0;
-  const sender = thread.participants?.[0];
+  // The other person, not you: skip the thread's own mailbox address.
+  const own = thread.mailbox.toLowerCase();
+  const sender =
+    thread.participants?.find((p) => p.address.toLowerCase() !== own) ?? thread.participants?.[0];
   const x = useMotionValue(0);
   const archiveShown = useTransform(x, [-SWIPE, -24, 0], [1, 0.4, 0]);
   const deleteShown = useTransform(x, [0, 24, SWIPE], [0, 0.4, 1]);

@@ -116,9 +116,11 @@ export function formatBytes(bytes: number | null | undefined) {
  * own address, which tells the reader nothing.
  */
 export function rowPerson(thread: ApiThread, view: string): Address {
+  const own = (thread.mailbox ?? "").toLowerCase();
   const people = thread.participants ?? [];
-  const chosen = view === "sent" ? people[people.length - 1] : people[0];
-  return chosen ?? { name: null, address: thread.mailbox ?? "unknown" };
+  const others = people.filter((p) => p.address.toLowerCase() !== own);
+  const chosen = view === "sent" ? others[others.length - 1] : others[0];
+  return chosen ?? people[0] ?? { name: null, address: thread.mailbox ?? "unknown" };
 }
 
 export function threadSubject(thread: ApiThread) {

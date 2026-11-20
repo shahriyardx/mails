@@ -369,3 +369,17 @@ func TestLabelsFiltersContactsPrefs(t *testing.T) {
 		t.Fatalf("image choices = %v", m)
 	}
 }
+
+// The sender of the first message comes first in participants even when
+// your own address sorts before theirs (one@ < zed@).
+func TestParticipantsStartWithSender(t *testing.T) {
+	e := setup(t)
+	threadID := e.receive(t, "one@a.test", "zed@b.test", "Hello")
+	var first string
+	if err := e.pool.QueryRow(context.Background(), `SELECT participants->0->>'address' FROM thread WHERE id = $1`, threadID).Scan(&first); err != nil {
+		t.Fatal(err)
+	}
+	if first != "zed@b.test" {
+		t.Fatalf("participants[0] = %s, want the sender", first)
+	}
+}
