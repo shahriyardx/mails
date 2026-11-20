@@ -184,6 +184,9 @@ func (s *Service) Send(ctx context.Context, in Input) (*Result, error) {
 		// out and a retry by the caller would send it twice.
 		if status == "sent" {
 			slog.Error("message sent but not recorded", "ses_message_id", sesID, "err", err)
+		} else if uerr := s.claimDraft(recCtx, p.in.DraftID, false); uerr != nil {
+			// Nothing went out: give the draft back, or it is stuck claimed.
+			slog.Error("release draft after failed record", "draft", p.in.DraftID, "err", uerr)
 		}
 		return nil, err
 	}

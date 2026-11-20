@@ -448,6 +448,51 @@ func TestRefusedDraftStaysADraft(t *testing.T) {
 	}
 }
 
+func TestQueuedDraftComesBackWhenRecordFails(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	d, _ := e.s.SaveDraft(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Text: "x"})
+	// SES says try later, then the queue write fails.
+	_, err := e.pool.Exec(ctx, `
+		CREATE FUNCTION fail_job() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'boom'; END $$;
+		CREATE TRIGGER fail_job BEFORE INSERT ON send_job FOR EACH ROW EXECUTE FUNCTION fail_job();`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.ses.SendErr = errors.New("throttled")
+	if _, err := e.s.Send(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Text: "x", DraftID: d.ID}); err == nil {
+		t.Fatal("send succeeded with a failing queue")
+	}
+	var isDraft bool
+	_ = e.pool.QueryRow(ctx, `SELECT is_draft FROM message WHERE id = $1`, d.ID).Scan(&isDraft)
+	if !isDraft {
+		t.Fatal("failed record left the draft claimed")
+	}
+	if _, err := e.s.SaveDraft(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Text: "y", DraftID: d.ID}); err != nil {
+		t.Fatalf("save after failed send: %v", err)
+	}
+}
+
+func TestDeleteStuckClaimedDraft(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	stuck, _ := e.s.SaveDraft(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Text: "x"})
+	queued, _ := e.s.SaveDraft(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Text: "y"})
+	if _, err := e.pool.Exec(ctx, `UPDATE message SET is_draft = false WHERE id = ANY($1)`, []string{stuck.ID, queued.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.pool.Exec(ctx, `INSERT INTO send_job (id, message_id, mailbox_id, from_address, recipients, raw_mime, next_attempt_at)
+		VALUES ('job_1', $1, 'mbx_1', 'me@a.test', '{a@b.test}', '', now())`, queued.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.s.DeleteDraft(ctx, nil, stuck.ID); err != nil {
+		t.Fatalf("stuck draft: %v", err)
+	}
+	if err := e.s.DeleteDraft(ctx, nil, queued.ID); code(err) != 404 {
+		t.Fatalf("draft with a job: %v, want 404", err)
+	}
+}
+
 func TestDraftFileListIsAuthoritative(t *testing.T) {
 	e := setup(t)
 	ctx := context.Background()
