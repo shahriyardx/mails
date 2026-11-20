@@ -1,25 +1,29 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.6.8/schema.json",
+  "root": true,
   "vcs": {
     "enabled": false,
     "clientKind": "git",
     "useIgnoreFile": true
   },
   "files": {
-    "ignore": [
-      "node_modules",
-      ".next",
-      ".next-verify",
-      ".next-shots",
-      ".test-build",
-      "drizzle/**",
-      "src/generated/**",
-      "worker/.wrangler",
-      "packages/*/dist",
-      "packages/extension/.wxt",
-      "packages/extension/.output",
-      "docs/.vitepress/dist",
-      "docs/.vitepress/cache"
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/.next",
+      "!**/.next-verify",
+      "!**/.next-shots",
+      "!**/.test-build",
+      "!**/drizzle/**",
+      "!**/src/generated/**",
+      "!**/worker/.wrangler",
+      "!**/packages/**/*/dist",
+      "!**/packages/extension/.wxt",
+      "!**/packages/extension/.output",
+      "!**/docs/.vitepress/dist",
+      "!**/docs/.vitepress/cache",
+      "!web/dist",
+      "!web/src/docs"
     ]
   },
   "formatter": {
@@ -28,13 +32,14 @@
     "indentWidth": 2,
     "lineWidth": 100
   },
-  "organizeImports": {
-    "enabled": true
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "css": {
+    "parser": { "tailwindDirectives": true }
   },
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "suspicious": {
         "noExplicitAny": "warn"
       },
@@ -55,7 +60,7 @@
   },
   "overrides": [
     {
-      "include": ["packages/extension/components/**"],
+      "includes": ["**/packages/extension/components/**"],
       "linter": {
         "rules": {
           "a11y": {
@@ -65,7 +70,7 @@
       }
     },
     {
-      "include": ["src/components/ui/**", "src/hooks/**"],
+      "includes": ["**/src/components/ui/**", "**/src/hooks/**"],
       "linter": {
         "rules": {
           "a11y": {
