@@ -99,6 +99,25 @@ function poll(): Promise<void> {
   return polling;
 }
 
+/**
+ * Starts over for a new instance or scope. A poll already running is about
+ * the old one, so it is waited out first; otherwise it would save the old
+ * `seen` and mark the new scope primed, and its mail would all look new.
+ * The reset and the first poll hold the same slot, so no poll can slip in
+ * between them with the old record.
+ */
+async function restart(): Promise<void> {
+  while (polling) await polling.catch(() => undefined);
+  polling = browser.storage.local
+    .set({ [SEEN_KEY]: {}, [STATE_KEY]: BLANK })
+    .then(schedule)
+    .then(pollOnce)
+    .finally(() => {
+      polling = null;
+    });
+  return polling;
+}
+
 async function pollOnce(): Promise<void> {
   const settings = await getSettings();
 
@@ -243,10 +262,7 @@ export default defineBackground(() => {
       // Anything remembered — announced ids, the lists the popup paints from
       // — is about the instance or the scope that was just left behind.
       void clearCache();
-      void browser.storage.local
-        .set({ [SEEN_KEY]: {}, [STATE_KEY]: BLANK })
-        .then(schedule)
-        .then(poll);
+      void restart();
       return;
     }
 

@@ -116,4 +116,32 @@ describe("background worker", () => {
 
     expect(fake.browser.action.setBadgeText).toHaveBeenLastCalledWith({ text: "25+" });
   });
+
+  it("a scope change waits out the running poll, so old mail in the new scope is not announced", async () => {
+    fake.browser.alarms.get.mockResolvedValue({ name: "mails:poll" });
+    await start();
+
+    let finishOld!: (value: unknown) => void;
+    fake.listThreads.mockReturnValueOnce(new Promise((resolve) => (finishOld = resolve)));
+    void fire("alarm", { name: "mails:poll" });
+    await settled();
+
+    const before = fake.store.settings as Record<string, unknown>;
+    const after = { ...before, watchAll: false, mailboxIds: ["mbx_2"] };
+    fake.store.settings = after;
+    void fire("changed", { settings: { oldValue: before, newValue: after } });
+    await settled();
+
+    // The new scope already holds a thread the old one never saw.
+    fake.listThreads.mockResolvedValue({ threads: [thread("thr_9")], nextCursor: null, hasMore: false });
+    finishOld({ threads: [], nextCursor: null, hasMore: false });
+    await settled();
+    await settled();
+
+    await fire("alarm", { name: "mails:poll" });
+    await settled();
+
+    expect(fake.browser.notifications.create).not.toHaveBeenCalled();
+    expect(fake.listThreads).toHaveBeenCalledTimes(3);
+  });
 });
