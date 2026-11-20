@@ -81,7 +81,20 @@ async function setTitle(text: string) {
 
 /* ------------------------------------------------------------ the poll loop */
 
-async function poll(): Promise<void> {
+let polling: Promise<void> | null = null;
+
+/**
+ * One poll at a time. Two running together would both read the same `seen`
+ * and both announce whatever is new.
+ */
+function poll(): Promise<void> {
+  polling ??= pollOnce().finally(() => {
+    polling = null;
+  });
+  return polling;
+}
+
+async function pollOnce(): Promise<void> {
   const settings = await getSettings();
 
   if (!isConnected(settings)) {
@@ -183,6 +196,11 @@ async function schedule() {
   await browser.alarms.create(ALARM, { periodInMinutes: minutes, delayInMinutes: minutes });
 }
 
+/** The alarm, created only when missing: re-creating it would push the next poll back. */
+async function ensureAlarm() {
+  if (!(await browser.alarms.get(ALARM))) await schedule();
+}
+
 export default defineBackground(() => {
   browser.runtime.onInstalled.addListener(() => {
     void schedule().then(poll);
@@ -244,9 +262,9 @@ export default defineBackground(() => {
   });
 
   // The worker is started fresh far more often than it is installed, and an
-  // alarm that was never created would leave the badge frozen for good.
-  void schedule();
-  void poll();
+  // alarm that was never created would leave the badge frozen for good. No
+  // poll here: the worker usually wakes for the alarm, which polls itself.
+  void ensureAlarm();
 });
 
 async function openFromNotification(id: string) {
