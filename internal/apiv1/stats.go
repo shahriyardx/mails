@@ -101,6 +101,12 @@ func (a *API) stats(_ http.ResponseWriter, r *http.Request, c *caller) (int, any
 		}
 	}
 	scope := `($3::text[] IS NULL OR m.mailbox_id = ANY($3)) AND NOT m.is_draft`
+	// Sent mail counts when it went out (coalesce(sent_at, created_at), as
+	// the delivery reports do), received mail when it arrived.
+	const sentAt = `coalesce(m.sent_at, m.created_at)`
+	const at = `CASE WHEN m.is_outbound THEN ` + sentAt + ` ELSE m.received_at END`
+	const inWindow = `((m.is_outbound AND ` + sentAt + ` >= $1 AND ` + sentAt + ` < $2)
+		OR (NOT m.is_outbound AND m.received_at >= $1 AND m.received_at < $2))`
 
 	var s sending
 	err = a.DB.QueryRow(ctx, `SELECT
@@ -111,7 +117,7 @@ func (a *API) stats(_ http.ResponseWriter, r *http.Request, c *caller) (int, any
 		count(*) FILTER (WHERE delivery_status = 'failed'),
 		count(*) FILTER (WHERE opened_at IS NOT NULL),
 		coalesce(sum(open_count), 0)
-		FROM message m WHERE m.is_outbound AND m.created_at >= $1 AND m.created_at < $2 AND `+scope, since, until, allowed).
+		FROM message m WHERE m.is_outbound AND `+sentAt+` >= $1 AND `+sentAt+` < $2 AND `+scope, since, until, allowed).
 		Scan(&s.Sent, &s.Delivered, &s.Bounced, &s.Complained, &s.Failed, &s.Opened, &s.TotalOpens)
 	if err != nil {
 		return 0, nil, err
@@ -137,8 +143,8 @@ func (a *API) stats(_ http.ResponseWriter, r *http.Request, c *caller) (int, any
 		count(*) FILTER (WHERE m.is_outbound AND m.delivery_status IN ('delivered', 'complained')),
 		count(*) FILTER (WHERE m.is_outbound AND m.delivery_status = 'bounced'),
 		count(*) FILTER (WHERE m.is_outbound AND m.opened_at IS NOT NULL)
-		FROM message m, date_trunc('day', m.received_at AT TIME ZONE 'UTC') day
-		WHERE m.received_at >= $1 AND m.received_at < $2 AND `+scope+` GROUP BY day ORDER BY day`, since, until, allowed)
+		FROM message m, date_trunc('day', (`+at+`) AT TIME ZONE 'UTC') day
+		WHERE `+inWindow+` AND `+scope+` GROUP BY day ORDER BY day`, since, until, allowed)
 	dayList, err := pgx.CollectRows(rows, pgx.RowToStructByPos[statDay])
 	if err != nil {
 		return 0, nil, err
@@ -146,7 +152,7 @@ func (a *API) stats(_ http.ResponseWriter, r *http.Request, c *caller) (int, any
 	rows, _ = a.DB.Query(ctx, `SELECT mb.id, mb.address,
 		count(m.id) FILTER (WHERE m.is_outbound AND m.delivery_status NOT IN ('queued', 'canceled', 'failed')),
 		count(m.id) FILTER (WHERE NOT m.is_outbound)
-		FROM mailbox mb LEFT JOIN message m ON m.mailbox_id = mb.id AND m.received_at >= $1 AND m.received_at < $2 AND NOT m.is_draft
+		FROM mailbox mb LEFT JOIN message m ON m.mailbox_id = mb.id AND `+inWindow+` AND NOT m.is_draft
 		WHERE ($3::text[] IS NULL OR mb.id = ANY($3)) GROUP BY mb.id ORDER BY mb.address`, since, until, allowed)
 	boxes, err := pgx.CollectRows(rows, pgx.RowToStructByPos[statMailbox])
 	if err != nil {

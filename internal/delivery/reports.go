@@ -300,7 +300,8 @@ func (s *Service) GetOverview(ctx context.Context) (*Overview, error) {
 	err := s.DB.QueryRow(ctx, `SELECT
 		(SELECT count(*) FROM message WHERE is_outbound AND sent_at > now() - interval '1 day'),
 		(SELECT count(*) FROM send_job WHERE status IN ('pending', 'sending')),
-		(SELECT count(*) FROM message WHERE is_outbound AND delivery_status IN ('failed', 'bounced', 'rejected') AND created_at > now() - interval '7 days'),
+		(SELECT count(*) FROM message WHERE is_outbound AND NOT is_draft AND delivery_status IN ('failed', 'bounced', 'rejected')
+			AND coalesce(sent_at, created_at) > now() - interval '7 days'),
 		(SELECT count(*) FROM suppression)`).Scan(&o.Sent24h, &o.Queued, &o.Failed, &o.Blocked)
 	if err != nil {
 		return nil, fmt.Errorf("overview counts: %w", err)
