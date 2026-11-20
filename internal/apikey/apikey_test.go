@@ -62,6 +62,10 @@ func TestKeyLifecycle(t *testing.T) {
 	if ok, _ := apikey.CoversDomainOf(ctx, pool, got.Reach, "new@b.test"); ok {
 		t.Fatal("domain reach covers another domain")
 	}
+	_, _ = pool.Exec(ctx, `INSERT INTO domain (id, name, region) VALUES ('dom_sub', 'own.a.test', 'x')`)
+	if ok, _ := apikey.CoversDomainOf(ctx, pool, got.Reach, "x@own.a.test"); ok {
+		t.Fatal("holding a.test reached a separately added sub-domain")
+	}
 	if err := s.Revoke(ctx, k.ID); err != nil {
 		t.Fatal(err)
 	}

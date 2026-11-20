@@ -167,6 +167,19 @@ func TestReach(t *testing.T) {
 	if r := e.call(t, sales, "POST", "/webhooks", map[string]any{"url": "https://example.com/h"}); r.code != 403 {
 		t.Fatalf("unscoped webhook by restricted key: %d", r.code)
 	}
+	for _, c := range []struct{ method, path string }{{"GET", "/suppressions"}, {"DELETE", "/suppressions/x@y.test"}} {
+		if r := e.call(t, sales, c.method, c.path, nil); r.code != 403 {
+			t.Errorf("%s %s by restricted key: %d", c.method, c.path, r.code)
+		}
+	}
+	for _, body := range []map[string]any{{"is_catch_all": true}, {"is_default": true}} {
+		if r := e.call(t, sales, "PATCH", "/mailboxes/mbx_a", body); r.code != 403 {
+			t.Errorf("mailbox key PATCH %v: %d %s", body, r.code, r.raw)
+		}
+	}
+	if r := e.call(t, sales, "POST", "/domains/dom_a/verify", nil); r.code != 403 {
+		t.Errorf("verify via a mailbox: %d", r.code)
+	}
 	r = e.call(t, sales, "GET", "/mailboxes", nil)
 	if len(r.body["data"].([]any)) != 1 {
 		t.Fatalf("mailboxes: %s", r.raw)

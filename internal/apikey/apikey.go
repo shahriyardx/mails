@@ -212,8 +212,11 @@ func Allowed(ctx context.Context, q db.Querier, r Reach) ([]string, error) {
 	return ids, nil
 }
 
-// CoversDomainOf reports whether a domain-reach key covers address, by the
-// domain it sits on or under.
+// CoversDomainOf reports whether a key's reach covers address. The address
+// belongs to the closest domain it sits on or under, among every domain of
+// the instance (the one its mailbox will be filed under), and that domain
+// must be one the key holds: holding a.test does not reach a separately
+// added sub.a.test.
 func CoversDomainOf(ctx context.Context, q db.Querier, r Reach, address string) (bool, error) {
 	if r.Unrestricted() {
 		return true, nil
@@ -221,12 +224,18 @@ func CoversDomainOf(ctx context.Context, q db.Querier, r Reach, address string) 
 	if len(r.DomainIDs) == 0 {
 		return false, nil
 	}
-	rows, _ := q.Query(ctx, `SELECT name FROM domain WHERE id = ANY($1)`, r.DomainIDs)
-	names, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	type dom struct{ ID, Name string }
+	rows, _ := q.Query(ctx, `SELECT id, name FROM domain`)
+	all, err := pgx.CollectRows(rows, pgx.RowToStructByPos[dom])
 	if err != nil {
 		return false, err
 	}
-	return addr.Covering(address, names) >= 0, nil
+	names := make([]string, len(all))
+	for i, d := range all {
+		names[i] = d.Name
+	}
+	i := addr.Covering(address, names)
+	return i >= 0 && slices.Contains(r.DomainIDs, all[i].ID), nil
 }
 
 func nonNil(s []string) []string {

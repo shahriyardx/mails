@@ -344,6 +344,9 @@ func (s *Service) loadFiles(ctx context.Context, p *prepared) error {
 	}
 	for _, a := range found {
 		switch {
+		case a.MessageID == nil && in.APIKeyID != "":
+			// Staged uploads belong to the dashboard's composer.
+			return httpx.Invalid("attachment_ids", "attachment_ids: One or more files do not exist")
 		case a.MessageID == nil, in.DraftID != "" && *a.MessageID == in.DraftID:
 			p.staged = append(p.staged, a.ID) // moves onto the new message
 		case in.Allowed == nil || contains(in.Allowed, deref(a.MailboxID)):

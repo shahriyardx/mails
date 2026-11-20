@@ -45,9 +45,35 @@ func (a *API) getMailbox(_ http.ResponseWriter, r *http.Request, c *caller) (int
 	return 200, m, err
 }
 
+// mayShape guards the mailbox flags that reach past one mailbox: the
+// default is account-wide, and a catch-all receives mail for every unknown
+// address on its domain. Only a key that holds the whole domain may set
+// catch-all, and only an unrestricted key may move the default.
+func (a *API) mayShape(r *http.Request, c *caller, address string, catchAll, setDefault bool) error {
+	if c.key.Reach.Unrestricted() {
+		return nil
+	}
+	if setDefault {
+		return httpx.Forbidden("Only a key that reaches the whole account may change the default mailbox")
+	}
+	if catchAll {
+		covers, err := apikey.CoversDomainOf(r.Context(), a.DB, c.key.Reach, address)
+		if err != nil {
+			return err
+		}
+		if !covers {
+			return httpx.Forbidden("Only a key that holds the whole domain may make a catch-all")
+		}
+	}
+	return nil
+}
+
 func (a *API) createMailbox(_ http.ResponseWriter, r *http.Request, c *caller) (int, any, error) {
 	var in mailbox.Input
 	if err := httpx.Decode(r, &in); err != nil {
+		return 0, nil, err
+	}
+	if err := a.mayShape(r, c, in.Address, in.IsCatchAll, in.IsDefault); err != nil {
 		return 0, nil, err
 	}
 	// A key that names addresses holds exactly those; a domain key may add
@@ -72,6 +98,13 @@ func (a *API) patchMailbox(_ http.ResponseWriter, r *http.Request, c *caller) (i
 	}
 	id, err := a.mailboxInReach(r.Context(), c, chi.URLParam(r, "id"))
 	if err != nil {
+		return 0, nil, err
+	}
+	current, err := a.Mailboxes.Get(r.Context(), id)
+	if err != nil {
+		return 0, nil, err
+	}
+	if err := a.mayShape(r, c, current.Address, p.IsCatchAll.Set && p.IsCatchAll.Value, p.IsDefault.Set); err != nil {
 		return 0, nil, err
 	}
 	m, err := a.Mailboxes.Update(r.Context(), id, p)
@@ -178,6 +211,10 @@ func (a *API) verifyDomain(_ http.ResponseWriter, r *http.Request, c *caller) (i
 	if err != nil {
 		return 0, nil, err
 	}
+	// Seeing a domain through one of its mailboxes is not holding it.
+	if !c.key.Reach.Unrestricted() && !slices.Contains(c.key.Reach.DomainIDs, d.ID) {
+		return 0, nil, httpx.Forbidden("This API key does not hold that domain")
+	}
 	d, err = a.Domains.Refresh(r.Context(), d.ID)
 	return 200, d, err
 }
@@ -245,7 +282,13 @@ func (a *API) listContacts(_ http.ResponseWriter, r *http.Request, c *caller) (i
 
 // ---- Suppressions -----------------------------------------------------------
 
-func (a *API) listSuppressions(_ http.ResponseWriter, r *http.Request, _ *caller) (int, any, error) {
+// The blocked list is kept for the whole account, like contacts: reading
+// or emptying it is not for a key that reaches only part of it. Adding to
+// it only ever stops mail, so any key with the scope may.
+func (a *API) listSuppressions(_ http.ResponseWriter, r *http.Request, c *caller) (int, any, error) {
+	if err := unrestricted(c, "read the blocked list: it is kept for the whole account"); err != nil {
+		return 0, nil, err
+	}
 	p, err := page.Parse(r.URL.Query())
 	if err != nil {
 		return 0, nil, err
@@ -256,7 +299,7 @@ func (a *API) listSuppressions(_ http.ResponseWriter, r *http.Request, _ *caller
 
 // addSuppression is 201 when new and 200 when already blocked: blocking an
 // address that is blocked is the state asked for, not an error.
-func (a *API) addSuppression(_ http.ResponseWriter, r *http.Request, _ *caller) (int, any, error) {
+func (a *API) addSuppression(_ http.ResponseWriter, r *http.Request, c *caller) (int, any, error) {
 	var in struct {
 		Address string `json:"address" validate:"required"`
 		Reason  string `json:"reason" validate:"max=200"`
@@ -267,6 +310,9 @@ func (a *API) addSuppression(_ http.ResponseWriter, r *http.Request, _ *caller) 
 	x, err := a.Delivery.Suppress(r.Context(), in.Address, in.Reason)
 	var he *httpx.Error
 	if errors.As(err, &he) && he.Status == 409 {
+		if !c.key.Reach.Unrestricted() {
+			return 200, map[string]any{"object": "suppression", "address": in.Address, "blocked": true}, nil
+		}
 		list, err := a.Delivery.ListSuppressions(r.Context(), in.Address, page.Params{Limit: 1})
 		if err != nil || len(list.Data) == 0 {
 			return 0, nil, err
@@ -276,7 +322,10 @@ func (a *API) addSuppression(_ http.ResponseWriter, r *http.Request, _ *caller) 
 	return 201, x, err
 }
 
-func (a *API) deleteSuppression(_ http.ResponseWriter, r *http.Request, _ *caller) (int, any, error) {
+func (a *API) deleteSuppression(_ http.ResponseWriter, r *http.Request, c *caller) (int, any, error) {
+	if err := unrestricted(c, "unblock an address: the blocked list is kept for the whole account"); err != nil {
+		return 0, nil, err
+	}
 	x, err := a.Delivery.Unsuppress(r.Context(), chi.URLParam(r, "id"))
 	if err != nil {
 		return 0, nil, err
