@@ -422,6 +422,7 @@ export function usePreferences() {
 export function useSavePreferences() {
   const client = useQueryClient();
   return useMutation({
+    mutationKey: keys.preferences,
     mutationFn: (patch: Partial<Preferences>) =>
       api<Preferences>("/api/app/preferences", { method: "PATCH", body: patch }),
     onMutate: (patch) => {
@@ -430,7 +431,12 @@ export function useSavePreferences() {
       return before;
     },
     onError: (_error, _patch, before) => client.setQueryData(keys.preferences, before),
-    onSuccess: (saved) => client.setQueryData(keys.preferences, saved),
+    onSuccess: (saved) => {
+      // A newer save is still on its way: this answer is already out of date
+      // (quick theme flips would otherwise paint each old answer in turn).
+      if (client.isMutating({ mutationKey: keys.preferences }) > 1) return;
+      client.setQueryData(keys.preferences, saved);
+    },
   });
 }
 
