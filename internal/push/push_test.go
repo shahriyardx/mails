@@ -46,5 +46,7 @@ func TestNotifyDropsGoneAndFailing(t *testing.T) {
 		t.Fatalf("left = %+v", list)
 	}
 	off := &push.Service{DB: pool}
-	off.Notify(ctx, push.Payload{}) // must not panic with push off
+	if n := off.Notify(ctx, push.Payload{}); n != 0 { // must not panic with push off
+		t.Fatalf("delivered %d with push off", n)
+	}
 }

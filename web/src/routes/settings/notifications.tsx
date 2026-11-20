@@ -139,8 +139,14 @@ export default function Notifications() {
                   loading={test.isPending}
                   onClick={() =>
                     test.mutate(undefined, {
-                      onSuccess: () =>
-                        toast.success("Test sent. Nothing showed? The OS may be hiding it."),
+                      onSuccess: ({ delivered }) =>
+                        delivered > 0
+                          ? toast.success(
+                              `Test sent to ${delivered} browser${delivered === 1 ? "" : "s"}. Nothing showed? The OS may be hiding it.`,
+                            )
+                          : toast.error(
+                              "No browser accepted the test. Turn notifications on again here.",
+                            ),
                       onError: (error) => toast.error(errorMessage(error)),
                     })
                   }
@@ -216,7 +222,7 @@ export default function Notifications() {
         confirmLabel="Turn off everywhere"
         onConfirm={async () => {
           await unbrowse();
-          await unsubscribe.mutateAsync("");
+          await unsubscribe.mutateAsync({ all: true });
           setMine(null);
           toast.success("Notifications are off everywhere");
         }}

@@ -816,19 +816,22 @@ export function usePushSubscribe() {
   });
 }
 
-/** Forgets one browser. An empty endpoint forgets every browser. */
+/** Forgets one browser, or every browser when passed `{ all: true }`. */
 export function usePushUnsubscribe() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (endpoint: string) =>
-      api<void>("/api/app/push/unsubscribe", { method: "POST", body: { endpoint } }),
+    mutationFn: (target: string | { all: true }) =>
+      api<void>("/api/app/push/unsubscribe", {
+        method: "POST",
+        body: typeof target === "string" ? { endpoint: target } : target,
+      }),
     onSettled: () => invalidate(client, settingsKeys.push),
   });
 }
 
 export function usePushTest() {
   return useMutation({
-    mutationFn: () => api<void>("/api/app/push/test", { method: "POST" }),
+    mutationFn: () => api<{ delivered: number }>("/api/app/push/test", { method: "POST" }),
   });
 }
 

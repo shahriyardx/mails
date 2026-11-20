@@ -86,9 +86,13 @@ func (s *Service) Subscribe(ctx context.Context, sub Subscription, label string)
 	return nil
 }
 
-// Unsubscribe forgets a browser by endpoint, or every browser when "".
-func (s *Service) Unsubscribe(ctx context.Context, endpoint string) error {
-	_, err := s.DB.Exec(ctx, `DELETE FROM push_subscription WHERE $1 = '' OR endpoint = $1`, endpoint)
+// Unsubscribe forgets one browser by endpoint, or every browser when all is
+// set. An empty endpoint without all forgets nothing.
+func (s *Service) Unsubscribe(ctx context.Context, endpoint string, all bool) error {
+	if !all && endpoint == "" {
+		return httpx.Invalid("endpoint", "endpoint: Required, or all: true")
+	}
+	_, err := s.DB.Exec(ctx, `DELETE FROM push_subscription WHERE $2 OR endpoint = $1`, endpoint, all)
 	return err
 }
 
@@ -106,11 +110,11 @@ func (s *Service) Browsers(ctx context.Context) ([]Browser, error) {
 	return pgx.CollectRows(rows, pgx.RowToStructByPos[Browser])
 }
 
-// Notify sends p to every browser. Gone endpoints (404/410) are dropped at
-// once, others after repeated failures.
-func (s *Service) Notify(ctx context.Context, p Payload) {
+// Notify sends p to every browser and returns how many accepted it. Gone
+// endpoints (404/410) are dropped at once, others after repeated failures.
+func (s *Service) Notify(ctx context.Context, p Payload) (delivered int) {
 	if s.Send == nil {
-		return
+		return 0
 	}
 	body, _ := json.Marshal(p)
 	type row struct {
@@ -125,7 +129,7 @@ func (s *Service) Notify(ctx context.Context, p Payload) {
 	})
 	if err != nil {
 		slog.Error("load push subscriptions", "err", err)
-		return
+		return 0
 	}
 	for _, sub := range subs {
 		status, err := s.Send(ctx, sub.Subscription, body)
@@ -138,12 +142,16 @@ func (s *Service) Notify(ctx context.Context, p Payload) {
 				_, err = s.DB.Exec(ctx, `DELETE FROM push_subscription WHERE id = $1`, sub.ID)
 			}
 		case sub.Failures > 0:
+			delivered++
 			_, err = s.DB.Exec(ctx, `UPDATE push_subscription SET failures = 0, last_seen_at = now() WHERE id = $1`, sub.ID)
+		default:
+			delivered++
 		}
 		if err != nil {
 			slog.Warn("push bookkeeping", "err", err)
 		}
 	}
+	return delivered
 }
 
 // OnReceived is an inbound hook: one notice per stored message, sent in the
@@ -202,11 +210,12 @@ func Routes(s *Service) http.Handler {
 	r.Method("POST", "/unsubscribe", httpx.Handler(func(w http.ResponseWriter, r *http.Request) error {
 		var in struct {
 			Endpoint string `json:"endpoint"`
+			All      bool   `json:"all"`
 		}
 		if err := httpx.Bind(r, &in); err != nil {
 			return err
 		}
-		if err := s.Unsubscribe(r.Context(), in.Endpoint); err != nil {
+		if err := s.Unsubscribe(r.Context(), in.Endpoint, in.All); err != nil {
 			return err
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -216,8 +225,8 @@ func Routes(s *Service) http.Handler {
 		if s.Send == nil {
 			return httpx.Invalid("", "Push is off: set VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY")
 		}
-		s.Notify(r.Context(), Payload{Title: "Mails", Body: "Notifications work on this browser.", URL: "/"})
-		w.WriteHeader(http.StatusNoContent)
+		n := s.Notify(r.Context(), Payload{Title: "Mails", Body: "Notifications work on this browser.", URL: "/"})
+		httpx.JSON(w, 200, map[string]int{"delivered": n})
 		return nil
 	}))
 	return r
