@@ -61,10 +61,13 @@ function pickMailbox(mailboxes: Mailbox[], wanted?: string) {
 export default function Composer({
   draft,
   onClose,
+  onSaved,
   flushRef,
 }: {
   draft: ComposerDraft;
   onClose: () => void;
+  /** Told the draft's id after each save. */
+  onSaved?: (draftId: string) => void;
   /** Set to this composer's flush, so a new composer can save this one first. */
   flushRef?: RefObject<(() => Promise<boolean>) | null>;
 }) {
@@ -141,6 +144,7 @@ export default function Composer({
     const run = saveDraft(mail)
       .then((res) => {
         draftId.current = res.id;
+        onSaved?.(res.id);
         setSaveError(null);
         setSavedAt(
           new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }),

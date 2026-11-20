@@ -5,18 +5,22 @@ import { describe, expect, it, vi } from "vitest";
 import { shortcutBlocked } from "@/lib/hooks";
 
 const flush = vi.hoisted(() => vi.fn<() => Promise<boolean>>());
+const composer = vi.hoisted(() => ({ onSaved: undefined as ((id: string) => void) | undefined }));
 
 // A stand-in composer: shows its title and hands the provider its flush.
 vi.mock("./composer", () => ({
   default: ({
     draft,
     flushRef,
+    onSaved,
   }: {
     draft: { title?: string };
     flushRef: RefObject<(() => Promise<boolean>) | null>;
+    onSaved: (id: string) => void;
   }) => {
     useEffect(() => {
       flushRef.current = flush;
+      composer.onSaved = onSaved;
     });
     return createElement("p", { role: "dialog" }, draft.title);
   },
@@ -37,8 +41,8 @@ async function setup() {
   await act(async () => {
     createRoot(host).render(createElement(ComposerProvider, null, createElement(Grab)));
   });
-  const open = async (title: string) => {
-    await act(async () => api.current!.open({ title }));
+  const open = async (title: string, draftId?: string) => {
+    await act(async () => api.current!.open({ title, draftId }));
     // The lazy composer module resolves on a later tick.
     await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
   };
@@ -65,6 +69,20 @@ describe("ComposerProvider", () => {
     flush.mockResolvedValue(false);
     await open("Second");
     expect(host.textContent).toBe("First");
+  });
+
+  it("leaves the composer alone when Edit is clicked on the draft it has open", async () => {
+    flush.mockReset().mockResolvedValue(true);
+    const { host, open } = await setup();
+    await open("Edited", "drf_1");
+    await open("Stale copy", "drf_1");
+    expect(host.textContent).toBe("Edited");
+
+    // A new message gets its draft id on the first autosave.
+    await open("New");
+    await act(async () => composer.onSaved!("drf_2"));
+    await open("Stale copy", "drf_2");
+    expect(host.textContent).toBe("New");
   });
 });
 
