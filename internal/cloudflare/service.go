@@ -237,17 +237,18 @@ func (s *Service) RouteZone(ctx context.Context, zoneID string) error {
 	if err != nil {
 		return err
 	}
-	const needs = "Zone Settings -> Edit (which gates turning Email Routing on), Email Routing Rules -> Edit and DNS -> Edit"
+	// Each step names the one permission it needs, so a refusal says which.
 	on, err := api.RoutingEnabled(ctx, zoneID)
 	if err != nil {
-		return explain(err, needs)
+		return explain(err, "Zone Settings -> Edit or Email Routing Rules -> Edit (to see whether Email Routing is on)")
 	}
 	if !on {
 		if err := api.SetRouting(ctx, zoneID, name, true); err != nil {
-			return explain(err, needs)
+			return explain(err, "Zone Settings -> Edit and DNS -> Edit (to turn Email Routing on for "+name+
+				"; or turn it on yourself in Cloudflare: "+name+" -> Email -> Email Routing)")
 		}
 	}
-	return explain(api.SetCatchAll(ctx, zoneID, ScriptName), needs)
+	return explain(api.SetCatchAll(ctx, zoneID, ScriptName), "Email Routing Rules -> Edit (to send "+name+"'s mail to the worker)")
 }
 
 // UnrouteZone stops the catch-all and, when asked, Email Routing itself.
