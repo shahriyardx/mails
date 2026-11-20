@@ -318,3 +318,12 @@ describe("ui redress with CSS escapes", () => {
     expect(html).toContain("color: red");
   });
 });
+
+describe("mutation XSS through rewritten style blocks", () => {
+  it("drops a stylesheet that could close its own <style> element", () => {
+    const evil = 'p{color:red}\np::after{content:"\\3c/style\\3e<img src=x onerror=alert(1)>"}';
+    expect(cleanStylesheet(evil)).toBe("");
+    const { html } = prepareEmail(`<style>${evil}</style><p>hi</p>`, { showRemoteImages: true });
+    expect(html).not.toMatch(/<img|onerror/);
+  });
+});

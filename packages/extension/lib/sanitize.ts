@@ -101,12 +101,16 @@ function stripRules(
 export function cleanStylesheet(css: string, allowRemote = false) {
   // Always parsed: a quick text test can be dodged with CSS escapes.
   if (!css.trim()) return css;
+  // CSS never needs "<". Written back into a <style> element, a "</style"
+  // in a string or comment would end the element early when the result is
+  // parsed again, and turn the rest into live markup (mutation XSS).
+  if (css.includes("<")) return "";
   try {
     const sheet = new CSSStyleSheet();
     sheet.replaceSync(css);
     stripRules(sheet, allowRemote);
     const out = Array.from(sheet.cssRules, (rule) => rule.cssText).join("\n");
-    return !allowRemote && fetches(out) ? "" : out;
+    return out.includes("<") ? "" : !allowRemote && fetches(out) ? "" : out;
   } catch {
     return "";
   }
