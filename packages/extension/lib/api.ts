@@ -136,17 +136,18 @@ export async function listThreads(
   const ids = watchedMailboxIds(settings) ?? [];
 
   if (ids.length > 1) {
+    // One failed mailbox fails the whole list. Dropping it would read as "no
+    // mail there": the poll would forget its threads and announce them again.
     const pages = await Promise.all(
       ids.map((id) =>
         call<ApiList<ApiThread>>(
           settings,
           `/threads?${query(view, { mailboxIds: [id], search: extra.search, limit: extra.limit })}`,
           { signal: extra.signal },
-        ).catch(() => null),
+        ),
       ),
     );
     const merged = pages
-      .filter((page): page is ApiList<ApiThread> => page !== null)
       .flatMap((page) => page.data)
       .sort((a, b) => Date.parse(b.last_message_at) - Date.parse(a.last_message_at));
     return { threads: merged.slice(0, extra.limit ?? 25), nextCursor: null };
