@@ -321,3 +321,23 @@ func TestHighestPriorityFilterPicksFolder(t *testing.T) {
 		t.Fatalf("folder = %s, want the high-priority rule's archive", folder)
 	}
 }
+
+func TestSubjectThreadingTakesBackslashLiterally(t *testing.T) {
+	for _, subject := range []string{`Path C:\`, `a\b report`, `100% done_now`} {
+		t.Run(subject, func(t *testing.T) {
+			s, pool, _ := setup(t)
+			ctx := context.Background()
+			if _, err := s.Ingest(ctx, msg("hi@a.test", "<1@sender.test>", subject), nil); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.Ingest(ctx, msg("hi@a.test", "<2@sender.test>", "Re: "+subject), nil); err != nil {
+				t.Fatal(err)
+			}
+			var threads int
+			_ = pool.QueryRow(ctx, `SELECT count(*) FROM thread`).Scan(&threads)
+			if threads != 1 {
+				t.Fatalf("threads = %d, want 1", threads)
+			}
+		})
+	}
+}

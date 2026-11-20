@@ -409,8 +409,10 @@ func findThread(ctx context.Context, tx pgx.Tx, mailboxID string, p *Payload, su
 		return "", nil
 	}
 	// The thread's subject may carry "Re:" itself, so compare normalized.
+	// ESCAPE '' keeps a backslash in the subject literal; % and _ in it only
+	// widen the prefilter, the EqualFold below decides.
 	rows, _ := tx.Query(ctx, `SELECT t.id, t.subject, true FROM thread t WHERE t.mailbox_id = $1 AND `+isParticipant+`
-		AND t.last_message_at > now() - interval '30 days' AND lower(t.subject) LIKE '%' || lower($3)
+		AND t.last_message_at > now() - interval '30 days' AND lower(t.subject) LIKE '%' || lower($3) ESCAPE ''
 		ORDER BY t.last_message_at DESC LIMIT 20`, mailboxID, p.From.Address, subject)
 	cands, err := pgx.CollectRows(rows, pgx.RowToStructByPos[cand])
 	if err != nil {
