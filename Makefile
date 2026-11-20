@@ -1,5 +1,9 @@
 # Common tasks. Needs Go, pnpm and the compose Postgres for tests.
-.PHONY: help dev build web test lint fmt docker clean
+.PHONY: help dev build web test lint fmt docker push-image clean
+
+IMAGE ?= ghcr.io/shahriyardx/mails
+# Version to tag the image with; defaults to the latest git tag (v1.2.3 -> 1.2.3).
+VERSION ?= $(patsubst v%,%,$(shell git describe --tags --abbrev=0))
 
 help: ## Show this list
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-8s %s\n", $$1, $$2}'
@@ -30,6 +34,15 @@ fmt: ## Format Go and dashboard code
 docker: ## Build the Docker image as mails:dev
 	docker build -t mails:dev .
 
+push-image: web ## Build Linux binaries here and push the image to ghcr (run `docker login ghcr.io` first)
+	@test -n "$(VERSION)" || (echo "No version: tag a release or pass VERSION=1.2.3"; exit 1)
+	for arch in amd64 arm64; do \
+		CGO_ENABLED=0 GOOS=linux GOARCH=$$arch go build -trimpath -ldflags="-s -w" -o dist/image/linux-$$arch/mails ./cmd/mails || exit 1; \
+	done
+	docker buildx inspect mails-builder >/dev/null 2>&1 || docker buildx create --name mails-builder --driver docker-container
+	docker buildx build --builder mails-builder --platform linux/amd64,linux/arm64 -f Dockerfile.release \
+		-t $(IMAGE):$(VERSION) -t $(IMAGE):latest --push dist/image
+
 clean: ## Remove build output
-	rm -rf bin
+	rm -rf bin dist
 	find web/dist -mindepth 1 ! -name .keep -delete

@@ -1,0 +1,12 @@
+# syntax=docker/dockerfile:1
+# The published image. The binary is built outside Docker, with Go's build
+# cache (the release workflow's binaries job, or `make push-image`), so this
+# only copies it in. Build context: dist/image, holding linux-<arch>/mails.
+# Dockerfile builds everything from source instead (compose, self-builds).
+FROM gcr.io/distroless/static-debian12:nonroot
+ARG TARGETARCH
+COPY linux-${TARGETARCH}/mails /mails
+EXPOSE 3000
+ENV ADDR=":3000"
+USER nonroot:nonroot
+ENTRYPOINT ["/mails"]

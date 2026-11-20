@@ -15,3 +15,4 @@ web/dist/*
 /bin
 .claude/worktrees/
 web/shots/
+/dist
