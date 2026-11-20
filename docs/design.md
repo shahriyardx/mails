@@ -112,16 +112,17 @@ reading pane, split by hairlines, no top bar.
 
 - Sidebar: brand (lavender diamond + "Mails") with the theme switch, "Write
   message" (lavender, 40px), folder rows (active row is a panel with a
-  hairline), MAILBOXES and LABELS groups with coloured squares, Settings and
+  hairline; counts only on Inbox, Drafts and Spam), MAILBOXES (only with two
+  or more mailboxes) and LABELS groups with coloured squares, Settings and
   the account avatar at the bottom.
 - List: big folder title with search and view options, filter chips (All,
-  Unread · n, one per mailbox), then threads grouped by day (Today,
-  Yesterday, Earlier this week, then dates) with "Mark all read" on the
-  first group. Rows: 46px round avatar, sender (bold when unread), mono time
-  (lavender when unread), subject, one-line snippet. The open thread is a
-  raised panel with a lavender bar on the left and Reply / Archive / Star
-  quick actions. Picking threads (hover the avatar) brings up a floating bulk
-  bar.
+  Unread, one per mailbox; none in Sent and Drafts), then threads grouped by
+  day (Today, Yesterday, Earlier this week, then dates) with "Mark all read"
+  on the first group. Rows: 46px round avatar, sender (bold when unread),
+  mono time (lavender when unread), subject, one-line snippet; the mailbox
+  square only with two or more mailboxes. The open thread is a raised panel
+  with a lavender bar on the left (its actions live in the reading pane).
+  Picking threads (hover the avatar) brings up a floating bulk bar.
 - Reading pane: a 660px column. Label chips and the thread's actions
   (Archive, Label, Star, more), the Sora subject, then each message: received
   mail as a letter (avatar, name, mono address and time, body); the owner's
@@ -136,6 +137,19 @@ column: big title, one muted line, the primary action on the title row
 (`<PageAction>`), lists as roomy rows in one panel with status dots, sections
 split by headings rather than boxes in boxes, a red-edged "Danger zone" card
 last, and shown-once secrets in a lavender mono box with a copy button.
+
+**Less on screen.** Each fact is said once:
+
+- A status dot marks only what needs attention (Pending, Failing, Revoked,
+  Waiting). Healthy rows (verified, active, deployed) carry no badge, and a
+  switch, button label or "Never" already saying the state gets no dot.
+- An empty list is one short sentence in a dashed box; the add button stays
+  on the title row, never a second copy inside.
+- No helper text that repeats a title, label or placeholder, and no
+  explanation of internals (SES, SNS, the worker). Keep only what prevents
+  a mistake: data loss, security, irreversible steps, easy-to-miss settings.
+- One control per action on a screen: a filter chip is not also a menu item,
+  a page in the sidebar is not also a link row on the page.
 
 ## Motion
 
