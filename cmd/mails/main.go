@@ -20,6 +20,7 @@ import (
 	"github.com/shahriyardx/mails/internal/mail"
 	"github.com/shahriyardx/mails/internal/mailbox"
 	"github.com/shahriyardx/mails/internal/realtime"
+	"github.com/shahriyardx/mails/internal/send"
 	"github.com/shahriyardx/mails/internal/server"
 	"github.com/shahriyardx/mails/internal/ses"
 	"github.com/shahriyardx/mails/internal/storage"
@@ -82,6 +83,11 @@ func run() error {
 	}
 	hub := realtime.NewHub()
 	mailSvc := &mail.Service{DB: pool, Store: store, Hub: hub}
+	mailboxes := &mailbox.Service{DB: pool}
+	sender := &send.Service{
+		DB: pool, SES: sesClient, Store: store, Mailboxes: mailboxes, Mail: mailSvc, Hub: hub,
+		ConfigSet: cfg.SESConfigSet, Now: time.Now,
+	}
 	deps := &server.Deps{
 		DB:   pool,
 		Cfg:  cfg,
@@ -91,11 +97,15 @@ func run() error {
 			DB: pool, SES: sesClient, DNS: net.DefaultResolver, Region: cfg.AWSRegion,
 			Selector: cfg.SESDKIMSelector, MailFromPrefix: cfg.SESMailFromPrefix, Now: time.Now,
 		},
-		Mailboxes: &mailbox.Service{DB: pool},
+		Mailboxes: mailboxes,
 		Inbound:   &inbound.Service{DB: pool, Hub: hub, Now: time.Now},
 		Mail:      mailSvc,
+		Send:      sender,
 	}
 	go every(ctx, time.Hour, "sweep staged uploads", mailSvc.SweepStaged)
+	if cfg.OutboxWorker {
+		go sender.RunOutbox(ctx)
+	}
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,

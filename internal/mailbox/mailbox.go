@@ -251,20 +251,21 @@ var ErrNotCovered = errors.New("address is not on a verified domain")
 
 // ForSending returns the mailbox for a From address, creating it when the
 // address sits on a verified domain. SES allows any address there, and code
-// sends from noreply@ that nobody creates by hand.
+// sends from noreply@ that nobody creates by hand. An existing mailbox whose
+// domain is no longer sendable is refused too: SES would refuse it anyway.
 func (s *Service) ForSending(ctx context.Context, address string) (*Mailbox, error) {
 	address = strings.ToLower(strings.TrimSpace(address))
-	if m, err := s.Get(ctx, address); err == nil {
-		return m, nil
-	} else if !isNotFound(err) {
-		return nil, err
-	}
 	dom, err := s.covering(ctx, address)
 	if err != nil {
 		return nil, err
 	}
 	if dom == nil || !dom.Sendable {
 		return nil, ErrNotCovered
+	}
+	if m, err := s.Get(ctx, address); err == nil {
+		return m, nil
+	} else if !isNotFound(err) {
+		return nil, err
 	}
 	return s.Ensure(ctx, address, dom.ID)
 }

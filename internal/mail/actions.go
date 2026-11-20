@@ -344,7 +344,4 @@ func (s *Service) threadsChanged(ids []string) {
 	if s.Hub != nil {
 		s.Hub.Publish(realtime.Event{Type: "thread.updated", Data: map[string]any{"thread_ids": ids}})
 	}
-	for _, hook := range s.OnThreadsUpdated {
-		hook(ids)
-	}
 }

@@ -29,6 +29,7 @@ import (
 	"github.com/shahriyardx/mails/internal/mail"
 	"github.com/shahriyardx/mails/internal/mailbox"
 	"github.com/shahriyardx/mails/internal/realtime"
+	"github.com/shahriyardx/mails/internal/send"
 )
 
 // Deps is every service the router mounts. main builds it; tests can build
@@ -42,6 +43,7 @@ type Deps struct {
 	Mailboxes *mailbox.Service
 	Inbound   *inbound.Service
 	Mail      *mail.Service
+	Send      *send.Service
 }
 
 // New builds the router. web is the built React app (web/dist).
@@ -73,7 +75,7 @@ func New(d *Deps, web fs.FS) http.Handler {
 					}))
 					app.Mount("/domains", domain.Routes(d.Domains))
 					app.Mount("/mailboxes", mailbox.Routes(d.Mailboxes))
-					app.Mount("/", mail.Routes(d.Mail))
+					app.Mount("/", chiJoin(mail.Routes(d.Mail), send.Routes(d.Send)))
 				})
 			})
 			// api.Mount("/v1", apiv1.Routes(d))  API key or owner session
@@ -86,6 +88,28 @@ func New(d *Deps, web fs.FS) http.Handler {
 
 	r.Handle("/*", spa(web))
 	return r
+}
+
+// chiJoin serves a request from the first handler that has a route for it,
+// so two feature packages can share one mount point.
+func chiJoin(handlers ...http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		for _, h := range handlers {
+			if m, ok := h.(chi.Routes); ok && m.Match(chi.NewRouteContext(), r.Method, routePath(r)) {
+				h.ServeHTTP(w, r)
+				return
+			}
+		}
+		httpx.Fail(w, r, httpx.NotFound("No such endpoint"))
+	})
+}
+
+// routePath is the path left for a mounted router to match.
+func routePath(r *http.Request) string {
+	if rc := chi.RouteContext(r.Context()); rc != nil && rc.RoutePath != "" {
+		return rc.RoutePath
+	}
+	return r.URL.Path
 }
 
 // spa serves built files, and index.html for any path that is not a file, so

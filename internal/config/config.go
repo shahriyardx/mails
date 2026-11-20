@@ -37,6 +37,8 @@ type Config struct {
 	VAPIDSubject    string `env:"VAPID_SUBJECT" envDefault:"mailto:admin@localhost"`
 
 	RunMigrations bool `env:"RUN_MIGRATIONS_ON_BOOT" envDefault:"true"`
+	// Set false to drive the send queue from another process.
+	OutboxWorker bool `env:"OUTBOX_WORKER" envDefault:"true"`
 }
 
 // Load reads the environment. Missing required values are reported together.

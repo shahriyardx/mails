@@ -18,9 +18,6 @@ type Service struct {
 	DB    *pgxpool.Pool
 	Store storage.Store
 	Hub   *realtime.Hub
-	// OnThreadsUpdated runs after threads change state (folder, read, star,
-	// labels). Hooks must not block.
-	OnThreadsUpdated []func(threadIDs []string)
 }
 
 // Folders a thread or message can be moved to by a person or a key.
