@@ -148,6 +148,43 @@ test("a POST without an idempotency key is not repeated", async () => {
   assert.equal(calls.length, 1);
 });
 
+test("a keyed POST is retried only where the server honours the key", async () => {
+  const failing = { status: 500, body: { error: "boom", code: "server_error" } };
+
+  const label = client(failing, { maxRetries: 1 });
+  await assert.rejects(label.mail.labels.create({ name: "x" }, { idempotencyKey: "k" }));
+  assert.equal(label.calls.length, 1);
+
+  const reply = client([failing, { status: 202, body: { id: "msg_1" } }], { maxRetries: 1 });
+  const sent = await reply.mail.threads.reply("thr_1", { text: "hi" }, { idempotencyKey: "k" });
+  assert.equal(sent.id, "msg_1");
+  assert.equal(reply.calls.length, 2);
+});
+
+test("a keyed send waits out the first try still in progress", async () => {
+  const busy = {
+    status: 409,
+    body: { error: "A request with this idempotency key is still in progress", code: "conflict" },
+  };
+  const { mail, calls } = client([busy, { status: 202, body: { id: "msg_1" } }], { maxRetries: 1 });
+  const sent = await mail.emails.send({ from: "a@m.test", to: "b@c.d" }, { idempotencyKey: "k" });
+  assert.equal(sent.id, "msg_1");
+  assert.equal(calls.length, 2);
+
+  const other = client(
+    { status: 409, body: { error: "This idempotency key was used with a different request", code: "conflict" } },
+    { maxRetries: 1 },
+  );
+  await assert.rejects(other.mail.emails.send({ from: "a@m.test", to: "b@c.d" }, { idempotencyKey: "k" }));
+  assert.equal(other.calls.length, 1);
+});
+
+test("a reply without rate-limit headers leaves rateLimit alone", async () => {
+  const { mail } = client({ body: {} });
+  await mail.me();
+  assert.equal(mail.rateLimit, null);
+});
+
 test("rate-limit headers are kept from the last reply", async () => {
   const { mail } = client({
     body: {},

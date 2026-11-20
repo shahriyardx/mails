@@ -28,7 +28,8 @@ export interface MailsOptions {
   /**
    * How many times to try again after a 429, a 5xx or a dropped connection.
    * Default 2. Only calls that are safe to repeat are retried: every GET, and
-   * any POST sent with an idempotency key.
+   * a send, batch send or reply sent with an idempotency key (the only POSTs
+   * the server deduplicates).
    */
   maxRetries?: number;
   /** Swap in your own fetch — a test double, or one with an agent attached. */
@@ -139,7 +140,8 @@ export class HttpClient {
 
   private async send(call: Call): Promise<unknown> {
     const url = this.baseUrl + call.path + encodeQuery(call.query);
-    const repeatable = call.method === "GET" || Boolean(call.options?.idempotencyKey);
+    const keyed = keyedRetry(call);
+    const repeatable = call.method === "GET" || keyed;
     const attempts = repeatable ? this.maxRetries + 1 : 1;
 
     let lastError: MailsError | undefined;
@@ -149,7 +151,7 @@ export class HttpClient {
         return await this.once(url, call);
       } catch (error) {
         if (!(error instanceof MailsError)) throw error;
-        if (attempt === attempts || !worthRetrying(error)) throw error;
+        if (attempt === attempts || !worthRetrying(error, keyed)) throw error;
         lastError = error;
         await sleep(backoffMs(attempt, error));
       }
@@ -221,6 +223,7 @@ export class HttpClient {
   }
 
   private readRateLimit(headers: Headers) {
+    if (headers.get("x-ratelimit-limit") === null) return;
     const limit = Number(headers.get("x-ratelimit-limit"));
     const remaining = Number(headers.get("x-ratelimit-remaining"));
     const reset = Number(headers.get("x-ratelimit-reset"));
@@ -268,8 +271,21 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
-function worthRetrying(error: MailsError) {
+/** POSTs the server deduplicates by Idempotency-Key; no other POST is safe to repeat. */
+const KEYED_PATHS = /^\/(emails(\/batch)?|threads\/[^/]+\/reply)$/;
+
+function keyedRetry(call: Call) {
+  return call.method === "POST" && Boolean(call.options?.idempotencyKey) && KEYED_PATHS.test(call.path);
+}
+
+/** The server's 409 while the first try with the same key is still running. */
+function inProgress(error: MailsError) {
+  return error.status === 409 && /idempotency key (is still in progress|just finished)/.test(error.message);
+}
+
+function worthRetrying(error: MailsError, keyed: boolean) {
   return (
+    (keyed && inProgress(error)) ||
     error.code === "connection_error" ||
     error.code === "timeout" ||
     error.code === "rate_limited" ||
