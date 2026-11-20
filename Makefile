@@ -49,7 +49,7 @@ push-image: web ## Build Linux binaries here and push the image to ghcr (run `do
 publish-sdk: ## Test and publish the Node SDK to npm at VERSION (run `npm login` first)
 	@test -n "$(VERSION)" || (echo "No version: tag a release or pass VERSION=1.2.3"; exit 1)
 	@npm whoami >/dev/null 2>&1 || (echo "Not logged in to npm: run npm login"; exit 1)
-	cd packages/sdk && pnpm install --frozen-lockfile && pnpm typecheck && pnpm test
+	cd packages/sdk && pnpm install --frozen-lockfile --ignore-scripts && pnpm typecheck && pnpm test
 	cd packages/sdk && npm pkg set version=$(VERSION) && npm publish --access public; \
 		status=$$?; git checkout -- package.json; exit $$status
 

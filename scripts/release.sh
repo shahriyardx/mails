@@ -48,11 +48,11 @@ if [ "${SKIP_TESTS:-}" != 1 ]; then
   say "Tests"
   go vet ./...
   go test ./...
-  (cd web && pnpm install --frozen-lockfile >/dev/null && pnpm test)
+  (cd web && pnpm install --frozen-lockfile --ignore-scripts >/dev/null && pnpm test)
 fi
 
 say "Dashboard"
-(cd web && pnpm install --frozen-lockfile >/dev/null && pnpm build)
+(cd web && pnpm install --frozen-lockfile --ignore-scripts >/dev/null && pnpm build)
 
 say "Server binaries"
 rm -rf "$OUT" && mkdir -p "$OUT/image"
@@ -69,7 +69,7 @@ done
 say "Extension"
 (
   cd packages/extension
-  pnpm install --frozen-lockfile >/dev/null
+  pnpm install --frozen-lockfile --ignore-scripts >/dev/null
   trap 'git checkout -- package.json' EXIT
   npm pkg set version="$VERSION"
   rm -rf .output
