@@ -84,6 +84,20 @@ describe("ComposerProvider", () => {
     await open("Stale copy", "drf_2");
     expect(host.textContent).toBe("New");
   });
+
+  it("gives focus back to what opened the composer", async () => {
+    flush.mockReset().mockResolvedValue(true);
+    const { open } = await setup();
+    const button = document.body.appendChild(document.createElement("button"));
+    button.focus();
+    await open("First");
+    await open("Second");
+    (document.activeElement as HTMLElement).blur();
+
+    await act(async () => api.current!.close());
+    expect(document.activeElement).toBe(button);
+    button.remove();
+  });
 });
 
 describe("shortcutBlocked", () => {
