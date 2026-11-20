@@ -6,6 +6,11 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Folded sidebar: the Mailboxes and Labels groups are hidden (a column of
+  coloured squares said nothing); they show again when it is opened.
+
 ## [0.1.6] - 2026-11-21
 
 ### Changed

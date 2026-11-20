@@ -85,7 +85,8 @@ export function Sidebar({
         </ul>
 
         {/* One mailbox is the same as all of them: nothing to pick. */}
-        {mailboxes.data?.length !== 1 && (
+        {/* Folded, a column of coloured squares says nothing: hide both groups. */}
+        {!folded && mailboxes.data?.length !== 1 && (
           <NavGroup title="Mailboxes">
             <li>
               <NavRow
@@ -172,7 +173,7 @@ export function Sidebar({
           </NavGroup>
         )}
 
-        {(labels.data?.length ?? 0) > 0 && (
+        {!folded && (labels.data?.length ?? 0) > 0 && (
           <NavGroup title="Labels">
             {labels.data!.map((item) => (
               <li key={item.id}>
