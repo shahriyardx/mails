@@ -1,5 +1,5 @@
 import { Button, Choice, Field, Input, Spinner, Switch } from "@/components/kit";
-import { ApiError, listMailboxes, whoami } from "@/lib/api";
+import { ApiError, canReadMail, listMailboxes, whoami } from "@/lib/api";
 import { cx } from "@/lib/format";
 import { useSettings } from "@/lib/hooks";
 import { type Settings, normalizeBase, originPattern } from "@/lib/settings";
@@ -367,7 +367,7 @@ function StatusLine({ status }: { status: Status }) {
             {identity.reachable_mailboxes === 1 ? "mailbox" : "mailboxes"} in reach ·{" "}
             {identity.scopes.join(", ") || "no scopes"}
           </div>
-          {!identity.scopes.some((scope) => scope.startsWith("mail")) ? (
+          {!canReadMail(identity.scopes) ? (
             <div className="mt-1 flex items-center gap-1 text-warn">
               <TriangleAlert className="size-3.5" />
               This key has no mail scope, so there will be nothing to read.

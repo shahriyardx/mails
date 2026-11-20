@@ -198,6 +198,14 @@ export async function whoami(settings: Settings, signal?: AbortSignal) {
   return call<ApiIdentity>(settings, "/me", { signal });
 }
 
+/**
+ * Whether a key's scopes let it read mail. "*" grants every scope, and
+ * mail:write implies mail:read (internal/apikey/scopes.go).
+ */
+export function canReadMail(scopes: string[]) {
+  return scopes.some((scope) => scope === "*" || scope === "mail:read" || scope === "mail:write");
+}
+
 /* --------------------------------------------------------------- deep links */
 
 /** Where a thread lives in the web app. */
