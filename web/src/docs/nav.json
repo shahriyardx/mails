@@ -1,0 +1,58 @@
+[
+  {
+    "title": "Guide",
+    "pages": [
+      { "path": "index", "title": "Overview" },
+      { "path": "guide/index", "title": "What it is" },
+      { "path": "guide/architecture", "title": "How it fits together" },
+      { "path": "guide/self-hosting", "title": "Self-hosting it" },
+      { "path": "guide/domains", "title": "Sending domains" },
+      { "path": "guide/receiving", "title": "Receiving mail" },
+      { "path": "guide/mailboxes", "title": "Mailboxes" },
+      { "path": "guide/forwarding", "title": "Forwarding" },
+      { "path": "guide/queue", "title": "The send queue" },
+      { "path": "guide/metrics", "title": "Metrics" },
+      { "path": "guide/notifications", "title": "Desktop notifications" },
+      { "path": "guide/api-keys", "title": "API keys" },
+      { "path": "guide/extension", "title": "Browser extension" }
+    ]
+  },
+  {
+    "title": "API",
+    "pages": [
+      { "path": "api/index", "title": "Using the API" },
+      { "path": "api/scopes", "title": "Scopes and reach" },
+      { "path": "api/errors", "title": "Errors" },
+      { "path": "api/pagination", "title": "Pagination" },
+      { "path": "api/idempotency", "title": "Idempotency and limits" },
+      { "path": "api/emails", "title": "Emails" },
+      { "path": "api/threads", "title": "Threads" },
+      { "path": "api/messages", "title": "Messages and files" },
+      { "path": "api/mailboxes", "title": "Mailboxes" },
+      { "path": "api/domains", "title": "Domains" },
+      { "path": "api/labels", "title": "Labels and contacts" },
+      { "path": "api/suppressions", "title": "Blocked addresses" },
+      { "path": "api/webhooks", "title": "Webhooks" },
+      { "path": "api/stats", "title": "Statistics" }
+    ]
+  },
+  {
+    "title": "Webhooks",
+    "pages": [
+      { "path": "webhooks/index", "title": "Webhooks" },
+      { "path": "webhooks/events", "title": "The events" },
+      { "path": "webhooks/verifying", "title": "Verifying a call" },
+      { "path": "webhooks/retries", "title": "Retries and replays" }
+    ]
+  },
+  {
+    "title": "Node SDK",
+    "pages": [
+      { "path": "sdk/index", "title": "The Node SDK" },
+      { "path": "sdk/sending", "title": "Sending" },
+      { "path": "sdk/reading", "title": "Reading mail" },
+      { "path": "sdk/managing", "title": "Managing the account" },
+      { "path": "sdk/errors", "title": "Errors and retries" }
+    ]
+  }
+]

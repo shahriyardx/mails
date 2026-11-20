@@ -7,20 +7,23 @@ Every list returns one page and, when there is more, an opaque cursor.
   "object": "list",
   "data": [ … ],
   "has_more": true,
-  "next_cursor": "1767225845000|thr_9f2c…"
+  "next_cursor": "1767225845000000|thr_9f2c…"
 }
 ```
 
 Pass it back as `cursor`:
 
 ```sh
-curl "https://mail.yourdomain.com/api/v1/threads?cursor=1767225845000%7Cthr_9f2c…" \
+curl "https://mail.yourdomain.com/api/v1/threads?cursor=1767225845000000%7Cthr_9f2c…" \
   -H "Authorization: Bearer mk_live_..."
 ```
 
 `next_cursor` is **opaque**. It happens to be a sort value and an id joined by
 a pipe, which is what keeps paging stable when many rows share a timestamp,
-but nothing should parse it — hand it back untouched.
+but nothing should parse it — hand it back untouched. A cursor this API did
+not hand out is a `422`.
+
+On the last page `has_more` is `false` and `next_cursor` is `null`.
 
 ## Size
 
@@ -28,14 +31,15 @@ but nothing should parse it — hand it back untouched.
 ?limit=50
 ```
 
-At most **100**, and **25** by default.
+At most **100**, and **25** by default. A larger number is capped at 100.
 
 ## A full walk
 
 ```sh
 cursor=""
 while :; do
-  page=$(curl -s "https://mail.yourdomain.com/api/v1/threads?limit=100&cursor=$cursor" \
+  page=$(curl -s -G "https://mail.yourdomain.com/api/v1/threads" \
+    --data-urlencode "limit=100" --data-urlencode "cursor=$cursor" \
     -H "Authorization: Bearer $KEY")
   echo "$page" | jq -c '.data[]'
   [ "$(echo "$page" | jq -r .has_more)" = "true" ] || break
@@ -43,7 +47,7 @@ while :; do
 done
 ```
 
-The [SDK](/sdk/reading#paging) does this as an `for await` loop.
+The [SDK](/docs/sdk/reading#paging) does this as a `for await` loop.
 
 ## Which lists page
 
@@ -57,7 +61,8 @@ The [SDK](/sdk/reading#paging) does this as an `for await` loop.
 | `/webhook-deliveries` | |
 
 The one-shot lists cannot grow without bound, so paging them would be
-ceremony for nothing.
+ceremony for nothing. They still come back in the same `list` shape, with
+`has_more: false`.
 
 ## Ordering
 
@@ -65,7 +70,7 @@ Newest first, by the field that matters for the thing being listed:
 
 | List | Sorted by |
 | --- | --- |
-| `/emails` | `created_at` |
+| `/emails` | `received_at` — for sent mail, the moment it was recorded |
 | `/threads` | `last_message_at` |
 | `/messages` | `received_at` |
 | `/contacts` | `last_seen_at`, or `message_count` with `?order=frequent` |

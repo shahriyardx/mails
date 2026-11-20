@@ -1,23 +1,23 @@
 # The Node SDK
 
 ```sh
-npm install @shahriyardx/mailroom
+npm install @shahriyardx/mails
 ```
 
-The whole API, typed, with **no dependencies** — one `fetch` and Web Crypto.
+The whole API, typed, with **no dependencies**: one `fetch` and Web Crypto.
 Node 18 or newer, and anywhere else `fetch` exists: Workers, Deno, Bun, the
 browser. Ships ESM, CommonJS and types.
 
-[npm](https://www.npmjs.com/package/@shahriyardx/mailroom) ·
-[source](https://github.com/shahriyardx/mailroom/tree/main/packages/sdk)
+The source is in `packages/sdk` in the repository, under the MIT licence, so
+your application can use it whatever you are doing.
 
 ## Start
 
 ```ts
-import { Mailroom } from "@shahriyardx/mailroom";
+import { Mails } from "@shahriyardx/mails";
 
-const mail = new Mailroom({
-  apiKey: process.env.MAILROOM_API_KEY,
+const mail = new Mails({
+  apiKey: process.env.MAILS_API_KEY,
   baseUrl: "https://mail.yourdomain.com",
 });
 
@@ -32,27 +32,27 @@ await mail.emails.send({
 });
 ```
 
-CommonJS is the same:
+`Mails` is also the default export. CommonJS is the same:
 
 ```js
-const { Mailroom } = require("@shahriyardx/mailroom");
+const { Mails } = require("@shahriyardx/mails");
 ```
 
 ## Settings
 
 ```ts
-const mail = new Mailroom({
-  apiKey: process.env.MAILROOM_API_KEY, // default: process.env.MAILROOM_API_KEY
-  baseUrl: "https://mail.yourdomain.com", // default: process.env.MAILROOM_BASE_URL
-  timeout: 30_000,                       // ms to wait for a reply
-  maxRetries: 2,                         // extra tries after a 429, 5xx or dropped socket
-  headers: { "X-Trace-Id": "…" },        // sent on every call
-  fetch: myFetch,                        // your own fetch, for tests or a proxy agent
+const mail = new Mails({
+  apiKey: process.env.MAILS_API_KEY,   // default: process.env.MAILS_API_KEY
+  baseUrl: "https://mail.yourdomain.com", // default: process.env.MAILS_BASE_URL
+  timeout: 30_000,                     // ms to wait for a reply
+  maxRetries: 2,                       // extra tries after a 429, 5xx or dropped socket
+  headers: { "X-Trace-Id": "…" },      // sent on every call
+  fetch: myFetch,                      // your own fetch, for tests or a proxy agent
 });
 ```
 
-With `MAILROOM_API_KEY` and `MAILROOM_BASE_URL` set, `new Mailroom()` on its
-own is enough.
+With `MAILS_API_KEY` and `MAILS_BASE_URL` set, `new Mails()` on its own is
+enough.
 
 `baseUrl` is your instance's address. The `/api/v1` suffix is added for you,
 so `https://mail.yourdomain.com` and `https://mail.yourdomain.com/api/v1` both
@@ -66,11 +66,11 @@ where you made the client, not a `401` somewhere later.
 | | |
 | --- | --- |
 | `mail.me()` | What this key is and what it may do |
-| `mail.emails` | [Sending](/sdk/sending), and reading what was sent |
-| `mail.threads` | [Conversations](/sdk/reading) |
+| `mail.emails` | [Sending](/docs/sdk/sending), and reading what was sent |
+| `mail.threads` | [Conversations](/docs/sdk/reading) |
 | `mail.messages` | Individual messages |
 | `mail.attachments` | Files on a message |
-| `mail.mailboxes` | [Addresses](/sdk/managing) |
+| `mail.mailboxes` | [Addresses](/docs/sdk/managing) |
 | `mail.domains` | Sending domains and their DNS |
 | `mail.labels` | Labels |
 | `mail.contacts` | Everyone corresponded with |
@@ -85,16 +85,16 @@ where you made the client, not a `401` somewhere later.
 The package also verifies incoming webhooks, with no Node build needed:
 
 ```ts
-import { constructWebhookEvent } from "@shahriyardx/mailroom";
+import { constructWebhookEvent } from "@shahriyardx/mails";
 
 const event = await constructWebhookEvent({
-  secret: process.env.MAILROOM_WEBHOOK_SECRET!,
+  secret: process.env.MAILS_WEBHOOK_SECRET!,
   payload: rawBody,
-  signature: request.headers.get("x-mailroom-signature"),
+  signature: request.headers.get("x-mails-signature"),
 });
 ```
 
-See [Verifying a call](/webhooks/verifying).
+See [Verifying a call](/docs/webhooks/verifying).
 
 ## Types
 
@@ -104,8 +104,8 @@ Every object, parameter and event is exported:
 import type {
   Message, Thread, Mailbox, Domain, Label, Contact, Suppression,
   Webhook, WebhookDelivery, Stats, Page,
-  SendEmailInput, ListThreadsParams, MailroomWebhookEvent,
-} from "@shahriyardx/mailroom";
+  SendEmailInput, ListThreadsParams, MailsWebhookEvent,
+} from "@shahriyardx/mails";
 ```
 
 Timestamps are ISO 8601 **strings**, because that is what JSON carries. Pass

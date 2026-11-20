@@ -7,8 +7,8 @@ https://mail.yourdomain.com/api/v1
 Authorization: Bearer mk_live_...
 ```
 
-Make a key under **Settings → API keys**. See [API keys](/guide/api-keys) for
-what the options mean.
+Make a key under **Settings → API keys**. See [API keys](/docs/guide/api-keys)
+for what the options mean.
 
 ## The first call
 
@@ -23,7 +23,6 @@ curl https://mail.yourdomain.com/api/v1/me \
   "id": "key_…",
   "name": "Production",
   "scopes": ["*"],
-  "organization": { "id": "org_…", "name": "Acme" },
   "reach": { "unrestricted": true, "domains": [], "mailboxes": [] },
   "reachable_mailboxes": 4,
   "rate_limit_per_minute": 300,
@@ -55,11 +54,11 @@ Every list is the same shape:
   "object": "list",
   "data": [ … ],
   "has_more": true,
-  "next_cursor": "1767225845000|thr_…"
+  "next_cursor": "1767225845000000|thr_…"
 }
 ```
 
-See [Pagination](/api/pagination).
+See [Pagination](/docs/api/pagination).
 
 Every failure is the same shape:
 
@@ -67,20 +66,23 @@ Every failure is the same shape:
 { "error": "No such thread", "code": "not_found" }
 ```
 
-See [Errors](/api/errors).
+See [Errors](/docs/api/errors).
 
 ## Conventions
 
-- **snake_case** in and out. The database is camelCase; the API is not.
+- **snake_case** in and out.
 - **Timestamps are ISO 8601** strings in UTC.
 - **Addresses** are `{ "name": "Ada", "address": "ada@example.com" }` when read,
   and a plain string or array of strings when written. `Ada <ada@example.com>`
   is understood.
-- **Ids are prefixed** — `msg_`, `thr_`, `mbx_`, `lbl_`, `whk_` — so a wrong id
-  in the wrong place is obvious.
+- **Ids are prefixed** — `msg_`, `thr_`, `mbx_`, `dom_`, `lbl_`, `att_`,
+  `whk_`, `whd_`, `sup_`, `key_` — so a wrong id in the wrong place is obvious.
 - **Many lookups take a name** as well as an id. `GET /domains/example.com`,
-  `GET /labels/Receipts` and `DELETE /suppressions/bad@example.net` all work.
-- **Bodies are at most 30 MB**, which is what caps attachments.
+  `GET /mailboxes/support@example.com`, `GET /labels/Receipts` and
+  `DELETE /suppressions/bad@example.net` all work.
+- **Unknown fields are refused.** A body with a field this API does not take
+  is a `422`, not silently ignored, so a typo shows up at once.
+- **Bodies are at most 32 MB**, which is what caps attachments.
 
 ## Every endpoint
 
@@ -91,6 +93,7 @@ See [Errors](/api/errors).
 | `POST` | `/emails/batch` | `emails:send` |
 | `GET` | `/emails` | `emails:read` |
 | `GET` | `/emails/:id` | `emails:read` |
+| `POST` | `/emails/:id/cancel` | `emails:send` |
 | `GET` | `/threads` | `mail:read` |
 | `GET` | `/threads/:id` | `mail:read` |
 | `PATCH` | `/threads/:id` | `mail:write` |
@@ -130,21 +133,9 @@ See [Errors](/api/errors).
 | `POST` | `/webhook-deliveries/:id/replay` | `webhooks:write` |
 | `GET` | `/stats` | `stats:read` |
 
+A path not on this list is a `404`. A method a path does not take is a `405`.
+
 ## Prefer not to write this by hand?
 
-The [Node SDK](/sdk/) wraps all of it, typed, with retries, pagination and
-webhook signature checking already done.
-
-## Using an AI assistant?
-
-These docs are published in the [llms.txt](https://llmstxt.org) format, so a
-coding assistant can read the whole API in one fetch rather than crawling
-pages.
-
-| | |
-| --- | --- |
-| [`/llms.txt`](https://mailroom-docs.shahriyar.dev/llms.txt) | An index: every page, with a line on what it covers |
-| [`/llms-full.txt`](https://mailroom-docs.shahriyar.dev/llms-full.txt) | Every page, concatenated. Around 26k tokens |
-
-Both are generated from the pages themselves at build time, so they cannot
-fall behind what is written here.
+The [Node SDK](/docs/sdk/index) wraps all of it, typed, with retries,
+pagination and webhook signature checking already done.

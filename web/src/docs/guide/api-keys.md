@@ -9,6 +9,8 @@ is made, and stored only as a hash — there is no way to read it back.
 mk_live_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 ```
 
+Lists show only a short form, `mk_live_AbCd…WxYz`, so you can tell keys apart.
+
 ## Two limits, both checked
 
 Every key carries two separate limits, and a call has to pass both.
@@ -45,12 +47,20 @@ mail it may not read, and cannot list account-wide contacts.
 
 Picking a whole domain covers addresses added to it in future, which is what
 "this key handles support mail" actually means. Picking named addresses is the
-tighter choice when the set will not grow.
+tighter choice when the set will not grow. A key holds whole domains or named
+addresses, not a mix of both.
+
+Labels and blocked addresses belong to the whole account, so reach does not
+narrow them: a key with `labels:write` or `suppressions:write` changes them
+for everyone.
+
+Scopes and reach are fixed when the key is made. A key can be renamed, never
+widened, so it cannot quietly gain power. Make a new key instead.
 
 ## Rate limit
 
-Each key allows **300 calls a minute** unless you set otherwise. Every reply
-carries the window:
+Each key allows **300 calls a minute** unless you set otherwise when making
+it. Every reply carries the window:
 
 ```
 X-RateLimit-Limit: 300
@@ -78,6 +88,6 @@ you can still see what it did.
 
 ## Next
 
-- [Using the API](/api/) — auth, base URL, the shape of every reply
-- [Scopes and reach in detail](/api/scopes)
-- [The Node SDK](/sdk/) — the same thing, typed
+- [Using the API](/docs/api/index): auth, base URL, the shape of every reply
+- [Scopes and reach in detail](/docs/api/scopes)
+- [The Node SDK](/docs/sdk/index): the same thing, typed

@@ -1,7 +1,6 @@
 # Metrics
 
-**Settings → Metrics**, or **Metrics** in the campaigns view. The same screen
-either way.
+**Settings → Metrics.**
 
 The email log answers *what happened to this message*. This answers the other
 half: whether the account as a whole is healthy. A bounce rate means nothing
@@ -18,8 +17,8 @@ direction it is moving in.
 | **Bounce rate** | Mail SES could not deliver, split by the type it gave. |
 | **Complaint rate** | People who pressed the spam button. |
 
-Filter by domain and by how far back to look: 7, 15, 30 or 90 days. Both live
-in the URL, so a view is a link you can send somebody.
+Filter by domain and by how far back to look, up to a year. Both live in the
+URL, so a view is a link you can send somebody.
 
 ## The two lines you must not cross
 
@@ -33,20 +32,17 @@ The dashed red line on each chart is Amazon's, not ours.
 That is why the rates carry two decimals. A complaint rate rounded to whole
 percent reads 0% right up to the point the account is suspended.
 
-::: tip A rising bounce rate is usually a list, not a server
-Permanent bounces mean addresses that do not exist — an old list, or one
-bought rather than collected. Transient means a full mailbox or a server
-having a bad day, and fixes itself. The split on the card tells you which
-you have.
-:::
+> **Tip:** A rising bounce rate is usually a bad address book, not a server.
+> Permanent bounces mean addresses that do not exist. Transient means a full
+> mailbox or a server having a bad day, and fixes itself. The split on the
+> card tells you which you have.
 
 ## What is counted
 
 - Outbound mail only. Receiving has no delivery to rate.
 - Drafts are not counted. Nothing has been attempted.
-- [Test sends](/guide/test-mode) are left out everywhere. They never reach
-  SES, so counting them would make every rate here a rate of something that
-  did not happen.
+- Mail still queued, canceled or failed before SES took it is not counted
+  as sent. It never left.
 - A complaint counts as delivered as well. It could not exist otherwise, and
   a deliverability rate that falls when somebody presses the spam button is
   measuring the wrong thing.
@@ -60,6 +56,7 @@ one pass, every time the page is opened. There is no nightly rollup and no
 summary table: an instance that has to summarise its own mail before it can
 draw a chart is an instance with a second set of numbers to keep in step.
 
-Bounce and complaint figures need [delivery reporting](/guide/domains)
-connected — without the SES event feed nothing ever tells this instance that
+Bounce and complaint figures need
+[delivery reporting](/docs/guide/self-hosting#6-delivery-reporting)
+connected. Without the SES event feed nothing ever tells this instance that
 a message bounced, and the rate stays at zero while the bounces pile up.

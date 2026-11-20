@@ -16,11 +16,12 @@ do.
 | 401 | `unauthorized` | Key missing, mistyped or revoked | No |
 | 403 | `forbidden` | Missing a scope, or the call is account-wide and the key is not | No |
 | 404 | `not_found` | No such object, or none this key may reach | No |
-| 409 | `conflict` | Already exists, or a destructive call needs its confirmation flag | No |
-| 413 | `payload_too_large` | Over 30 MB. Usually an attachment | No |
-| 422 | `invalid_request` | A field is wrong. `param` names it | No |
+| 405 | `method_not_allowed` | The path exists but does not take that method | No |
+| 409 | `conflict` | Already exists, a destructive call needs its confirmation flag, a recipient is blocked, or an idempotency key was reused with a different body | No |
+| 413 | `payload_too_large` | Over 32 MB. Usually an attachment | No |
+| 422 | `invalid_request` | A field is wrong, or the body has a field this API does not take. `param` names the field when it can | No |
 | 429 | `rate_limited` | Too many calls this minute | Yes, after `Retry-After` |
-| 500 | `server_error` | The instance failed | Yes |
+| 500 | `server_error` | The instance failed. The reason is in its log, not in the reply | Yes |
 
 ## A missing scope
 
@@ -39,14 +40,38 @@ do.
 
 ```json
 {
-  "error": "to: Required, subject: Expected string, received number",
+  "error": "to: Required",
   "code": "invalid_request",
   "param": "to"
 }
 ```
 
-Every problem is listed in `error`; `param` names the first, which is enough
-to highlight a form field.
+When several fields are wrong, every problem is listed in `error` and `param`
+names the first, which is enough to highlight a form field.
+
+A field this API does not take is refused the same way. A misspelt
+`replyTo`, or a field copied from another email service, fails loudly instead
+of being dropped:
+
+```json
+{
+  "error": "Request body is not valid JSON for this endpoint: json: unknown field \"replyTo\"",
+  "code": "invalid_request"
+}
+```
+
+## A blocked recipient
+
+A send to an address on the [blocked list](/docs/api/suppressions) is refused
+before anything is written:
+
+```json
+{
+  "error": "Blocked after an earlier bounce or complaint: gone@example.net",
+  "code": "conflict",
+  "suppressed": ["gone@example.net"]
+}
+```
 
 ## Rate limiting
 
@@ -71,7 +96,7 @@ way to enumerate what you cannot see.
 So a `404` means one of two things, and the API will not tell you which:
 
 - It is genuinely not there
-- It is outside this key's [reach](/api/scopes#reach)
+- It is outside this key's [reach](/docs/api/scopes#reach)
 
 Check with `GET /me` when you are unsure.
 
@@ -87,21 +112,24 @@ Two endpoints can half-work, and neither uses an error status for it.
   "sent": 2,
   "failed": 1,
   "data": [
-    { "index": 0, "ok": true, "id": "msg_…" },
-    { "index": 1, "ok": false, "error": "…", "status": 422 },
-    { "index": 2, "ok": true, "id": "msg_…" }
+    { "index": 0, "ok": true, "id": "msg_…", "thread_id": "thr_…", "delivery_status": "sent" },
+    { "index": 1, "ok": false, "error": "to: Required", "status": 422 },
+    { "index": 2, "ok": true, "id": "msg_…", "thread_id": "thr_…", "delivery_status": "queued" }
   ]
 }
 ```
 
 **Webhook ping and replay** return `502` with a full result body when your
-endpoint was unreachable. The call worked; the endpoint did not.
+endpoint failed. The call worked; the endpoint did not.
 
 ```json
 {
   "object": "webhook_ping",
+  "webhook_id": "whk_…",
+  "delivery_id": "whd_…",
   "succeeded": false,
   "status_code": 500,
+  "duration_ms": 87,
   "response_body": "Internal Server Error",
   "error": "Endpoint replied 500"
 }

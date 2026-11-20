@@ -1,16 +1,16 @@
 # Errors and retries
 
-Anything other than a `2xx` throws. Every error extends `MailroomError` and
+Anything other than a `2xx` throws. Every error extends `MailsError` and
 carries `status`, `code`, `message` and the decoded `body`.
 
 ```ts
 import {
-  isMailroomError,
-  MailroomError,
+  isMailsError,
+  MailsError,
   NotFoundError,
   RateLimitError,
   ValidationError,
-} from "@shahriyardx/mailroom";
+} from "@shahriyardx/mails";
 
 try {
   await mail.emails.send({ from: "nobody@unverified.example", to: "a@b.c" });
@@ -21,7 +21,7 @@ try {
     console.error("bad field:", error.param, error.message);
   } else if (error instanceof NotFoundError) {
     // gone, or outside this key's reach — the two look the same on purpose
-  } else if (isMailroomError(error)) {
+  } else if (isMailsError(error)) {
     console.error(error.code, error.status, error.message);
   } else {
     throw error; // not ours
@@ -36,8 +36,8 @@ try {
 | `AuthenticationError` | 401 | `unauthorized` | Key missing, mistyped or revoked |
 | `PermissionError` | 403 | `forbidden` | Missing a scope, or outside the key's reach |
 | `NotFoundError` | 404 | `not_found` | No such object, or none this key may see |
-| `ConflictError` | 409 | `conflict` | Already exists, or needs a confirmation flag |
-| `PayloadTooLargeError` | 413 | `payload_too_large` | Over 30 MB. Usually an attachment |
+| `ConflictError` | 409 | `conflict` | Already exists, needs a confirmation flag, a blocked recipient, or a reused idempotency key |
+| `PayloadTooLargeError` | 413 | `payload_too_large` | Over 32 MB. Usually an attachment |
 | `ValidationError` | 422 | `invalid_request` | A bad field; `param` names it |
 | `RateLimitError` | 429 | `rate_limited` | Too many calls; `retryAfter` in seconds |
 | `ServerError` | 5xx | `server_error` | The instance failed. Safe to retry |
@@ -73,7 +73,7 @@ exponential with jitter, and a `Retry-After` is obeyed when the server sends
 one.
 
 ```ts
-const mail = new Mailroom({ maxRetries: 4 }); // default 2; 0 turns it off
+const mail = new Mails({ maxRetries: 4 }); // default 2; 0 turns it off
 ```
 
 ## Rate limit headers
@@ -89,7 +89,7 @@ Kept from the most recent reply, and `null` before the first one.
 ## Timeouts and cancelling
 
 ```ts
-const mail = new Mailroom({ timeout: 10_000 });
+const mail = new Mails({ timeout: 10_000 });
 ```
 
 Pass your own signal per call, which is combined with the client's timeout:

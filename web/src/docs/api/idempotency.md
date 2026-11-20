@@ -21,7 +21,15 @@ second message. The replay carries a header:
 Idempotency-Replayed: true
 ```
 
-Keys are remembered for **24 hours**, per endpoint.
+Keys are remembered for **24 hours**, per API key and per endpoint. A key is
+at most 255 characters.
+
+Only a reply that worked is remembered. If the first call failed — a bad
+field, a blocked recipient — the same key can be used again once you have
+fixed it.
+
+Two calls with the same key at the same moment do not both send: the second
+waits for the first and gets its reply.
 
 ### Use something meaningful
 
@@ -44,11 +52,12 @@ something changed between the first call and the retry.
 ### Where it works
 
 `POST /emails` and `POST /emails/batch`. For a batch, the whole array is what
-the key covers.
+the key covers. Other endpoints ignore the header.
 
 ## Rate limits
 
-Each key allows **300 calls a minute** unless it was given its own limit.
+Each key allows **300 calls a minute** unless it was given its own limit when
+it was made (anything from 1 to 100,000).
 
 Every reply carries the window:
 
@@ -60,35 +69,31 @@ X-RateLimit-Reset: 1800000000
 
 `X-RateLimit-Reset` is Unix seconds.
 
-Going over returns `429` with `Retry-After` in seconds. Wait that long — do
-not hammer, because a fixed window means the whole allowance returns at once
-and a tight retry loop simply spends it again.
+Going over returns `429` with `Retry-After` in seconds. Wait that long rather
+than retrying in a tight loop, which only spends the next allowance as soon as
+it comes back.
 
-::: tip It is per container
-The counter lives in the process, so two containers allow twice the stated
-rate. It exists to stop a runaway loop from emptying your SES quota, not to
-meter a plan.
-:::
+> **Tip:** The counter lives in the server's memory. It resets on a restart,
+> and two processes would each allow the full rate. It exists to stop a
+> runaway loop from emptying your SES quota, not to meter a plan.
 
 ## The SES quota is separate
 
-The rate limit is Mailroom's. **SES has its own**, and it is the one that
-actually stops mail going out.
-
-It is a rolling 24-hour window, not a daily allowance: each message stops
-counting exactly 24 hours after it was sent. See
-[Sending domains](/guide/domains#the-sending-limit).
+The rate limit is Mails'. **SES has its own**, and it is the one that actually
+stops mail going out. **Settings → Overview** shows it: the 24-hour cap, how
+much of it is used, and the per-second send rate.
 
 A new SES account is in the sandbox — 200 a day, verified recipients only.
 Ask AWS for production access before you rely on it.
 
 ## Body size
 
-30 MB, which caps attachments. Over it:
+32 MB, which caps attachments. Over it:
 
 ```json
 { "error": "The request body is too large", "code": "payload_too_large" }
 ```
 
-At most **20 attachments** on one message. Remember base64 adds about a third,
-so a 30 MB body is roughly 22 MB of files.
+At most **20 attachments** on one message, and SES refuses a whole message
+over 40 MB. Remember base64 adds about a third, so a 32 MB body is roughly
+24 MB of files.
