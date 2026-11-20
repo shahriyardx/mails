@@ -1,7 +1,7 @@
 # What it is
 
-Mails is a self-hosted email app for one person. You run one instance, on
-your own server, against your own database, for your own domains.
+Mails is a self-hosted email platform. You run it on your own server,
+against your own database, for your own domains.
 
 It does both halves of email:
 
@@ -15,11 +15,10 @@ Postgres**. Attachments and raw messages live in **your R2 bucket**. Nothing
 passes through anybody else's service, and nothing is metered by anybody but
 AWS and Cloudflare.
 
-## Who it is for
+## Private by design
 
-One person. Sign-in is GitHub only, and the **first GitHub account to sign
-in owns the instance**. Every other account is refused, always, and there is
-never a second user.
+Sign-in is GitHub only, and the **first GitHub account to sign in owns the
+instance**. Every other account is refused, always.
 
 A stranger who finds the sign-in page cannot give themselves an inbox.
 

@@ -1,11 +1,11 @@
 # Mails
 
-Self-hosted email for one person, on your own domains.
+Your own email platform, on your own domains.
 
-Mails sends through Amazon SES, receives through a Cloudflare Email Worker,
-and keeps mail in Postgres and attachments in Cloudflare R2. It ships as one
-Go binary with the dashboard built in. You sign in with GitHub, and the first
-account to sign in owns the instance.
+Mails sends through Amazon SES, receives through Cloudflare Email Routing,
+and keeps your mail in your own Postgres and R2. It ships as a single Go
+binary with the dashboard built in. Private by design: you sign in with
+GitHub, and the instance is yours alone.
 
 ## Features
 

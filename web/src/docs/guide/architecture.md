@@ -120,7 +120,7 @@ The dashboard holds a server-sent events stream open at `/api/events`. When
 mail arrives or a thread changes, the server sends a small event naming what
 changed, and the page refetches it. Nothing polls.
 
-The stream is in memory, in the one process, which is all one person needs.
+The stream lives in memory in the server process: no broker to run.
 
 ## Where mail is threaded
 

@@ -1,6 +1,6 @@
 # Mails
 
-Your own mail, on your own domain, for one person.
+Your own email platform, on your own domains.
 
 Mails sends through Amazon SES, receives through a Cloudflare Email Worker,
 and keeps everything in your Postgres. It is one Go binary with the dashboard

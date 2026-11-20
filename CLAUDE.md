@@ -1,6 +1,6 @@
 # Mails
 
-Self-hosted email for one person. Go server + embedded React dashboard, one
+Self-hosted email platform with a single owner. Go server + embedded React dashboard, one
 binary. Sends through Amazon SES, receives through a Cloudflare Email Worker,
 stores mail in Postgres and attachments in Cloudflare R2. Public REST API,
 webhooks, a Node SDK and a browser extension.
