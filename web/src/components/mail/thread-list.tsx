@@ -131,7 +131,7 @@ export function ThreadList({
 
       <div
         className={cn(
-          "relative z-10 border-b transition-[border-color,box-shadow] duration-150",
+          "relative z-10 border-b pb-3 transition-[border-color,box-shadow] duration-150",
           scrolled
             ? "border-border shadow-[0_6px_12px_-8px_rgb(0_0_0/0.45)]"
             : "border-transparent",
