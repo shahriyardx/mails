@@ -60,7 +60,7 @@ export function Sidebar({
           variant="primary"
           size="lg"
           icon="edit"
-          className="px-5"
+          className="w-full px-5"
           onClick={() => {
             onNavigate?.();
             composer.open();

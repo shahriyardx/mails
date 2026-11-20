@@ -144,7 +144,9 @@ export function Component() {
                   ? "hidden"
                   : "flex flex-1"
                 : cn(
-                    "lg:flex lg:w-[26rem] lg:shrink-0 xl:w-[30rem]",
+                    // A fixed column on wide screens; it fills the width only
+                    // below lg, where the list and a conversation take turns.
+                    "lg:flex lg:w-[26rem] lg:flex-none xl:w-[30rem]",
                     threadId ? "hidden" : "flex flex-1",
                   ),
             )}
