@@ -59,21 +59,36 @@ export function decodeCss(css: string) {
 
 const fetches = (css: string) => CSS_FETCH.test(decodeCss(css));
 
-/** Removes every declaration that fetches. */
-function stripDeclarations(style: CSSStyleDeclaration) {
+/**
+ * Layout a message could use to draw over its own content or imitate the
+ * extension's UI: out-of-flow positioning, transforms and negative margins.
+ */
+function redresses(name: string, value: string) {
+  if (name === "position") return !/^\s*static\s*$/i.test(value);
+  if (name === "transform" || name === "translate") return true;
+  return name.startsWith("margin") && value.includes("-");
+}
+
+/** Removes every declaration that fetches (unless allowed) or redresses. */
+function stripDeclarations(style: CSSStyleDeclaration, allowRemote = false) {
   for (const name of Array.from(style)) {
-    if (fetches(style.getPropertyValue(name))) style.removeProperty(name);
+    const value = style.getPropertyValue(name);
+    if ((!allowRemote && fetches(value)) || redresses(name, value)) style.removeProperty(name);
   }
 }
 
 /** Walks a sheet (or grouping rule), dropping fetching declarations and rules. */
-function stripRules(owner: { cssRules: CSSRuleList; deleteRule(index: number): void }) {
+function stripRules(
+  owner: { cssRules: CSSRuleList; deleteRule(index: number): void },
+  allowRemote: boolean,
+) {
   for (let index = owner.cssRules.length - 1; index >= 0; index -= 1) {
     const rule = owner.cssRules[index]!;
-    if ("style" in rule) stripDeclarations(rule.style as CSSStyleDeclaration);
-    if ("cssRules" in rule && "deleteRule" in rule) stripRules(rule as unknown as typeof owner);
+    if ("style" in rule) stripDeclarations(rule.style as CSSStyleDeclaration, allowRemote);
+    if ("cssRules" in rule && "deleteRule" in rule)
+      stripRules(rule as unknown as typeof owner, allowRemote);
     // @import, @font-face and anything else still fetching goes whole.
-    if (fetches(rule.cssText)) owner.deleteRule(index);
+    if (!allowRemote && fetches(rule.cssText)) owner.deleteRule(index);
   }
 }
 
@@ -82,14 +97,15 @@ function stripRules(owner: { cssRules: CSSRuleList; deleteRule(index: number): v
  * with certainty. Parsed by the browser's own CSS parser, then checked again
  * as text: if anything fetching survives, the whole block goes.
  */
-export function cleanStylesheet(css: string) {
-  if (!fetches(css)) return css;
+export function cleanStylesheet(css: string, allowRemote = false) {
+  if ((allowRemote || !fetches(css)) && !/position|transform|translate|margin/i.test(css))
+    return css;
   try {
     const sheet = new CSSStyleSheet();
     sheet.replaceSync(css);
-    stripRules(sheet);
+    stripRules(sheet, allowRemote);
     const out = Array.from(sheet.cssRules, (rule) => rule.cssText).join("\n");
-    return fetches(out) ? "" : out;
+    return !allowRemote && fetches(out) ? "" : out;
   } catch {
     return "";
   }
@@ -118,12 +134,12 @@ export function prepareEmail(
 
   DOMPurify.addHook("afterSanitizeElements", (node) => {
     // Lowercased: an SVG <style> reports "style", an HTML one "STYLE".
-    if (allowRemote || node.nodeName.toLowerCase() !== "style") return;
+    if (node.nodeName.toLowerCase() !== "style") return;
     const css = node.textContent ?? "";
-    const clean = cleanStylesheet(css);
+    const clean = cleanStylesheet(css, allowRemote);
     if (clean !== css) {
       node.textContent = clean;
-      blockedImages += 1;
+      if (!allowRemote && fetches(css)) blockedImages += 1;
     }
   });
 
@@ -153,10 +169,15 @@ export function prepareEmail(
     }
 
     const style = node.getAttribute("style");
-    if (!allowRemote && style && fetches(style)) {
-      if ("style" in node) stripDeclarations((node as HTMLElement).style);
-      if (fetches(node.getAttribute("style") ?? "")) node.removeAttribute("style");
-      blockedImages += 1;
+    if (style && "style" in node) {
+      const fetching = !allowRemote && fetches(style);
+      if (fetching || /position|transform|translate|margin/i.test(style)) {
+        stripDeclarations((node as HTMLElement).style, allowRemote);
+      }
+      if (fetching) {
+        if (fetches(node.getAttribute("style") ?? "")) node.removeAttribute("style");
+        blockedImages += 1;
+      }
     }
 
     if (tag === "a") {
@@ -177,6 +198,10 @@ export function prepareEmail(
         "form",
         "input",
         "button",
+        "textarea",
+        "select",
+        "option",
+        "dialog",
         "base",
         "link",
         "meta",

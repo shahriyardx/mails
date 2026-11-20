@@ -154,3 +154,16 @@ describe("frame CSP", () => {
     expect(frameCsp(true)).toContain("img-src data: https: http:");
   });
 });
+
+describe("ui redress", () => {
+  it("strips out-of-flow layout from inline styles and style blocks, images shown or not", () => {
+    for (const showRemoteImages of [false, true]) {
+      const { html } = prepareEmail(
+        '<style>.x{position:fixed;top:0;color:red}</style><div style="position:absolute;transform:scale(9);margin-top:-500px;color:blue">hi</div><textarea>x</textarea>',
+        { showRemoteImages },
+      );
+      expect(html).not.toMatch(/position|transform|margin-top|textarea/);
+      expect(html).toContain("color: blue");
+    }
+  });
+});
