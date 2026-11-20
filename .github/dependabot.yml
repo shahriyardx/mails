@@ -11,6 +11,11 @@ updates:
     groups:
       npm-minor:
         update-types: [minor, patch]
+    # Major versions (TypeScript 7, postal-mime 4, ...) need code changes:
+    # upgrade those by hand, not as weekly PRs.
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: monthly }
