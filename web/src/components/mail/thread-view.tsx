@@ -8,6 +8,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
   EmptyState,
   Icon,
@@ -15,7 +16,6 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-  Separator,
   Skeleton,
   Tooltip,
 } from "@/components/kit";
@@ -27,11 +27,12 @@ import {
   formatAddress,
   formatBytes,
   formatDateTime,
+  formatWhen,
   forwardSubject,
   quoteMessage,
   replySubject,
 } from "@/lib/mail";
-import type { Folder, Message, Thread } from "@/lib/types";
+import type { Message, Thread } from "@/lib/types";
 import { type ComposerDraft, useComposer } from "./composer-provider";
 import { EmailFrame } from "./email-frame";
 import { LabelMenu } from "./label-menu";
@@ -100,8 +101,8 @@ export function ThreadView({
 
   if (query.isPending) {
     return (
-      <div className="space-y-4 p-6">
-        <Skeleton className="h-7 w-2/3" />
+      <div className="mx-auto w-full max-w-165 space-y-5 px-8 pt-9.5">
+        <Skeleton className="h-9 w-2/3" />
         <Skeleton className="h-40 w-full" />
       </div>
     );
@@ -170,13 +171,17 @@ function Conversation({
     }
   }, [thread.id, thread.unread_count, actions]);
 
-  // ?reply=reply|replyAll|forward (from the extension and push) opens the composer once.
-  // The parameter is dropped afterwards so going back or reloading does not
-  // open a second composer over the first.
+  // ?reply=reply|replyAll|forward (from the list, the extension and push)
+  // opens the composer once. The parameter is dropped afterwards so going
+  // back or reloading does not open a second composer over the first.
   const reply = params.get("reply");
   const replied = useRef(false);
   useEffect(() => {
-    if (!reply || !last || replied.current) return;
+    if (!reply) {
+      replied.current = false;
+      return;
+    }
+    if (!last || replied.current) return;
     replied.current = true;
     const mode: ReplyMode = reply === "replyAll" || reply === "forward" ? reply : "reply";
     composer.open(replyDraft(thread, last, mode));
@@ -184,6 +189,8 @@ function Conversation({
     next.delete("reply");
     setParams(next, { replace: true });
   }, [reply, last, thread, composer, params, setParams]);
+
+  const archived = thread.folders.includes("archive");
 
   return (
     <section className="flex h-full min-w-0 flex-col">
@@ -197,193 +204,179 @@ function Conversation({
         onConfirm={() => actions.purge([thread.id])}
       />
 
-      <header className="flex h-14 shrink-0 items-center gap-0.5 px-2">
-        <Tooltip label="Back to the list">
-          <IconButton
-            icon="arrow_back"
-            label="Back to the list"
-            render={<Link to={backHref} />}
-            nativeButton={false}
-          />
-        </Tooltip>
-        {inTrash ? (
-          <Action
-            icon="restore_from_trash"
-            label="Put back"
-            onClick={() => actions.restore([thread.id])}
-          />
-        ) : thread.folders.includes("archive") ? (
-          <Action
-            icon="unarchive"
-            label="Move to inbox"
-            onClick={() => actions.move([thread.id], "inbox", "archive")}
-          />
-        ) : (
-          <Action
-            icon="archive"
-            label="Archive"
-            onClick={() => actions.move([thread.id], "archive", from)}
-          />
-        )}
-        {!thread.folders.includes("spam") && (
-          <Action
-            icon="report"
-            label="Report spam"
-            onClick={() => actions.move([thread.id], "spam", from)}
-          />
-        )}
-        <Action
-          icon={inTrash ? "delete_forever" : "delete"}
-          label={inTrash ? "Delete forever" : "Delete"}
-          onClick={() => (inTrash ? setPurging(true) : actions.trash([thread.id]))}
-        />
-        <Separator orientation="vertical" className="mx-1 my-4" />
-        <LabelMenu threadIds={[thread.id]} applied={thread.labels?.map((l) => l.id)} />
-        <MoveMenu thread={thread} onMove={(to) => actions.move([thread.id], to, from)} />
-        <Action
-          icon="star"
-          filled={thread.is_starred}
-          label={thread.is_starred ? "Unstar" : "Star"}
-          onClick={() => actions.setStarred([thread.id], !thread.is_starred)}
-        />
-        <Action
-          icon="mark_email_unread"
-          label="Mark unread"
-          onClick={() => actions.setRead([thread.id], false)}
-        />
-
-        {last && !last.is_draft && (
-          <div className="ml-auto hidden items-center gap-0.5 sm:flex">
-            <Action
-              icon="reply_all"
-              label="Reply all"
-              onClick={() => composer.open(replyDraft(thread, last, "replyAll"))}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-3 pb-24 sm:px-8 md:pb-10 lg:pt-9.5">
+        <div className="mx-auto w-full max-w-165">
+          {/* Labels on the left, the thread's actions on the right. */}
+          <div className="flex min-h-8 flex-wrap items-center gap-2">
+            <Tooltip label="Back to the list">
+              <IconButton
+                icon="arrow_back"
+                label="Back to the list"
+                size="sm"
+                className="-ml-2 lg:hidden"
+                render={<Link to={backHref} />}
+                nativeButton={false}
+              />
+            </Tooltip>
+            {thread.labels?.map((label) => (
+              <Badge key={label.id} tone="accent">
+                {label.name}
+              </Badge>
+            ))}
+            <span className="flex-1" />
+            {inTrash ? (
+              <Button
+                size="sm"
+                variant="outline"
+                icon="restore_from_trash"
+                onClick={() => actions.restore([thread.id])}
+              >
+                Put back
+              </Button>
+            ) : archived ? (
+              <Button
+                size="sm"
+                variant="outline"
+                icon="unarchive"
+                onClick={() => actions.move([thread.id], "inbox", "archive")}
+              >
+                Inbox
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                icon="archive"
+                onClick={() => actions.move([thread.id], "archive", from)}
+              >
+                Archive
+              </Button>
+            )}
+            <LabelMenu
+              threadIds={[thread.id]}
+              applied={thread.labels?.map((l) => l.id)}
+              trigger={
+                <Button size="sm" variant="outline" icon="label">
+                  Label
+                </Button>
+              }
             />
-            <Action
-              icon="forward"
-              label="Forward"
-              onClick={() => composer.open(replyDraft(thread, last, "forward"))}
-            />
-            <Button
-              icon="reply"
-              className="ml-1"
-              onClick={() => composer.open(replyDraft(thread, last, "reply"))}
-            >
-              Reply
-            </Button>
+            <Tooltip label={thread.is_starred ? "Unstar" : "Star"}>
+              <IconButton
+                icon="star"
+                size="sm"
+                variant="outline"
+                filled={thread.is_starred}
+                className={cn(thread.is_starred && "text-accent")}
+                label={thread.is_starred ? "Unstar" : "Star"}
+                onClick={() => actions.setStarred([thread.id], !thread.is_starred)}
+              />
+            </Tooltip>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <IconButton icon="more_horiz" label="More actions" size="sm" variant="outline" />
+                }
+              />
+              <DropdownMenuContent>
+                <DropdownMenuItem
+                  icon="mark_email_unread"
+                  onClick={() => actions.setRead([thread.id], false)}
+                >
+                  Mark unread
+                </DropdownMenuItem>
+                {(["inbox", "archive", "spam"] as const)
+                  .filter((f) => !thread.folders.includes(f))
+                  .map((f) => (
+                    <DropdownMenuItem
+                      key={f}
+                      icon={FOLDER_ICON[f]}
+                      onClick={() => actions.move([thread.id], f, from)}
+                    >
+                      {f === "spam" ? "Report spam" : `Move to ${f}`}
+                    </DropdownMenuItem>
+                  ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  icon={inTrash ? "delete_forever" : "delete"}
+                  destructive
+                  onClick={() => (inTrash ? setPurging(true) : actions.trash([thread.id]))}
+                >
+                  {inTrash ? "Delete forever" : "Delete"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-        )}
-      </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-2 pb-24 sm:px-6 md:pb-8">
-        <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2">
-          <h1 className="text-[22px] leading-snug font-medium tracking-tight">
+          <h1 className="mt-4 text-[26px] leading-[1.15] font-semibold tracking-[-0.025em] break-words sm:text-[32px]">
             {thread.subject || "(no subject)"}
           </h1>
-          {thread.labels?.map((label) => (
-            <Badge key={label.id} className="pr-1">
-              <span
-                className="size-2 rounded-full"
-                style={{ background: label.color }}
-                aria-hidden
+
+          <ol className="mt-5.5 flex flex-col gap-6">
+            {messages.map((message, index) => (
+              <MessageItem
+                key={message.id}
+                message={message}
+                first={index === 0}
+                open={open.has(message.id)}
+                imagesAllowed={trust.data?.[message.from.address.toLowerCase()] ?? false}
+                onToggle={() =>
+                  setOpen((current) => {
+                    const next = new Set(current);
+                    if (next.has(message.id)) next.delete(message.id);
+                    else next.add(message.id);
+                    return next;
+                  })
+                }
+                onReply={(mode) => composer.open(replyDraft(thread, message, mode))}
+                onEditDraft={() => composer.open(draftOf(thread, message))}
               />
-              {label.name}
-            </Badge>
-          ))}
+            ))}
+          </ol>
+
+          {last && !last.is_draft && (
+            <div className="mt-6 flex flex-wrap gap-2">
+              <Button
+                variant="primary"
+                icon="reply"
+                onClick={() => composer.open(replyDraft(thread, last, "reply"))}
+              >
+                Reply
+              </Button>
+              <Button
+                icon="reply_all"
+                onClick={() => composer.open(replyDraft(thread, last, "replyAll"))}
+              >
+                Reply all
+              </Button>
+              <Button
+                icon="forward"
+                onClick={() => composer.open(replyDraft(thread, last, "forward"))}
+              >
+                Forward
+              </Button>
+            </div>
+          )}
         </div>
-
-        <ol className="flex flex-col gap-3">
-          {messages.map((message) => (
-            <MessageItem
-              key={message.id}
-              message={message}
-              open={open.has(message.id)}
-              imagesAllowed={trust.data?.[message.from.address.toLowerCase()] ?? false}
-              onToggle={() =>
-                setOpen((current) => {
-                  const next = new Set(current);
-                  if (next.has(message.id)) next.delete(message.id);
-                  else next.add(message.id);
-                  return next;
-                })
-              }
-              onReply={(mode) => composer.open(replyDraft(thread, message, mode))}
-              onEditDraft={() => composer.open(draftOf(thread, message))}
-            />
-          ))}
-        </ol>
-
-        {last && !last.is_draft && (
-          <div className="mt-6 flex flex-wrap gap-2">
-            <Button icon="reply" onClick={() => composer.open(replyDraft(thread, last, "reply"))}>
-              Reply
-            </Button>
-            <Button
-              icon="reply_all"
-              onClick={() => composer.open(replyDraft(thread, last, "replyAll"))}
-            >
-              Reply all
-            </Button>
-            <Button
-              icon="forward"
-              onClick={() => composer.open(replyDraft(thread, last, "forward"))}
-            >
-              Forward
-            </Button>
-          </div>
-        )}
       </div>
     </section>
   );
 }
 
-function Action({
-  icon,
-  label,
-  onClick,
-  filled,
-}: {
-  icon: string;
-  label: string;
-  onClick: () => void;
-  filled?: boolean;
-}) {
-  return (
-    <Tooltip label={label}>
-      <IconButton icon={icon} label={label} filled={filled} onClick={onClick} />
-    </Tooltip>
-  );
-}
-
-function MoveMenu({ thread, onMove }: { thread: Thread; onMove: (to: Folder) => void }) {
-  const targets: Folder[] = (["inbox", "archive", "spam", "trash"] as const).filter(
-    (f) => !thread.folders.includes(f),
-  );
-  return (
-    <DropdownMenu>
-      <Tooltip label="Move to">
-        <DropdownMenuTrigger render={<IconButton icon="drive_file_move" label="Move to" />} />
-      </Tooltip>
-      <DropdownMenuContent>
-        {targets.map((folder) => (
-          <DropdownMenuItem key={folder} icon={FOLDER_ICON[folder]} onClick={() => onMove(folder)}>
-            {folder[0]!.toUpperCase() + folder.slice(1)}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
 const FOLDER_ICON: Record<string, string> = {
-  inbox: "inbox",
+  inbox: "move_to_inbox",
   archive: "archive",
   spam: "report",
   trash: "delete",
 };
 
+/**
+ * One message. Received mail reads as a letter (sender row, then the body);
+ * the owner's own messages sit in a "YOUR REPLY" box.
+ */
 function MessageItem({
   message,
+  first,
   open,
   imagesAllowed,
   onToggle,
@@ -391,6 +384,7 @@ function MessageItem({
   onEditDraft,
 }: {
   message: Message;
+  first: boolean;
   open: boolean;
   imagesAllowed: boolean;
   onToggle: () => void;
@@ -408,10 +402,122 @@ function MessageItem({
   );
   const files = (message.attachments ?? []).filter((a) => !a.is_inline);
   const outbound = message.direction === "outbound";
+  const when = formatWhen(message.sent_at ?? message.received_at);
+
+  const menu = open && !message.is_draft && (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<IconButton icon="more_vert" label="More" size="xs" />} />
+      <DropdownMenuContent>
+        <DropdownMenuItem icon="reply" onClick={() => onReply("reply")}>
+          Reply
+        </DropdownMenuItem>
+        <DropdownMenuItem icon="reply_all" onClick={() => onReply("replyAll")}>
+          Reply all
+        </DropdownMenuItem>
+        <DropdownMenuItem icon="forward" onClick={() => onReply("forward")}>
+          Forward
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          icon="code"
+          onClick={() => window.open(`/api/app/messages/${message.id}/raw`, "_blank", "noopener")}
+        >
+          Download original
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  const body = open && (
+    <div className="mt-4">
+      {!outbound && <AuthLine message={message} />}
+      {outbound && message.error && (
+        <p className="mb-3 rounded-lg bg-destructive-soft px-3 py-2 text-[13px] text-destructive">
+          {message.error}
+        </p>
+      )}
+      {message.is_draft ? (
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2.5 text-[13px]">
+          <span className="min-w-0 flex-1 truncate text-muted-foreground">
+            {message.snippet || "Empty draft"}
+          </span>
+          <Button size="sm" variant="primary" icon="edit" onClick={onEditDraft}>
+            Edit
+          </Button>
+        </div>
+      ) : (
+        <EmailFrame
+          html={message.html}
+          text={message.text}
+          sender={outbound ? undefined : message.from.address.toLowerCase()}
+          imagesAllowed={outbound || imagesAllowed}
+          inlineImages={inline}
+        />
+      )}
+      {files.length > 0 && (
+        <ul className="mt-4 flex flex-wrap gap-2">
+          {files.map((file) => (
+            <li key={file.id}>
+              <a
+                href={attachmentUrl(file.id)}
+                download={file.filename}
+                className="flex items-center gap-3 rounded-[10px] border border-border bg-surface px-3 py-2.5 transition-colors hover:bg-tonal"
+              >
+                <Icon name="description" className="text-muted-foreground" />
+                <span className="min-w-0">
+                  <span className="block max-w-56 truncate text-[13px] font-medium">
+                    {file.filename}
+                  </span>
+                  <span className="block font-mono text-[11px] text-muted-foreground">
+                    {formatBytes(file.size_bytes)} · download
+                  </span>
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+
+  if (outbound) {
+    return (
+      <li className="rounded-[14px] border border-border bg-surface px-4.5 py-4">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={open}
+            className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-left"
+          >
+            <span className="font-display text-xs font-semibold tracking-[0.04em] text-accent uppercase">
+              {message.is_draft ? "Draft" : first ? "You wrote" : "Your reply"} · {when}
+            </span>
+            {message.status && !message.is_draft && <DeliveryBadge message={message} />}
+          </button>
+          <Details message={message} />
+          {menu}
+        </div>
+        <p className="mt-1 truncate text-xs text-muted-foreground">
+          to {(message.to ?? []).map(displayName).join(", ") || "—"}
+        </p>
+        {open ? (
+          <div className="text-soft-foreground">{body}</div>
+        ) : (
+          <button
+            type="button"
+            onClick={onToggle}
+            className="mt-1.5 block w-full truncate text-left text-soft-foreground"
+          >
+            {message.snippet}
+          </button>
+        )}
+      </li>
+    );
+  }
 
   return (
-    <li className="rounded-3xl bg-box px-4 py-4 sm:px-5">
-      <div className="flex items-start gap-3">
+    <li>
+      <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={onToggle}
@@ -421,125 +527,33 @@ function MessageItem({
           <Avatar size="lg" name={message.from.name} address={message.from.address} />
         </button>
         <div className="min-w-0 flex-1">
-          <div className="flex items-start gap-2">
-            <button
-              type="button"
-              onClick={onToggle}
-              className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 text-left"
-            >
-              <span className="truncate text-sm font-semibold">{displayName(message.from)}</span>
-              <span className="hidden truncate font-mono text-xs text-muted-foreground sm:inline">
-                {message.from.address}
-              </span>
-              {message.is_draft && (
-                <Badge tone="danger" size="sm">
-                  Draft
-                </Badge>
-              )}
-              {outbound && message.status && !message.is_draft && (
-                <DeliveryBadge message={message} />
-              )}
-            </button>
-            <span className="shrink-0 text-xs text-muted-foreground">
-              {formatDateTime(message.sent_at ?? message.received_at)}
-            </span>
-            {open && !message.is_draft && (
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <IconButton icon="more_vert" label="More" size="sm" className="-mt-1.5" />
-                  }
-                />
-                <DropdownMenuContent>
-                  <DropdownMenuItem icon="reply" onClick={() => onReply("reply")}>
-                    Reply
-                  </DropdownMenuItem>
-                  <DropdownMenuItem icon="reply_all" onClick={() => onReply("replyAll")}>
-                    Reply all
-                  </DropdownMenuItem>
-                  <DropdownMenuItem icon="forward" onClick={() => onReply("forward")}>
-                    Forward
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    icon="code"
-                    onClick={() =>
-                      window.open(`/api/app/messages/${message.id}/raw`, "_blank", "noopener")
-                    }
-                  >
-                    Download original
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
-          <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={open}
+            className="block max-w-full truncate text-left font-semibold"
+          >
+            {displayName(message.from)}
+          </button>
+          <div className="flex min-w-0 items-center gap-1 font-mono text-xs text-muted-foreground">
             <span className="truncate">
-              to {(message.to ?? []).map(displayName).join(", ") || "—"}
+              {message.from.address} · {when}
             </span>
             <Details message={message} />
           </div>
-          {!open && (
-            <button
-              type="button"
-              onClick={onToggle}
-              className="mt-1.5 block w-full truncate text-left text-[13px] text-muted-foreground"
-            >
-              {message.snippet}
-            </button>
-          )}
         </div>
+        {menu}
       </div>
-
-      {open && (
-        <div className="mt-4">
-          {!outbound && <AuthLine message={message} />}
-          {outbound && message.error && (
-            <p className="mb-3 rounded-2xl bg-destructive-soft px-3 py-2 text-[13px] text-destructive">
-              {message.error}
-            </p>
-          )}
-          {message.is_draft ? (
-            <div className="flex items-center gap-3 rounded-2xl bg-field px-4 py-3 text-[13px]">
-              <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                {message.snippet || "Empty draft"}
-              </span>
-              <Button size="sm" variant="primary" icon="edit" onClick={onEditDraft}>
-                Edit
-              </Button>
-            </div>
-          ) : (
-            <EmailFrame
-              html={message.html}
-              text={message.text}
-              sender={outbound ? undefined : message.from.address.toLowerCase()}
-              imagesAllowed={outbound || imagesAllowed}
-              inlineImages={inline}
-            />
-          )}
-          {files.length > 0 && (
-            <ul className="mt-4 flex flex-wrap gap-2">
-              {files.map((file) => (
-                <li key={file.id}>
-                  <a
-                    href={attachmentUrl(file.id)}
-                    download={file.filename}
-                    className="flex items-center gap-3 rounded-2xl bg-field px-3 py-2.5 transition-colors hover:bg-tonal-hover"
-                  >
-                    <Icon name="description" className="text-muted-foreground" />
-                    <span className="min-w-0">
-                      <span className="block max-w-56 truncate text-[13px] font-medium">
-                        {file.filename}
-                      </span>
-                      <span className="block text-xs text-muted-foreground">
-                        {formatBytes(file.size_bytes)} · Download
-                      </span>
-                    </span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+      {open ? (
+        body
+      ) : (
+        <button
+          type="button"
+          onClick={onToggle}
+          className="mt-2 block w-full truncate text-left text-[13px] text-muted-foreground"
+        >
+          {message.snippet}
+        </button>
       )}
     </li>
   );

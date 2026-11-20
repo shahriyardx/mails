@@ -1,98 +1,118 @@
 import { type FormEvent, useDeferredValue, useState } from "react";
 import {
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   ConfirmDialog,
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Field,
   Icon,
   IconButton,
   Input,
   List,
-  ListEmpty,
-  ListRow,
   Skeleton,
   toast,
 } from "@/components/kit";
 import { errorMessage, useBlockAddress, useSuppressions, useUnblockAddress } from "@/lib/api";
 import { EMAIL, formatDateTime } from "@/lib/mail";
 import type { Suppression } from "@/lib/types";
-import { LoadError } from "./parts";
+import { emptyBox, LoadError, PageAction, rowActions } from "./parts";
 
 /** Addresses Mails refuses to send to. */
 export default function Blocked() {
   const [search, setSearch] = useState("");
   const q = useDeferredValue(search.trim());
   const list = useSuppressions(q);
+  const [adding, setAdding] = useState(false);
   const [unblocking, setUnblocking] = useState<Suppression | null>(null);
   const unblock = useUnblockAddress();
   const rows = list.data?.pages.flatMap((page) => page.data) ?? [];
 
   if (list.isError && !list.data) return <LoadError error={list.error} retry={list.refetch} />;
 
+  const blockButton = (
+    <Button variant="primary" icon="add" onClick={() => setAdding(true)}>
+      Block address
+    </Button>
+  );
+
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Blocked addresses</CardTitle>
-          <CardDescription>
-            Sending to these is refused. Addresses land here after a hard bounce or a spam
-            complaint, or when you add them.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex h-10 items-center gap-2 rounded-xl bg-field px-3">
-            <Icon name="search" size={18} className="text-muted-foreground" />
-            <Input
-              variant="bare"
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search blocked addresses"
-              aria-label="Search blocked addresses"
-              className="text-sm"
-            />
-          </div>
-          <List className="bg-box">
-            {list.isPending &&
-              [0, 1, 2].map((i) => (
-                <li key={i} className="px-3 py-3">
-                  <Skeleton className="h-8" />
-                </li>
-              ))}
-            {rows.map((row) => (
-              <ListRow
-                key={row.id}
-                title={<span className="font-mono">{row.address}</span>}
-                description={`${row.reason || "Blocked"} · ${formatDateTime(row.created_at)}`}
-                action={
-                  <IconButton
-                    icon="delete"
-                    label={`Unblock ${row.address}`}
-                    onClick={() => setUnblocking(row)}
-                  />
-                }
-              />
-            ))}
-            {!list.isPending && rows.length === 0 && (
-              <ListEmpty>{q ? `Nothing blocked matches "${q}".` : "Nothing is blocked."}</ListEmpty>
-            )}
-          </List>
-          {list.hasNextPage && (
-            <Button
-              size="sm"
-              loading={list.isFetchingNextPage}
-              onClick={() => list.fetchNextPage()}
+    <div className="flex flex-col gap-4">
+      <PageAction>{blockButton}</PageAction>
+
+      <div className="relative">
+        <Icon
+          name="search"
+          size={18}
+          className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
+        />
+        <Input
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search blocked addresses"
+          aria-label="Search blocked addresses"
+          className="pl-9"
+        />
+      </div>
+
+      {list.isPending ? (
+        <List aria-busy="true">
+          {[0, 1, 2].map((i) => (
+            <li key={i} className="px-4 py-3">
+              <Skeleton className="h-9" />
+            </li>
+          ))}
+        </List>
+      ) : rows.length === 0 ? (
+        <div className={emptyBox}>
+          <p className="text-muted-foreground">
+            {q ? `Nothing blocked matches "${q}".` : "Nothing is blocked."}
+          </p>
+          {!q && <div className="mt-4">{blockButton}</div>}
+        </div>
+      ) : (
+        <List>
+          {rows.map((row) => (
+            <li
+              key={row.id}
+              className="group/row flex items-center gap-3 px-4 py-3 transition-colors hover:bg-box"
             >
-              Show more
-            </Button>
-          )}
-        </CardContent>
-      </Card>
-      <BlockAddress />
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-mono text-sm font-semibold">{row.address}</div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {row.reason || "Blocked"} ·{" "}
+                  <span className="font-mono">{formatDateTime(row.created_at)}</span>
+                </div>
+              </div>
+              <IconButton
+                icon="delete"
+                size="sm"
+                label={`Unblock ${row.address}`}
+                className={rowActions}
+                onClick={() => setUnblocking(row)}
+              />
+            </li>
+          ))}
+        </List>
+      )}
+
+      {list.hasNextPage && (
+        <Button
+          variant="ghost"
+          className="self-center"
+          loading={list.isFetchingNextPage}
+          onClick={() => list.fetchNextPage()}
+        >
+          Show more
+        </Button>
+      )}
+
+      <BlockDialog open={adding} onOpenChange={setAdding} />
       <ConfirmDialog
         open={unblocking !== null}
         onOpenChange={(open) => !open && setUnblocking(null)}
@@ -110,11 +130,23 @@ export default function Blocked() {
   );
 }
 
-function BlockAddress() {
+function BlockDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const [address, setAddress] = useState("");
   const [reason, setReason] = useState("");
   const block = useBlockAddress();
   const valid = EMAIL.test(address.trim());
+
+  function close() {
+    onOpenChange(false);
+    setAddress("");
+    setReason("");
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -124,8 +156,7 @@ function BlockAddress() {
       {
         onSuccess: (row) => {
           toast.success(`${row.address} blocked`);
-          setAddress("");
-          setReason("");
+          close();
         },
         onError: (error) => toast.error(errorMessage(error)),
       },
@@ -133,39 +164,45 @@ function BlockAddress() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Block an address</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form className="flex flex-col gap-4" onSubmit={submit}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Address" error={address && !valid ? "Not an email address" : undefined}>
-              <Input
-                value={address}
-                onChange={(event) => setAddress(event.target.value)}
-                placeholder="someone@example.com"
-                type="email"
-                autoComplete="off"
-                className="font-mono"
-              />
-            </Field>
-            <Field label="Reason" description="Optional, for your own notes.">
-              <Input
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-                maxLength={200}
-                placeholder="Asked not to be mailed"
-              />
-            </Field>
-          </div>
-          <div>
-            <Button type="submit" variant="primary" loading={block.isPending} disabled={!valid}>
-              Block address
-            </Button>
-          </div>
+    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Block an address</DialogTitle>
+          <DialogDescription>Mails refuses to send to it until you unblock it.</DialogDescription>
+        </DialogHeader>
+        <form id="block-address" className="flex flex-col gap-5" onSubmit={submit}>
+          <Field label="Address" error={address && !valid ? "Not an email address" : undefined}>
+            <Input
+              value={address}
+              onChange={(event) => setAddress(event.target.value)}
+              placeholder="someone@example.com"
+              type="email"
+              autoComplete="off"
+              className="font-mono"
+            />
+          </Field>
+          <Field label="Reason" description="Optional, for your own notes.">
+            <Input
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              maxLength={200}
+              placeholder="Asked not to be mailed"
+            />
+          </Field>
         </form>
-      </CardContent>
-    </Card>
+        <DialogFooter>
+          <DialogClose render={<Button variant="ghost" />}>Cancel</DialogClose>
+          <Button
+            type="submit"
+            form="block-address"
+            variant="primary"
+            loading={block.isPending}
+            disabled={!valid}
+          >
+            Block address
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

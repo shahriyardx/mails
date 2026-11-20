@@ -162,10 +162,14 @@ export interface Contact {
   last_seen_at: string;
 }
 
+export type ThemeChoice = "dark" | "light" | "system";
+
 export interface Preferences {
   density: "comfortable" | "compact";
   reading_layout: "split" | "stacked";
   nav_collapsed: boolean | null;
+  /** Missing on servers that do not keep it yet; localStorage covers that. */
+  theme?: ThemeChoice;
 }
 
 export interface SetupStep {

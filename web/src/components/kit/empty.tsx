@@ -19,12 +19,12 @@ export function EmptyState({
   return (
     <div className={cn("flex flex-col items-center gap-3 px-6 py-16 text-center", className)}>
       {icon && (
-        <span className="grid size-12 place-items-center rounded-full bg-tonal text-muted-foreground">
+        <span className="grid size-11 place-items-center rounded-xl border border-border bg-surface text-soft-foreground">
           <Icon name={icon} size={24} />
         </span>
       )}
       <div className="max-w-72 space-y-1">
-        <p className="text-[15px] font-medium">{title}</p>
+        <p className="font-display text-[15px] font-semibold">{title}</p>
         {body && <p className="text-[13px] leading-relaxed text-muted-foreground">{body}</p>}
       </div>
       {action}
@@ -34,5 +34,5 @@ export function EmptyState({
 
 /** A placeholder block while something loads. */
 export function Skeleton({ className }: { className?: string }) {
-  return <div aria-hidden className={cn("animate-pulse rounded-xl bg-tonal", className)} />;
+  return <div aria-hidden className={cn("animate-pulse rounded-lg bg-tonal", className)} />;
 }

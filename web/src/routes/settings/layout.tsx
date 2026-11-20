@@ -1,123 +1,116 @@
-import { LayoutGroup, motion } from "motion/react";
-import { useState } from "react";
-import { Link, NavLink, Outlet, useLocation } from "react-router";
+import { useEffect, useRef, useState } from "react";
+import { Outlet, useLocation } from "react-router";
 import { AccountMenu } from "@/components/app/account-menu";
-import { Icon, IconButton, Sheet, SheetContent, SheetTitle, Wordmark } from "@/components/kit";
-import { spatial } from "@/components/kit/motion";
-import { cn } from "@/lib/cn";
-import { SETTINGS_PAGES, type SettingsPage } from "./pages";
+import { Icon, IconButton, Sheet, SheetContent, SheetTitle } from "@/components/kit";
+import { NavGroup, NavRow, SidebarFrame } from "@/components/mail/sidebar";
+import { SETTINGS_PAGES } from "./pages";
+import { PageActionSlot } from "./parts";
 
 const GROUPS = [...new Set(SETTINGS_PAGES.map((p) => p.group))];
 
-/** The settings shell: page list on the left, the page in a card. */
+/**
+ * The settings shell: the sidebar swaps to the settings nav, and each page
+ * sits in a centred column under a big title, its one-line description and
+ * its primary action (pages put it there with <PageAction>).
+ */
 export function Component() {
   const [navOpen, setNavOpen] = useState(false);
+  const [slot, setSlot] = useState<HTMLDivElement | null>(null);
   const { pathname } = useLocation();
   const current = SETTINGS_PAGES.find((p) => pathname.startsWith(`/settings/${p.path}`));
 
   return (
     <div className="flex h-dvh overflow-hidden">
-      <aside className="hidden w-64 shrink-0 md:block">
-        <LayoutGroup id="settings-fixed">
-          <Nav instance="fixed" />
-        </LayoutGroup>
+      <aside className="hidden w-58 shrink-0 border-r border-border md:block">
+        <Nav pathname={pathname} />
       </aside>
       <Sheet open={navOpen} onOpenChange={setNavOpen}>
         <SheetContent>
           <SheetTitle className="sr-only">Settings</SheetTitle>
-          <LayoutGroup id="settings-sheet">
-            <Nav instance="sheet" onNavigate={() => setNavOpen(false)} />
-          </LayoutGroup>
+          <Nav pathname={pathname} onNavigate={() => setNavOpen(false)} />
         </SheetContent>
       </Sheet>
 
-      <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 shrink-0 items-center gap-2 px-3 md:pl-1">
-          <IconButton
-            icon="menu"
-            label="Open settings menu"
-            className="md:hidden"
-            onClick={() => setNavOpen(true)}
-          />
-          <h1 className="flex-1 truncate text-lg font-medium">{current?.title ?? "Settings"}</h1>
-          <AccountMenu />
-        </header>
-        <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2 md:pr-2 md:pl-0">
-          <div className="mx-auto max-w-3xl px-2 py-4 md:px-6">
+      <main className="min-w-0 flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-190 px-4 pt-4 pb-16 sm:px-8 md:pt-12">
+          <header className="mb-8 flex flex-wrap items-start gap-x-4 gap-y-3">
+            <IconButton
+              icon="menu"
+              label="Open settings menu"
+              className="-ml-2 md:hidden"
+              onClick={() => setNavOpen(true)}
+            />
+            <div className="min-w-0 flex-1 basis-64">
+              <h1 className="text-[28px] leading-tight font-bold sm:text-[30px]">
+                {current?.title ?? "Settings"}
+              </h1>
+              {current?.description && (
+                <p className="mt-1.5 text-muted-foreground">{current.description}</p>
+              )}
+            </div>
+            <div
+              ref={setSlot}
+              className="flex shrink-0 items-center gap-2 empty:hidden sm:pt-1.5"
+            />
+          </header>
+          <PageActionSlot.Provider value={slot}>
             <Outlet />
-          </div>
+          </PageActionSlot.Provider>
         </div>
       </main>
     </div>
   );
 }
 
-function Nav({ instance, onNavigate }: { instance: string; onNavigate?: () => void }) {
+function Nav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+  // The list is taller than short screens: keep the open page in view.
+  const nav = useRef<HTMLElement>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs again when the page changes
+  useEffect(() => {
+    nav.current?.querySelector("[aria-current=page]")?.scrollIntoView({ block: "nearest" });
+  }, [pathname]);
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-16 shrink-0 items-center px-5">
-        <Wordmark />
-      </div>
-      <div className="px-3 pb-2">
-        <Link
-          to="/mail/all/inbox"
-          onClick={onNavigate}
-          className="flex h-10 items-center gap-3 rounded-full px-4 text-sm hover:bg-tonal"
-        >
-          <Icon name="arrow_back" /> Back to mail
-        </Link>
-      </div>
-      <nav aria-label="Settings" className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
+    <SidebarFrame>
+      <NavRow
+        to="/mail/all/inbox"
+        active={false}
+        onClick={onNavigate}
+        lead={<Icon name="arrow_back" size={18} className="text-muted-foreground" />}
+        className="shrink-0"
+      >
+        Back to mail
+      </NavRow>
+      <nav
+        ref={nav}
+        aria-label="Settings"
+        className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1"
+      >
         {GROUPS.map((group) => (
-          <div key={group}>
-            <h2 className="px-4 pt-5 pb-1.5 text-xs font-medium text-muted-foreground">{group}</h2>
-            <ul className="space-y-0.5">
-              {SETTINGS_PAGES.filter((p) => p.group === group).map((page) => (
-                <li key={page.path}>
-                  <Item page={page} pill={`${instance}-settings`} onNavigate={onNavigate} />
-                </li>
-              ))}
-            </ul>
-          </div>
+          <NavGroup key={group} title={group}>
+            {SETTINGS_PAGES.filter((p) => p.group === group).map((page) => (
+              <li key={page.path}>
+                <NavRow
+                  to={`/settings/${page.path}`}
+                  active={pathname.startsWith(`/settings/${page.path}`)}
+                  onClick={onNavigate}
+                >
+                  {page.title}
+                </NavRow>
+              </li>
+            ))}
+            {group === "Developers" && (
+              <li>
+                <NavRow to="/docs" active={false} onClick={onNavigate}>
+                  Docs
+                </NavRow>
+              </li>
+            )}
+          </NavGroup>
         ))}
       </nav>
-    </div>
-  );
-}
-
-function Item({
-  page,
-  pill,
-  onNavigate,
-}: {
-  page: SettingsPage;
-  pill: string;
-  onNavigate?: () => void;
-}) {
-  return (
-    <NavLink
-      to={`/settings/${page.path}`}
-      onClick={onNavigate}
-      className={({ isActive }) =>
-        cn(
-          "relative isolate flex h-10 items-center gap-3 rounded-full px-4 text-sm outline-none focus-visible:outline-2 focus-visible:outline-ring",
-          isActive ? "font-semibold" : "text-foreground/90 hover:bg-tonal",
-        )
-      }
-    >
-      {({ isActive }) => (
-        <>
-          {isActive && (
-            <motion.span
-              layoutId={pill}
-              transition={spatial}
-              className="absolute inset-0 -z-10 rounded-full bg-selected"
-            />
-          )}
-          <Icon name={page.icon} filled={isActive} />
-          {page.title}
-        </>
-      )}
-    </NavLink>
+      <div className="-mx-1 flex shrink-0 items-center justify-end px-1">
+        <AccountMenu />
+      </div>
+    </SidebarFrame>
   );
 }

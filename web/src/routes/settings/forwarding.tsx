@@ -1,21 +1,20 @@
 import { type FormEvent, useState } from "react";
 import { Link } from "react-router";
 import {
-  Badge,
   Button,
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Checkbox,
   ConfirmDialog,
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  EmptyState,
   Field,
   Icon,
   IconButton,
@@ -39,9 +38,23 @@ import {
 } from "@/lib/api";
 import { EMAIL } from "@/lib/mail";
 import type { ForwardAddress, ForwardingView, ForwardRule, ForwardScope } from "@/lib/types";
-import { LoadError, Notice, PageLoading } from "./parts";
+import {
+  emptyBox,
+  LoadError,
+  Notice,
+  PageAction,
+  PageLoading,
+  rowActions,
+  Section,
+  StatusDot,
+} from "./parts";
 
 const fail = (error: unknown) => toast.error(errorMessage(error));
+
+/** Row actions: always there on touch, shown on hover or focus with a pointer. */
+const ROW_ACTIONS = rowActions;
+
+const EMPTY = emptyBox;
 
 /**
  * Copies of inbound mail sent on through Cloudflare Email Routing: the
@@ -50,74 +63,86 @@ const fail = (error: unknown) => toast.error(errorMessage(error));
  */
 export default function Forwarding() {
   const view = useForwarding();
+  const [adding, setAdding] = useState(false);
   if (view.isPending) return <PageLoading />;
   if (view.isError) return <LoadError error={view.error} retry={view.refetch} />;
   const data = view.data;
 
   if (!data.connected && data.addresses.length === 0) {
     return (
-      <Card>
-        <EmptyState
-          icon="forward_to_inbox"
-          title="Connect Cloudflare first"
-          body="Forwarding goes through Cloudflare Email Routing, which verifies each address you forward to."
-          action={
-            <Button render={<Link to="/settings/inbound" />} nativeButton={false}>
-              Go to Inbound
-            </Button>
-          }
-        />
-      </Card>
+      <div className={EMPTY}>
+        <p className="text-muted-foreground">
+          Forwarding goes through Cloudflare Email Routing. Connect Cloudflare first.
+        </p>
+        <Button
+          variant="primary"
+          icon="arrow_forward"
+          className="mt-4"
+          render={<Link to="/settings/inbound" />}
+          nativeButton={false}
+        >
+          Go to Inbound
+        </Button>
+      </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <Addresses view={data} />
-      <Card>
-        <CardHeader>
-          <CardTitle>Everything</CardTitle>
-          <CardDescription>
-            A copy of every message this instance receives, whichever mailbox it lands in.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-2xl bg-box p-3">
-            <Targets rules={data.instance} view={data} scope={{}} label="everything" />
-          </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>By domain</CardTitle>
-          <CardDescription>
-            Added to the rule above, unless the domain skips wider rules.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <List className="bg-box">
-            {data.domains.map((d) => (
-              <ScopeRow key={d.id} kind="domain" scope={d} view={data} />
-            ))}
-            {data.domains.length === 0 && (
-              <ListEmpty>
-                No domains yet. Add one under <Link to="/settings/domains">Domains</Link>.
-              </ListEmpty>
-            )}
-          </List>
-        </CardContent>
-      </Card>
+    <div className="space-y-10">
+      <PageAction>
+        <Button
+          variant="primary"
+          icon="add"
+          disabled={!data.connected}
+          onClick={() => setAdding(true)}
+        >
+          Add address
+        </Button>
+      </PageAction>
+      <Addresses view={data} onAdd={() => setAdding(true)} />
+      <Section
+        title="Everything"
+        description="A copy of every message this instance receives, whichever mailbox it lands in."
+      >
+        <div className="rounded-[14px] border border-border bg-surface px-4 py-3">
+          <Targets rules={data.instance} view={data} scope={{}} label="everything" />
+        </div>
+      </Section>
+      <Section
+        title="By domain"
+        description="Added to the rule above, unless the domain skips wider rules."
+      >
+        <List>
+          {data.domains.map((d) => (
+            <ScopeRow key={d.id} kind="domain" scope={d} view={data} />
+          ))}
+          {data.domains.length === 0 && (
+            <ListEmpty>
+              No domains yet. Add one under{" "}
+              <Link to="/settings/domains" className="underline">
+                Domains
+              </Link>
+              .
+            </ListEmpty>
+          )}
+        </List>
+      </Section>
       <MailboxRules view={data} />
+      <AddAddress open={adding} onOpenChange={setAdding} />
     </div>
   );
 }
 
-function Addresses({ view }: { view: ForwardingView }) {
+function AddAddress({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const [address, setAddress] = useState("");
   const add = useAddForwardAddress();
-  const refresh = useRefreshForwarding();
   const valid = EMAIL.test(address.trim());
-  const waiting = view.addresses.filter((a) => !a.verified).length;
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -130,59 +155,24 @@ function Addresses({ view }: { view: ForwardingView }) {
             : `Cloudflare emailed ${a.address} a link. Rules using it wait until it is clicked.`,
         );
         setAddress("");
+        onOpenChange(false);
       },
       onError: fail,
     });
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Addresses</CardTitle>
-        <CardDescription>
-          Where copies can go. These are your Cloudflare Email Routing destinations: one added here
-          is created there, and Cloudflare emails it a link to confirm.
-        </CardDescription>
-        <CardAction>
-          <IconButton
-            icon="refresh"
-            label="Refresh from Cloudflare"
-            loading={refresh.isPending}
-            disabled={!view.connected}
-            onClick={() =>
-              refresh.mutate(undefined, {
-                onSuccess: () => toast.success("Refreshed from Cloudflare"),
-                onError: fail,
-              })
-            }
-          />
-        </CardAction>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {!view.connected && (
-          <Notice tone="warning">
-            Cloudflare is not connected, so addresses cannot be added or checked.{" "}
-            <Link to="/settings/inbound" className="underline">
-              Connect it
-            </Link>
-            .
-          </Notice>
-        )}
-        <List className="bg-box">
-          {view.addresses.map((a) => (
-            <AddressRow key={a.id} address={a} />
-          ))}
-          {view.addresses.length === 0 && <ListEmpty>Nowhere to forward to yet.</ListEmpty>}
-        </List>
-        {waiting > 0 && (
-          <Notice>
-            {waiting === 1 ? "One address is" : `${waiting} addresses are`} waiting for the link in
-            Cloudflare's email to be clicked. Rules using {waiting === 1 ? "it do" : "them do"}{" "}
-            nothing until then. Clicked it? Refresh.
-          </Notice>
-        )}
-        <form className="flex flex-col gap-2 sm:flex-row sm:items-end" onSubmit={submit}>
-          <Field label="Add an address" className="flex-1">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add an address</DialogTitle>
+          <DialogDescription>
+            It is created as a Cloudflare Email Routing destination, and Cloudflare emails it a link
+            to confirm.
+          </DialogDescription>
+        </DialogHeader>
+        <form id="add-forward-address" onSubmit={submit}>
+          <Field label="Address">
             <Input
               type="email"
               value={address}
@@ -190,20 +180,87 @@ function Addresses({ view }: { view: ForwardingView }) {
               placeholder="me@elsewhere.com"
               autoComplete="off"
               className="font-mono"
-              disabled={!view.connected}
             />
           </Field>
+        </form>
+        <DialogFooter>
+          <DialogClose render={<Button variant="ghost" />}>Cancel</DialogClose>
           <Button
             type="submit"
+            form="add-forward-address"
             variant="primary"
             loading={add.isPending}
-            disabled={!valid || !view.connected}
+            disabled={!valid}
           >
-            Add
+            Add address
           </Button>
-        </form>
-      </CardContent>
-    </Card>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function Addresses({ view, onAdd }: { view: ForwardingView; onAdd: () => void }) {
+  const refresh = useRefreshForwarding();
+  const waiting = view.addresses.filter((a) => !a.verified).length;
+
+  return (
+    <Section
+      title="Destinations"
+      description="Where copies can go: your Cloudflare Email Routing destinations."
+      action={
+        <IconButton
+          icon="refresh"
+          size="sm"
+          label="Refresh from Cloudflare"
+          loading={refresh.isPending}
+          disabled={!view.connected}
+          onClick={() =>
+            refresh.mutate(undefined, {
+              onSuccess: () => toast.success("Refreshed from Cloudflare"),
+              onError: fail,
+            })
+          }
+        />
+      }
+    >
+      {!view.connected && (
+        <Notice tone="warning">
+          Cloudflare is not connected, so addresses cannot be added or checked.{" "}
+          <Link to="/settings/inbound" className="underline">
+            Connect it
+          </Link>
+          .
+        </Notice>
+      )}
+      {view.addresses.length === 0 ? (
+        <div className={EMPTY}>
+          <p className="text-muted-foreground">Nowhere to forward to yet.</p>
+          <Button
+            variant="primary"
+            icon="add"
+            className="mt-4"
+            disabled={!view.connected}
+            onClick={onAdd}
+          >
+            Add address
+          </Button>
+        </div>
+      ) : (
+        <List>
+          {view.addresses.map((a) => (
+            <AddressRow key={a.id} address={a} />
+          ))}
+        </List>
+      )}
+      {waiting > 0 && (
+        <Notice>
+          {waiting === 1 ? "One address is" : `${waiting} addresses are`} waiting for the link in
+          Cloudflare's email to be clicked. Rules using {waiting === 1 ? "it do" : "them do"}{" "}
+          nothing until then. Clicked it? Refresh.
+        </Notice>
+      )}
+    </Section>
   );
 }
 
@@ -211,26 +268,30 @@ function AddressRow({ address }: { address: ForwardAddress }) {
   const [removing, setRemoving] = useState(false);
   const [inCloudflare, setInCloudflare] = useState(true);
   const remove = useRemoveForwardAddress();
-  const state = address.verified ? "Verified" : address.in_cloudflare ? "Waiting" : "Gone";
 
   return (
     <ListRow
-      icon="forward"
-      title={<span className="font-mono">{address.address}</span>}
+      title={address.address}
       description={
         !address.in_cloudflare
-          ? "Cloudflare no longer has it. Remove it and add it again."
+          ? "gone from Cloudflare: remove it and add it again"
           : address.uses === 0
-            ? "No rule uses it yet"
-            : `Used by ${address.uses} ${address.uses === 1 ? "rule" : "rules"}`
+            ? "no rule uses it yet"
+            : `used by ${address.uses} ${address.uses === 1 ? "rule" : "rules"}`
       }
       action={
         <>
-          <Badge tone={address.verified ? "strong" : address.in_cloudflare ? "neutral" : "danger"}>
-            {state}
-          </Badge>
+          {address.verified ? (
+            <StatusDot tone="ok">Verified</StatusDot>
+          ) : address.in_cloudflare ? (
+            <StatusDot tone="pending">Waiting</StatusDot>
+          ) : (
+            <StatusDot tone="bad">Gone</StatusDot>
+          )}
           <IconButton
             icon="delete"
+            size="sm"
+            className={`ml-2 ${ROW_ACTIONS}`}
             label={`Remove ${address.address}`}
             onClick={() => setRemoving(true)}
           />
@@ -251,7 +312,7 @@ function AddressRow({ address }: { address: ForwardAddress }) {
         {address.in_cloudflare && (
           <label
             htmlFor={`cf-${address.id}`}
-            className="flex cursor-pointer items-start gap-3 rounded-2xl bg-box px-3.5 py-3"
+            className="flex cursor-pointer items-start gap-3 rounded-[10px] border border-border px-3.5 py-3"
           >
             <Checkbox
               id={`cf-${address.id}`}
@@ -296,7 +357,7 @@ function Targets({
         return (
           <span
             key={rule.id}
-            className="inline-flex h-8 max-w-full items-center gap-1.5 rounded-full bg-tonal pr-1 pl-3 font-mono text-xs"
+            className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-md bg-tonal pr-0.5 pl-2 font-mono text-xs"
           >
             <Icon name="forward" size={14} className="text-muted-foreground" />
             <span className="truncate">{address?.address ?? "an address"}</span>
@@ -305,7 +366,7 @@ function Targets({
             )}
             <IconButton
               icon="close"
-              size="sm"
+              size="xs"
               className="size-6"
               label={`Stop copying ${label} to ${address?.address ?? "this address"}`}
               disabled={remove.isPending}
@@ -314,14 +375,12 @@ function Targets({
           </span>
         );
       })}
-      {rules.length === 0 && (
-        <span className="px-1 text-xs text-muted-foreground">Not forwarded</span>
-      )}
+      {rules.length === 0 && <span className="text-xs text-muted-foreground">Not forwarded</span>}
       {free.length > 0 && (
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <Button size="sm" variant="ghost" icon="add" loading={add.isPending}>
+              <Button size="xs" variant="ghost" icon="add" loading={add.isPending}>
                 Forward
               </Button>
             }
@@ -370,16 +429,9 @@ function ScopeRow({
   const wider = kind === "domain" ? "the everything rule" : "domain and everything rules";
 
   return (
-    <li className="flex flex-col gap-2 rounded-2xl px-3 py-3 hover:bg-surface">
+    <li className="space-y-2.5 px-4 py-3.5">
       <div className="flex items-center gap-3">
-        <Icon
-          name={kind === "domain" ? "language" : "alternate_email"}
-          size={18}
-          className="text-muted-foreground"
-        />
-        <span className="min-w-0 flex-1 truncate font-mono text-[13px] font-medium">
-          {scope.name}
-        </span>
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold">{scope.name}</span>
         <span className="text-xs text-muted-foreground">Skip wider rules</span>
         <Switch
           checked={scope.forward_off}
@@ -387,14 +439,12 @@ function ScopeRow({
           aria-label={`${scope.name}: skip ${wider}`}
         />
       </div>
-      <div className="pl-8">
-        <Targets
-          rules={scope.rules}
-          view={view}
-          scope={kind === "domain" ? { domain_id: scope.id } : { mailbox_id: scope.id }}
-          label={scope.name}
-        />
-      </div>
+      <Targets
+        rules={scope.rules}
+        view={view}
+        scope={kind === "domain" ? { domain_id: scope.id } : { mailbox_id: scope.id }}
+        label={scope.name}
+      />
     </li>
   );
 }
@@ -411,49 +461,44 @@ function MailboxRules({ view }: { view: ForwardingView }) {
   const rest = view.mailboxes.filter((m) => !shown.includes(m));
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>By mailbox</CardTitle>
-        <CardDescription>
-          The narrowest rule. Also where one address is kept out of the wider copies.
-        </CardDescription>
-        {rest.length > 0 && (
-          <CardAction>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button size="sm" icon="add">
-                    Mailbox
-                  </Button>
-                }
-              />
-              <DropdownMenuContent className="max-h-72 overflow-y-auto">
-                {rest.map((m) => (
-                  <DropdownMenuItem
-                    key={m.id}
-                    className="font-mono"
-                    onClick={() => setOpened((ids) => [...ids, m.id])}
-                  >
-                    {m.name}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </CardAction>
+    <Section
+      title="By mailbox"
+      description="The narrowest rule. Also where one address is kept out of the wider copies."
+      action={
+        rest.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button size="sm" icon="add">
+                  Mailbox
+                </Button>
+              }
+            />
+            <DropdownMenuContent className="max-h-72 overflow-y-auto">
+              {rest.map((m) => (
+                <DropdownMenuItem
+                  key={m.id}
+                  className="font-mono"
+                  onClick={() => setOpened((ids) => [...ids, m.id])}
+                >
+                  {m.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )
+      }
+    >
+      <List>
+        {shown.map((m) => (
+          <ScopeRow key={m.id} kind="mailbox" scope={m} view={view} />
+        ))}
+        {shown.length === 0 && (
+          <ListEmpty>
+            Every mailbox follows the rules above. Pick one with "Mailbox" to give it its own.
+          </ListEmpty>
         )}
-      </CardHeader>
-      <CardContent>
-        <List className="bg-box">
-          {shown.map((m) => (
-            <ScopeRow key={m.id} kind="mailbox" scope={m} view={view} />
-          ))}
-          {shown.length === 0 && (
-            <ListEmpty>
-              Every mailbox follows the rules above. Pick one with "Mailbox" to give it its own.
-            </ListEmpty>
-          )}
-        </List>
-      </CardContent>
-    </Card>
+      </List>
+    </Section>
   );
 }

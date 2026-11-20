@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Icon } from "@/components/kit";
+import { Avatar, Icon } from "@/components/kit";
 import { floating } from "@/components/kit/popover";
 import { useContacts } from "@/lib/api";
 import { cn } from "@/lib/cn";
@@ -109,10 +109,16 @@ export function RecipientInput({
               key={entry.address}
               title={formatAddress(entry)}
               className={cn(
-                "flex max-w-full items-center gap-1 rounded-full py-0.5 pr-1 pl-2.5 text-[13px]",
+                "flex max-w-full items-center gap-1.5 rounded-full py-0.5 pr-1 pl-0.5 text-[13px]",
                 valid ? "bg-tonal" : "bg-destructive-soft text-destructive",
               )}
             >
+              <Avatar
+                size="sm"
+                name={entry.name}
+                address={valid ? entry.address : undefined}
+                className="size-5 text-[9px]"
+              />
               <span className="truncate">{entry.name || entry.address}</span>
               <button
                 type="button"
@@ -145,7 +151,7 @@ export function RecipientInput({
                 <Autocomplete.Item
                   key={contact.id}
                   value={contact}
-                  className="flex cursor-default flex-col rounded-xl px-2.5 py-1.5 outline-none data-highlighted:bg-tonal-hover"
+                  className="flex cursor-default flex-col rounded-md px-2 py-1.5 outline-none data-highlighted:bg-tonal"
                 >
                   <span className="truncate text-[13px]">{contact.name || contact.address}</span>
                   {contact.name && (

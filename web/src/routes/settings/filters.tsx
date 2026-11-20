@@ -1,13 +1,7 @@
 import { type FormEvent, useState } from "react";
+import { Choice } from "@/components/app/choice";
 import {
-  Badge,
   Button,
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Checkbox,
   ConfirmDialog,
   Dialog,
@@ -21,16 +15,12 @@ import {
   IconButton,
   Input,
   List,
-  ListEmpty,
   ListRow,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
   Switch,
   toast,
 } from "@/components/kit";
 import { errorMessage, useDeleteFilter, useFilters, useLabels, useSaveFilter } from "@/lib/api";
+import { cn } from "@/lib/cn";
 import {
   describeFilter,
   emptyFilterForm,
@@ -40,7 +30,7 @@ import {
   validateFilter,
 } from "@/lib/settings";
 import type { Filter, FilterInput } from "@/lib/types";
-import { LoadError, PageLoading } from "./parts";
+import { emptyBox, LoadError, PageAction, PageLoading, rowActions, StatusDot } from "./parts";
 
 /** Rules run on each inbound message before it lands. */
 export default function Filters() {
@@ -50,24 +40,26 @@ export default function Filters() {
 
   if (filters.isPending) return <PageLoading />;
   if (filters.isError) return <LoadError error={filters.error} retry={filters.refetch} />;
+  const add = () => setEditing("new");
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Filters</CardTitle>
-        <CardDescription>
-          Run on every message that arrives. A filter matches when each condition it sets is found
-          in that field, ignoring case. Higher priority runs first: the first match picks the
-          folder; labels, read and star add up.
-        </CardDescription>
-        <CardAction>
-          <Button icon="add" size="sm" variant="primary" onClick={() => setEditing("new")}>
+    <div className="space-y-4">
+      <PageAction>
+        <Button variant="primary" icon="add" onClick={add}>
+          New filter
+        </Button>
+      </PageAction>
+      {filters.data.length === 0 ? (
+        <div className={emptyBox}>
+          <p className="text-muted-foreground">
+            No filters yet. New mail lands in the inbox as it is.
+          </p>
+          <Button variant="primary" icon="add" className="mt-4" onClick={add}>
             New filter
           </Button>
-        </CardAction>
-      </CardHeader>
-      <CardContent>
-        <List className="bg-box">
+        </div>
+      ) : (
+        <List>
           {filters.data.map((filter) => (
             <FilterRow
               key={filter.id}
@@ -76,13 +68,14 @@ export default function Filters() {
               onEdit={() => setEditing(filter)}
             />
           ))}
-          {filters.data.length === 0 && (
-            <ListEmpty>No filters yet. New mail lands in the inbox as it is.</ListEmpty>
-          )}
         </List>
-      </CardContent>
+      )}
+      <p className="text-[13px] leading-relaxed text-muted-foreground">
+        A filter matches when each condition it sets is found in that field, ignoring case. Higher
+        priority runs first: the first match picks the folder; labels, read and star add up.
+      </p>
       <FilterDialog filter={editing} onClose={() => setEditing(null)} labels={labels.data ?? []} />
-    </Card>
+    </div>
   );
 }
 
@@ -102,23 +95,32 @@ function FilterRow({
 
   return (
     <ListRow
+      className="relative"
       title={
-        <span className="flex min-w-0 items-center gap-2">
+        // The name is the row's main button; its ::after stretches over the row.
+        <button
+          type="button"
+          onClick={onEdit}
+          className="flex w-full min-w-0 items-center gap-2.5 text-left outline-none after:absolute after:inset-0 focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-ring"
+        >
           <span className="truncate">{filter.name}</span>
+          <StatusDot tone={filter.enabled ? "ok" : "off"}>
+            {filter.enabled ? "On" : "Off"}
+          </StatusDot>
           {filter.priority !== 0 && (
-            <Badge size="sm" className="font-mono">
+            <span className="font-mono text-xs font-normal text-muted-foreground">
               priority {filter.priority}
-            </Badge>
+            </span>
           )}
-        </span>
+        </button>
       }
       description={<span className="whitespace-normal break-words">{description}</span>}
-      className={filter.enabled ? undefined : "opacity-70"}
       action={
-        <>
+        <div className={cn("relative flex items-center gap-1", rowActions)}>
           <Switch
             checked={filter.enabled}
             aria-label={`${filter.name} enabled`}
+            className="mr-1"
             onCheckedChange={(enabled) =>
               save.mutate(
                 { id, input: { ...input, enabled } },
@@ -126,13 +128,14 @@ function FilterRow({
               )
             }
           />
-          <IconButton icon="edit" label={`Edit ${filter.name}`} onClick={onEdit} />
+          <IconButton icon="edit" size="sm" label={`Edit ${filter.name}`} onClick={onEdit} />
           <IconButton
             icon="delete"
+            size="sm"
             label={`Delete ${filter.name}`}
             onClick={() => setDeleting(true)}
           />
-        </>
+        </div>
       }
     >
       <ConfirmDialog
@@ -230,8 +233,8 @@ function FilterDialog({
             </Field>
           </div>
 
-          <fieldset className="grid gap-3 rounded-2xl bg-box p-3.5 sm:grid-cols-2">
-            <legend className="float-left mb-1 text-[13px] font-medium sm:col-span-2">
+          <fieldset className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
+            <legend className="float-left mb-1 text-sm font-semibold sm:col-span-2">
               When the message
             </legend>
             <Field label="From contains">
@@ -239,7 +242,7 @@ function FilterDialog({
                 value={form.match_from}
                 onChange={(event) => set("match_from", event.target.value)}
                 placeholder="@substack.com"
-                className="bg-field-box font-mono"
+                className="font-mono"
               />
             </Field>
             <Field label="To contains">
@@ -247,7 +250,7 @@ function FilterDialog({
                 value={form.match_to}
                 onChange={(event) => set("match_to", event.target.value)}
                 placeholder="news@"
-                className="bg-field-box font-mono"
+                className="font-mono"
               />
             </Field>
             <Field label="Subject contains">
@@ -255,7 +258,6 @@ function FilterDialog({
                 value={form.match_subject}
                 onChange={(event) => set("match_subject", event.target.value)}
                 placeholder="invoice"
-                className="bg-field-box"
               />
             </Field>
             <Field label="Body contains">
@@ -263,7 +265,6 @@ function FilterDialog({
                 value={form.match_body}
                 onChange={(event) => set("match_body", event.target.value)}
                 placeholder="unsubscribe"
-                className="bg-field-box"
               />
             </Field>
             {errors.match && (
@@ -273,42 +274,22 @@ function FilterDialog({
             )}
           </fieldset>
 
-          <fieldset className="flex flex-col gap-3 rounded-2xl bg-box p-3.5">
-            <legend className="float-left mb-1 text-[13px] font-medium">Then</legend>
+          <fieldset className="flex flex-col gap-3 border-t border-border pt-4">
+            <legend className="float-left mb-1 text-sm font-semibold">Then</legend>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Folder">
-                <Select
-                  items={FOLDERS}
+                <Choice
+                  options={FOLDERS}
                   value={form.action_folder}
-                  onValueChange={(v) =>
-                    set("action_folder", (v ?? "") as FilterForm["action_folder"])
-                  }
-                >
-                  <SelectTrigger className="bg-field-box" />
-                  <SelectContent>
-                    {Object.entries(FOLDERS).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onChange={(v) => set("action_folder", v as FilterForm["action_folder"])}
+                />
               </Field>
               <Field label="Label">
-                <Select
-                  items={labelItems}
+                <Choice
+                  options={labelItems}
                   value={form.action_label_id}
-                  onValueChange={(v) => set("action_label_id", v ?? "")}
-                >
-                  <SelectTrigger className="bg-field-box" />
-                  <SelectContent>
-                    {Object.entries(labelItems).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onChange={(v) => set("action_label_id", v)}
+                />
               </Field>
             </div>
             <div className="flex flex-wrap gap-x-6 gap-y-2">

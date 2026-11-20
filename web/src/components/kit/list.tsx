@@ -2,12 +2,12 @@ import type { ComponentProps, ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { Icon } from "./icon";
 
-/** A rounded group of rows, for settings pages (domains, keys, labels...). */
+/** A panel of rows split by hairlines, for settings pages (domains, keys, labels...). */
 export function List({ className, ...props }: ComponentProps<"ul">) {
   return (
     <ul
       className={cn(
-        "flex flex-col gap-0.5 overflow-hidden rounded-3xl bg-surface p-1.5",
+        "flex flex-col divide-y divide-border overflow-hidden rounded-[14px] border border-border bg-surface",
         className,
       )}
       {...props}
@@ -34,19 +34,19 @@ export function ListRow({
   return (
     <li
       className={cn(
-        "flex min-h-14 items-center gap-3 rounded-2xl px-3 py-2.5 hover:bg-box",
+        "group/row flex min-h-15 items-center gap-3 px-4 py-3 transition-colors hover:bg-box",
         className,
       )}
     >
       {icon && (
-        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-tonal text-muted-foreground">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-tonal text-soft-foreground">
           <Icon name={icon} size={18} />
         </span>
       )}
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium">{title}</div>
+        <div className="truncate text-sm font-semibold">{title}</div>
         {description && (
-          <div className="truncate text-[13px] text-muted-foreground">{description}</div>
+          <div className="truncate font-mono text-xs text-muted-foreground">{description}</div>
         )}
         {children}
       </div>

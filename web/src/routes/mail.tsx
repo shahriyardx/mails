@@ -1,7 +1,6 @@
-import { LayoutGroup, motion } from "motion/react";
+import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import { Navigate, useParams, useSearchParams } from "react-router";
-import { AccountMenu } from "@/components/app/account-menu";
+import { Link, Navigate, useParams, useSearchParams } from "react-router";
 import {
   Button,
   ConfirmDialog,
@@ -11,7 +10,6 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Icon,
   IconButton,
   Sheet,
   SheetContent,
@@ -21,14 +19,20 @@ import {
 } from "@/components/kit";
 import { spatial } from "@/components/kit/motion";
 import { useComposer } from "@/components/mail/composer-provider";
-import { SetupCard } from "@/components/mail/setup-card";
 import { Sidebar } from "@/components/mail/sidebar";
 import { ThreadList } from "@/components/mail/thread-list";
 import { ThreadView } from "@/components/mail/thread-view";
-import { useEmptyTrash, usePreferences, useSavePreferences } from "@/lib/api";
+import {
+  useCounts,
+  useEmptyTrash,
+  useLabels,
+  useMailboxes,
+  usePreferences,
+  useSavePreferences,
+} from "@/lib/api";
 import { cn } from "@/lib/cn";
-import { isFolder, mailHref, parseScope } from "@/lib/mail";
-import type { ThreadFilter } from "@/lib/types";
+import { FOLDER_META, isFolder, mailHref, parseScope, type Scope } from "@/lib/mail";
+import type { ThreadFilter, ViewFolder } from "@/lib/types";
 
 /** /mail/:scope/:folder?t=&reply=&q=&label=&unread= */
 export function Component() {
@@ -44,6 +48,7 @@ export function Component() {
   const label = search.get("label");
   const q = search.get("q") ?? "";
   const unread = search.get("unread") === "1" || search.get("unread") === "true";
+  const [searching, setSearching] = useState(Boolean(q));
 
   // c: compose, /: search (outside text fields).
   useEffect(() => {
@@ -61,6 +66,7 @@ export function Component() {
         composer.open();
       } else if (event.key === "/") {
         event.preventDefault();
+        setSearching(true);
         document.getElementById("mail-search")?.focus();
       }
     }
@@ -84,9 +90,10 @@ export function Component() {
   listQuery.delete("t");
   listQuery.delete("reply");
   const backHref = `${mailHref(scope, folder)}${listQuery.size ? `?${listQuery}` : ""}`;
-  const hrefFor = (id: string) => {
+  const hrefFor = (id: string, reply?: string) => {
     const next = new URLSearchParams(listQuery);
     next.set("t", id);
+    if (reply) next.set("reply", reply);
     return `${mailHref(scope, folder)}?${next}`;
   };
 
@@ -103,97 +110,88 @@ export function Component() {
   const compact = prefs.data?.density === "compact";
   const sidebarProps = { scope, folder, label };
 
+  const header = (
+    <ListHeader
+      scope={scope}
+      folder={folder}
+      label={label}
+      q={q}
+      unread={unread}
+      searching={searching}
+      onSearching={setSearching}
+      onSearch={(value) => setParam("q", value || null)}
+      onUnread={(on) => setParam("unread", on ? "1" : null)}
+      onMenu={() => setNavOpen(true)}
+      filter={filter}
+      listQuery={listQuery}
+    />
+  );
+
   return (
     <div className="flex h-dvh overflow-hidden">
-      <aside className="hidden w-64 shrink-0 md:block">
-        <LayoutGroup id="nav-fixed">
-          <Sidebar {...sidebarProps} instance="fixed" />
-        </LayoutGroup>
+      <aside className="hidden w-58 shrink-0 border-r border-border md:block">
+        <Sidebar {...sidebarProps} />
       </aside>
       <Sheet open={navOpen} onOpenChange={setNavOpen}>
         <SheetContent>
           <SheetTitle className="sr-only">Navigation</SheetTitle>
-          <LayoutGroup id="nav-sheet">
-            <Sidebar {...sidebarProps} instance="sheet" onNavigate={() => setNavOpen(false)} />
-          </LayoutGroup>
+          <Sidebar {...sidebarProps} onNavigate={() => setNavOpen(false)} />
         </SheetContent>
       </Sheet>
 
-      <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 shrink-0 items-center gap-2 px-3 md:pl-0">
-          <IconButton
-            icon="menu"
-            label="Open navigation"
-            className="md:hidden"
-            onClick={() => setNavOpen(true)}
-          />
-          <SearchBox key={q} value={q} onCommit={(value) => setParam("q", value || null)} />
-          <span className="hidden flex-1 md:block" />
-          {folder === "trash" && <EmptyTrash scope={filter} />}
-          <ViewMenu unread={unread} onUnread={(on) => setParam("unread", on ? "1" : null)} />
-          <AccountMenu />
-        </header>
+      <section
+        aria-label="Conversations"
+        className={cn(
+          "min-w-0 flex-col overflow-hidden",
+          stacked
+            ? threadId
+              ? "hidden"
+              : "flex flex-1"
+            : cn(
+                // A fixed column on wide screens; it fills the width only
+                // below lg, where the list and a conversation take turns.
+                "lg:flex lg:w-[25rem] lg:flex-none lg:border-r lg:border-border xl:w-[28.25rem]",
+                threadId ? "hidden" : "flex flex-1",
+              ),
+        )}
+      >
+        <ThreadList
+          header={header}
+          filter={filter}
+          folder={folder}
+          activeId={threadId}
+          hrefFor={hrefFor}
+          compact={compact}
+          showMailbox={scope.kind !== "mailbox"}
+        />
+      </section>
 
-        <div className="flex min-h-0 flex-1 gap-2 px-2 pb-2 md:pr-2 md:pl-0">
-          <section
-            aria-label="Conversations"
-            className={cn(
-              "min-w-0 flex-col overflow-hidden rounded-3xl bg-surface",
-              stacked
-                ? threadId
-                  ? "hidden"
-                  : "flex flex-1"
-                : cn(
-                    // A fixed column on wide screens; it fills the width only
-                    // below lg, where the list and a conversation take turns.
-                    "lg:flex lg:w-[26rem] lg:flex-none xl:w-[30rem]",
-                    threadId ? "hidden" : "flex flex-1",
-                  ),
-            )}
-          >
-            {folder === "inbox" && !label && !q && (
-              <div className="pt-2">
-                <SetupCard />
-              </div>
-            )}
-            <div className="min-h-0 flex-1">
-              <ThreadList
-                filter={filter}
-                folder={folder}
-                activeId={threadId}
-                hrefFor={hrefFor}
-                compact={compact}
-                showMailbox={scope.kind !== "mailbox"}
-              />
+      <main
+        aria-label="Conversation"
+        className={cn(
+          "min-w-0 flex-1 flex-col overflow-hidden",
+          stacked ? (threadId ? "flex" : "hidden") : threadId ? "flex" : "hidden lg:flex",
+        )}
+      >
+        {threadId ? (
+          <ThreadView threadId={threadId} backHref={backHref} folder={folder} />
+        ) : (
+          <div className="grid flex-1 place-items-center px-6 text-center">
+            <div className="space-y-1">
+              <p className="font-display text-[15px] font-semibold">Nothing open</p>
+              <p className="text-[13px] text-muted-foreground">
+                Pick a conversation to read it here.
+              </p>
             </div>
-          </section>
-
-          <section
-            aria-label="Conversation"
-            className={cn(
-              "min-w-0 flex-1 flex-col overflow-hidden rounded-3xl bg-surface",
-              stacked ? (threadId ? "flex" : "hidden") : threadId ? "flex" : "hidden lg:flex",
-            )}
-          >
-            {threadId ? (
-              <ThreadView threadId={threadId} backHref={backHref} folder={folder} />
-            ) : (
-              <div className="grid flex-1 place-items-center text-muted-foreground">
-                <span className="flex flex-col items-center gap-2 text-sm">
-                  <Icon name="mail" size={32} />
-                  Pick a conversation to read it.
-                </span>
-              </div>
-            )}
-          </section>
-        </div>
+          </div>
+        )}
       </main>
 
-      {/* Phones: compose is an extended floating action button. */}
+      {/* Phones: compose floats over the list. */}
       {!threadId && !composer.isOpen && (
         <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={spatial}
           className="fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-30 md:hidden"
         >
@@ -201,10 +199,10 @@ export function Component() {
             variant="primary"
             size="lg"
             icon="edit"
-            className="h-14 rounded-[18px] px-5 shadow-[0_8px_24px_rgb(0_0_0/0.4)] active:not-disabled:rounded-[14px]"
+            className="h-12 rounded-xl px-5 font-semibold shadow-[0_8px_24px_var(--shadow)]"
             onClick={() => composer.open()}
           >
-            Compose
+            Write
           </Button>
         </motion.div>
       )}
@@ -212,23 +210,172 @@ export function Component() {
   );
 }
 
-function SearchBox({ value, onCommit }: { value: string; onCommit: (value: string) => void }) {
+/** The folder title with its tools, an optional search row, and filter chips. */
+function ListHeader({
+  scope,
+  folder,
+  label,
+  q,
+  unread,
+  searching,
+  onSearching,
+  onSearch,
+  onUnread,
+  onMenu,
+  filter,
+  listQuery,
+}: {
+  scope: Scope;
+  folder: ViewFolder;
+  label: string | null;
+  q: string;
+  unread: boolean;
+  searching: boolean;
+  onSearching: (on: boolean) => void;
+  onSearch: (value: string) => void;
+  onUnread: (on: boolean) => void;
+  onMenu: () => void;
+  filter: ThreadFilter;
+  listQuery: URLSearchParams;
+}) {
+  const labels = useLabels();
+  const mailboxes = useMailboxes();
+  const counts = useCounts(
+    scope.kind === "mailbox"
+      ? { mailbox: scope.id }
+      : scope.kind === "domain"
+        ? { domain: scope.domain }
+        : {},
+  );
+  const title = q
+    ? "Search"
+    : label
+      ? (labels.data?.find((l) => l.id === label)?.name ?? "Label")
+      : FOLDER_META[folder].label;
+  // Folder counts are unread threads, except Starred and Drafts (totals).
+  const unreadCount =
+    !label && folder !== "starred" && folder !== "drafts" && folder !== "sent"
+      ? (counts.data?.folders[folder] ?? 0)
+      : 0;
+
+  const chipHref = (target: Scope | string, keepUnread: boolean) => {
+    const next = new URLSearchParams(listQuery);
+    if (!keepUnread) next.delete("unread");
+    const qs = next.toString();
+    return `${mailHref(target, folder)}${qs ? `?${qs}` : ""}`;
+  };
+
+  return (
+    <div className="shrink-0 px-4 pt-4 md:px-5.5 md:pt-5.5">
+      <div className="flex items-center gap-1">
+        <IconButton
+          icon="menu"
+          label="Open navigation"
+          className="-ml-2 md:hidden"
+          onClick={onMenu}
+        />
+        <h1 className="min-w-0 flex-1 truncate text-[26px] leading-tight font-bold">{title}</h1>
+        {folder === "trash" && !label && <EmptyTrash scope={filter} />}
+        <Tooltip label="Search (/)">
+          <IconButton
+            icon="search"
+            label="Search mail"
+            aria-expanded={searching}
+            variant={searching ? "tonal" : "ghost"}
+            onClick={() => {
+              if (searching && q) onSearch("");
+              onSearching(!searching);
+            }}
+          />
+        </Tooltip>
+        <ViewMenu unread={unread} onUnread={onUnread} />
+      </div>
+
+      {searching && (
+        <SearchBox key={q} value={q} onCommit={onSearch} onClose={() => onSearching(false)} />
+      )}
+
+      <div className="-mx-4 mt-3 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:-mx-5.5 md:px-5.5">
+        <Chip to={chipHref("all", false)} active={scope.kind === "all" && !unread}>
+          All
+        </Chip>
+        <Chip
+          to={chipHref(scope, true)}
+          active={unread}
+          onClick={(event) => {
+            event.preventDefault();
+            onUnread(!unread);
+          }}
+        >
+          Unread{unreadCount > 0 && ` · ${unreadCount}`}
+        </Chip>
+        {(mailboxes.data?.length ?? 0) > 1 &&
+          mailboxes.data!.map((box) => (
+            <Chip
+              key={box.id}
+              to={chipHref(box.id, true)}
+              active={scope.kind === "mailbox" && scope.id === box.id}
+              title={box.address}
+            >
+              {box.address.split("@")[0]}@
+            </Chip>
+          ))}
+      </div>
+    </div>
+  );
+}
+
+function Chip({
+  to,
+  active,
+  title,
+  onClick,
+  children,
+}: {
+  to: string;
+  active: boolean;
+  title?: string;
+  onClick?: (event: React.MouseEvent) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      to={to}
+      title={title}
+      onClick={onClick}
+      aria-current={active ? "true" : undefined}
+      className={cn(
+        "shrink-0 rounded-full px-2.75 py-1.25 text-[12.5px] font-semibold whitespace-nowrap outline-none transition-colors focus-visible:outline-2 focus-visible:outline-ring",
+        active
+          ? "bg-foreground text-background"
+          : "bg-tonal text-soft-foreground hover:bg-tonal-hover hover:text-foreground",
+      )}
+    >
+      {children}
+    </Link>
+  );
+}
+
+function SearchBox({
+  value,
+  onCommit,
+  onClose,
+}: {
+  value: string;
+  onCommit: (value: string) => void;
+  onClose: () => void;
+}) {
   const [text, setText] = useState(value);
   const input = useRef<HTMLInputElement>(null);
-  const clear = () => {
-    setText("");
-    onCommit("");
-  };
   return (
     <form
-      className="flex h-12 min-w-0 flex-1 items-center gap-2 rounded-full bg-surface-high pr-1 pl-4 md:max-w-xl"
+      className="mt-3 flex h-9.5 items-center gap-2 rounded-lg border border-input bg-field pr-1 pl-3 focus-within:border-ring focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--ring)_25%,transparent)]"
       onSubmit={(event) => {
         event.preventDefault();
         onCommit(text.trim());
         input.current?.blur();
       }}
     >
-      <Icon name="search" className="text-muted-foreground" />
       <label htmlFor="mail-search" className="sr-only">
         Search mail
       </label>
@@ -237,14 +384,30 @@ function SearchBox({ value, onCommit }: { value: string; onCommit: (value: strin
         id="mail-search"
         type="search"
         value={text}
+        // biome-ignore lint/a11y/noAutofocus: opened on purpose by the search button or "/"
+        autoFocus
         onChange={(event) => setText(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key === "Escape") clear();
+          if (event.key === "Escape") {
+            setText("");
+            onCommit("");
+            onClose();
+          }
         }}
         placeholder="Search mail"
-        className="h-full min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
+        className="h-full min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
       />
-      {text && <IconButton icon="close" label="Clear search" size="sm" onClick={clear} />}
+      {text && (
+        <IconButton
+          icon="close"
+          label="Clear search"
+          size="xs"
+          onClick={() => {
+            setText("");
+            onCommit("");
+          }}
+        />
+      )}
     </form>
   );
 }
@@ -302,7 +465,7 @@ function EmptyTrash({ scope }: { scope: ThreadFilter }) {
   return (
     <>
       <Button variant="destructive" size="sm" icon="delete_forever" onClick={() => setOpen(true)}>
-        Empty trash
+        Empty
       </Button>
       <ConfirmDialog
         open={open}

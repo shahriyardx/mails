@@ -26,7 +26,7 @@ export function DropdownMenuContent({
         <Menu.Popup
           className={cn(
             floating,
-            "max-h-(--available-height) min-w-48 overflow-y-auto p-1.5",
+            "max-h-(--available-height) min-w-48 overflow-y-auto p-1",
             className,
           )}
         >
@@ -38,8 +38,8 @@ export function DropdownMenuContent({
 }
 
 const item =
-  "flex h-9 cursor-default select-none items-center gap-2.5 rounded-xl px-2.5 text-[13px] outline-none " +
-  "data-highlighted:bg-tonal-hover data-disabled:opacity-50";
+  "flex h-8 cursor-default select-none items-center gap-2.5 rounded-md px-2 text-[13px] text-soft-foreground outline-none " +
+  "data-highlighted:bg-tonal data-highlighted:text-foreground data-disabled:opacity-50";
 
 type ItemProps = Omit<ComponentProps<typeof Menu.Item>, "className"> & {
   className?: string;
@@ -99,12 +99,17 @@ export function DropdownMenuLabel({
   children: ReactNode;
 }) {
   return (
-    <div className={cn("px-2.5 pt-1.5 pb-1 text-xs text-muted-foreground", className)}>
+    <div
+      className={cn(
+        "px-2 pt-1.5 pb-1 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase",
+        className,
+      )}
+    >
       {children}
     </div>
   );
 }
 
 export function DropdownMenuSeparator() {
-  return <Menu.Separator className="my-1.5 h-px bg-border" />;
+  return <Menu.Separator className="-mx-1 my-1 h-px bg-border" />;
 }

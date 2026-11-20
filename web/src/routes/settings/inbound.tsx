@@ -1,17 +1,9 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, type ReactNode, useState } from "react";
 import {
-  Badge,
   Button,
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Checkbox,
   ConfirmDialog,
   Field,
-  Icon,
   Input,
   List,
   ListEmpty,
@@ -21,7 +13,16 @@ import {
 import { errorMessage, type InboundAction, useInbound, useInboundAction } from "@/lib/api";
 import { formatBytes, formatDateTime } from "@/lib/mail";
 import type { InboundStatus, ZoneStatus } from "@/lib/types";
-import { LoadError, Notice, PageLoading } from "./parts";
+import {
+  DangerRow,
+  DangerZone,
+  LoadError,
+  Notice,
+  PageAction,
+  PageLoading,
+  Section,
+  StatusDot,
+} from "./parts";
 
 const TOKEN_URL = "https://dash.cloudflare.com/profile/api-tokens";
 
@@ -56,18 +57,14 @@ export default function Inbound() {
   if (inbound.isError) return <LoadError error={inbound.error} retry={inbound.refetch} />;
   const status = inbound.data;
 
+  if (!status.connected) return <Connect />;
   return (
-    <div className="space-y-4">
-      {status.connected ? (
-        <>
-          {status.error && <Notice tone="danger">{status.error}</Notice>}
-          <Worker status={status} />
-          <Zones status={status} />
-          <Connection status={status} />
-        </>
-      ) : (
-        <Connect />
-      )}
+    <div className="space-y-10">
+      {status.error && <Notice tone="danger">{status.error}</Notice>}
+      <Worker status={status} />
+      <Zones status={status} />
+      <Connection status={status} />
+      <Danger status={status} />
     </div>
   );
 }
@@ -92,16 +89,21 @@ function useRun() {
 
 function Permissions({ list }: { list: readonly (readonly [string, string, string, string])[] }) {
   return (
-    <ul className="space-y-1.5">
+    <List>
       {list.map(([scope, name, level, why]) => (
-        <li key={name} className="rounded-xl bg-box px-3.5 py-2.5">
-          <span className="block font-mono text-[13px]">
-            {scope} → {name} → {level}
-          </span>
-          <span className="block text-xs text-muted-foreground">{why}</span>
-        </li>
+        <ListRow
+          key={name}
+          className="min-h-0"
+          title={
+            <span className="font-mono text-[13px] whitespace-normal break-words">
+              {scope} → {name} → {level}
+            </span>
+          }
+        >
+          <p className="text-xs text-muted-foreground">{why}</p>
+        </ListRow>
       ))}
-    </ul>
+    </List>
   );
 }
 
@@ -122,122 +124,92 @@ function Connect() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Connect Cloudflare</CardTitle>
-        <CardDescription>
-          Mail reaches Mails through a Cloudflare Email Worker. With an API token, Mails deploys the
-          worker and points your domains at it. No wrangler needed.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <h4 className="text-[13px] font-medium">1. Create a token with these permissions</h4>
-          <Permissions list={REQUIRED} />
-          <p className="pt-1 text-[13px] font-medium">Optional</p>
-          <Permissions list={OPTIONAL} />
+    <div className="space-y-10">
+      <p className="text-[13px] leading-relaxed text-soft-foreground">
+        Mail reaches Mails through a Cloudflare Email Worker. With an API token, Mails deploys the
+        worker and points your domains at it. No wrangler needed.
+      </p>
+      <Section
+        title="1. Create a token with these permissions"
+        action={
           <Button
             size="sm"
-            variant="ghost"
             icon="open_in_new"
             render={<a href={TOKEN_URL} target="_blank" rel="noopener noreferrer" />}
             nativeButton={false}
           >
             Create it in Cloudflare
           </Button>
-        </div>
-        <form onSubmit={submit} className="space-y-2">
-          <h4 className="text-[13px] font-medium">2. Paste it here</h4>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
-            <Field
-              className="flex-1"
-              label={<span className="sr-only">API token</span>}
-              description="Encrypted before it is stored. Revoke it in Cloudflare any time."
-            >
-              <Input
-                type="password"
-                value={token}
-                onChange={(event) => setToken(event.target.value)}
-                placeholder="Cloudflare API token"
-                autoComplete="off"
-                className="font-mono"
-              />
-            </Field>
-            <Button type="submit" variant="primary" loading={pending} disabled={!token.trim()}>
-              Verify and save
-            </Button>
-          </div>
+        }
+      >
+        <Permissions list={REQUIRED} />
+        <h3 className="pt-2 text-[13px] font-medium text-soft-foreground">Optional</h3>
+        <Permissions list={OPTIONAL} />
+      </Section>
+      <Section title="2. Paste it here">
+        <form onSubmit={submit} className="flex flex-col gap-2 sm:flex-row sm:items-start">
+          <Field
+            className="flex-1"
+            label={<span className="sr-only">API token</span>}
+            description="Encrypted before it is stored. Revoke it in Cloudflare any time."
+          >
+            <Input
+              type="password"
+              value={token}
+              onChange={(event) => setToken(event.target.value)}
+              placeholder="Cloudflare API token"
+              autoComplete="off"
+              className="font-mono"
+            />
+          </Field>
+          <Button type="submit" variant="primary" loading={pending} disabled={!token.trim()}>
+            Verify and save
+          </Button>
         </form>
-      </CardContent>
-    </Card>
+      </Section>
+    </div>
   );
 }
 
 function Worker({ status }: { status: InboundStatus }) {
-  const { call, run, pending, variables } = useRun();
-  const [removing, setRemoving] = useState(false);
+  const { run, pending, variables } = useRun();
   const deploying = pending && variables?.path === "/deploy";
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>The worker</CardTitle>
-        <CardDescription>
-          Receives your mail at Cloudflare, stores attachments in R2 and hands each message to
-          Mails.
-        </CardDescription>
-        <CardAction>
-          <Badge tone={status.deployed ? "strong" : "neutral"}>
-            {status.deployed && <Icon name="check" size={14} />}
-            {status.deployed ? "Deployed" : "Not deployed"}
-          </Badge>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <dl className="grid grid-cols-2 gap-3 rounded-2xl bg-box p-4 sm:grid-cols-3">
-          <Fact term="Script">{status.script_name}</Fact>
-          <Fact term="Size">{formatBytes(status.script_bytes)}</Fact>
-          <Fact term="Updated">
-            {status.modified_on ? formatDateTime(status.modified_on) : "Never"}
-          </Fact>
-        </dl>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="primary"
-            icon={status.deployed ? "sync" : "upload"}
-            loading={deploying}
-            disabled={pending}
-            onClick={() =>
-              run({ method: "POST", path: "/deploy" }, "Worker uploaded to Cloudflare")
-            }
-          >
-            {status.deployed ? "Redeploy" : "Deploy worker"}
-          </Button>
-          {status.deployed && (
-            <Button icon="delete" disabled={pending} onClick={() => setRemoving(true)}>
-              Delete worker
-            </Button>
-          )}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Redeploy after updating Mails, so the worker matches this version.
-        </p>
-      </CardContent>
-      <ConfirmDialog
-        open={removing}
-        onOpenChange={setRemoving}
-        title="Delete the worker from Cloudflare?"
-        description="Nothing can be received on any of your domains until it is deployed again."
-        consequences="Senders get a bounce while it is gone; nothing is held for later."
-        phrase="delete worker"
-        confirmLabel="Delete worker"
-        onConfirm={() => call({ method: "DELETE", path: "/worker" }, "Worker deleted")}
-      />
-    </Card>
+    <Section
+      title="Worker"
+      description="Receives your mail at Cloudflare, stores attachments in R2 and hands each message to Mails. Redeploy after updating Mails, so the worker matches this version."
+      action={
+        status.deployed ? (
+          <StatusDot tone="ok">Deployed</StatusDot>
+        ) : (
+          <StatusDot tone="off">Not deployed</StatusDot>
+        )
+      }
+    >
+      <PageAction>
+        <Button
+          variant="primary"
+          icon={status.deployed ? "sync" : "upload"}
+          loading={deploying}
+          disabled={pending}
+          onClick={() => run({ method: "POST", path: "/deploy" }, "Worker uploaded to Cloudflare")}
+        >
+          {status.deployed ? "Redeploy worker" : "Deploy worker"}
+        </Button>
+      </PageAction>
+      <dl className="grid grid-cols-2 gap-4 rounded-[14px] border border-border bg-surface px-5 py-4 sm:grid-cols-3">
+        <Fact term="Script">{status.script_name}</Fact>
+        <Fact term="Size">{formatBytes(status.script_bytes)}</Fact>
+        <Fact term="Updated">
+          {status.modified_on ? formatDateTime(status.modified_on) : "Never"}
+        </Fact>
+      </dl>
+    </Section>
   );
 }
 
-function Fact({ term, children }: { term: string; children: React.ReactNode }) {
+function Fact({ term, children }: { term: string; children: ReactNode }) {
   return (
     <div className="min-w-0">
       <dt className="text-xs text-muted-foreground">{term}</dt>
@@ -249,27 +221,29 @@ function Fact({ term, children }: { term: string; children: React.ReactNode }) {
 function Zones({ status }: { status: InboundStatus }) {
   const receiving = status.zones.filter((z) => z.catch_all_to_worker).length;
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Receiving domains</CardTitle>
-        <CardDescription>
-          {receiving} of {status.zones.length} receive here. Turning a domain on enables Email
-          Routing, publishes Cloudflare's MX records and sends every address to the worker.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <List className="bg-box">
-          {status.zones.map((zone) => (
-            <ZoneRow key={zone.id} zone={zone} deployed={status.deployed} />
-          ))}
-          {status.zones.length === 0 && <ListEmpty>This token sees no zones.</ListEmpty>}
-        </List>
-        <Notice>
-          Turning a domain on replaces its MX records with Cloudflare's. Anything receiving mail for
-          it today stops.
-        </Notice>
-      </CardContent>
-    </Card>
+    <Section
+      title="Receiving domains"
+      description={
+        <>
+          <span className="font-mono">
+            {receiving} of {status.zones.length}
+          </span>{" "}
+          receive here. Turning a domain on enables Email Routing, publishes Cloudflare's MX records
+          and sends every address to the worker.
+        </>
+      }
+    >
+      <List>
+        {status.zones.map((zone) => (
+          <ZoneRow key={zone.id} zone={zone} deployed={status.deployed} />
+        ))}
+        {status.zones.length === 0 && <ListEmpty>This token sees no zones.</ListEmpty>}
+      </List>
+      <Notice>
+        Turning a domain on replaces its MX records with Cloudflare's. Anything receiving mail for
+        it today stops.
+      </Notice>
+    </Section>
   );
 }
 
@@ -280,35 +254,43 @@ function ZoneRow({ zone, deployed }: { zone: ZoneStatus; deployed: boolean }) {
 
   return (
     <ListRow
-      title={<span className="font-mono">{zone.name}</span>}
-      description={
-        zone.catch_all_to_worker
-          ? "Receiving here"
-          : zone.routing_enabled
-            ? "Email Routing on, not sent to the worker"
-            : "Email Routing off"
-      }
+      title={zone.name}
       action={
-        zone.catch_all_to_worker ? (
-          <Button size="sm" variant="ghost" disabled={pending} onClick={() => setStopping(true)}>
-            Stop
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            loading={pending}
-            disabled={!deployed}
-            title={deployed ? undefined : "Deploy the worker first"}
-            onClick={() =>
-              run(
-                { method: "POST", path: `/zones/${zone.id}/route` },
-                `${zone.name} now receives here`,
-              )
-            }
-          >
-            Receive here
-          </Button>
-        )
+        <>
+          {zone.catch_all_to_worker ? (
+            <StatusDot tone="ok" className="mr-2">
+              Receiving
+            </StatusDot>
+          ) : zone.routing_enabled ? (
+            <StatusDot tone="pending" className="mr-2">
+              Routing on, not here
+            </StatusDot>
+          ) : (
+            <StatusDot tone="off" className="mr-2">
+              Routing off
+            </StatusDot>
+          )}
+          {zone.catch_all_to_worker ? (
+            <Button size="sm" variant="ghost" disabled={pending} onClick={() => setStopping(true)}>
+              Stop
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              loading={pending}
+              disabled={!deployed}
+              title={deployed ? undefined : "Deploy the worker first"}
+              onClick={() =>
+                run(
+                  { method: "POST", path: `/zones/${zone.id}/route` },
+                  `${zone.name} now receives here`,
+                )
+              }
+            >
+              Receive here
+            </Button>
+          )}
+        </>
       }
     >
       <ConfirmDialog
@@ -330,7 +312,7 @@ function ZoneRow({ zone, deployed }: { zone: ZoneStatus; deployed: boolean }) {
       >
         <label
           htmlFor={`routing-${zone.id}`}
-          className="flex cursor-pointer items-start gap-3 rounded-2xl bg-box px-3.5 py-3"
+          className="flex cursor-pointer items-start gap-3 rounded-[10px] border border-border px-3.5 py-3"
         >
           <Checkbox
             id={`routing-${zone.id}`}
@@ -351,39 +333,62 @@ function ZoneRow({ zone, deployed }: { zone: ZoneStatus; deployed: boolean }) {
 }
 
 function Connection({ status }: { status: InboundStatus }) {
-  const { call, pending } = useRun();
-  const [disconnecting, setDisconnecting] = useState(false);
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Cloudflare connection</CardTitle>
-        <CardDescription>
-          Token <span className="font-mono">{status.hint}</span>
-          {status.label && ` · ${status.label}`}
-          {status.account_id && (
-            <>
-              {" · account "}
-              <span className="font-mono">{status.account_id}</span>
-            </>
-          )}
-        </CardDescription>
-        <CardAction>
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={pending}
-            onClick={() => setDisconnecting(true)}
-          >
+    <Section
+      title="Cloudflare connection"
+      description="Added permissions to this token in Cloudflare? Nothing to do here. To switch to a new token, disconnect below, then connect the new one."
+    >
+      <dl className="grid grid-cols-2 gap-4 rounded-[14px] border border-border bg-surface px-5 py-4 sm:grid-cols-3">
+        <Fact term="Token">{status.hint}</Fact>
+        {status.label && <Fact term="Label">{status.label}</Fact>}
+        {status.account_id && <Fact term="Account">{status.account_id}</Fact>}
+      </dl>
+    </Section>
+  );
+}
+
+function Danger({ status }: { status: InboundStatus }) {
+  const { call, pending } = useRun();
+  const [removing, setRemoving] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  return (
+    <DangerZone>
+      {status.deployed && (
+        <DangerRow
+          title="Delete the worker"
+          description="Nothing is received on any of your domains until it is deployed again."
+          action={
+            <Button
+              variant="destructive"
+              icon="delete"
+              disabled={pending}
+              onClick={() => setRemoving(true)}
+            >
+              Delete worker
+            </Button>
+          }
+        />
+      )}
+      <DangerRow
+        title="Disconnect Cloudflare"
+        description="Mails forgets the token. The worker and routing stay as they are."
+        action={
+          <Button variant="destructive" disabled={pending} onClick={() => setDisconnecting(true)}>
             Disconnect
           </Button>
-        </CardAction>
-      </CardHeader>
-      <CardContent>
-        <p className="text-xs text-muted-foreground">
-          Added permissions to this token in Cloudflare? Nothing to do here. To switch to a new
-          token, disconnect, then connect the new one.
-        </p>
-      </CardContent>
+        }
+      />
+      <ConfirmDialog
+        open={removing}
+        onOpenChange={setRemoving}
+        title="Delete the worker from Cloudflare?"
+        description="Nothing can be received on any of your domains until it is deployed again."
+        consequences="Senders get a bounce while it is gone; nothing is held for later."
+        phrase="delete worker"
+        confirmLabel="Delete worker"
+        onConfirm={() => call({ method: "DELETE", path: "/worker" }, "Worker deleted")}
+      />
       <ConfirmDialog
         open={disconnecting}
         onOpenChange={setDisconnecting}
@@ -392,6 +397,6 @@ function Connection({ status }: { status: InboundStatus }) {
         confirmLabel="Disconnect"
         onConfirm={() => call({ method: "DELETE", path: "/connect" }, "Cloudflare disconnected")}
       />
-    </Card>
+    </DangerZone>
   );
 }

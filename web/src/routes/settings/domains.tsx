@@ -1,22 +1,21 @@
-import { useId, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 import {
   Badge,
   Button,
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Checkbox,
   ConfirmDialog,
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Field,
   Icon,
   IconButton,
   Input,
   List,
-  ListEmpty,
-  Tooltip,
   toast,
 } from "@/components/kit";
 import {
@@ -33,18 +32,34 @@ import { cn } from "@/lib/cn";
 import { formatDateTime } from "@/lib/mail";
 import {
   canUseOwnDkim,
+  type DomainCheck,
   domainChecks,
   domainSummary,
   nestDomains,
   relativeName,
 } from "@/lib/settings";
 import type { DnsRecord, Domain } from "@/lib/types";
-import { CopyValue, LoadError, Notice, PageLoading, SwitchRow, toastResult } from "./parts";
+import {
+  CopyValue,
+  emptyBox,
+  LoadError,
+  Notice,
+  PageAction,
+  PageLoading,
+  rowActions,
+  StatusDot,
+  SwitchRow,
+  toastResult,
+} from "./parts";
+
+/** Row actions: always there on touch, shown on hover or focus with a pointer. */
+const ROW_ACTIONS = cn("flex shrink-0 items-center gap-1", rowActions);
 
 /** Sending domains: SES identities, their DNS records and checks. */
 export default function Domains() {
   const domains = useDomains();
   const importDomains = useImportDomains();
+  const [adding, setAdding] = useState(false);
 
   if (domains.isPending) return <PageLoading />;
   if (domains.isError) return <LoadError error={domains.error} retry={domains.refetch} />;
@@ -52,80 +67,85 @@ export default function Domains() {
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Domains</CardTitle>
-          <CardDescription>
-            The domains you send from, as Amazon SES identities. Import the ones already in SES, or
-            add a new one and publish its DNS records.
-          </CardDescription>
-          <CardAction>
-            <Button
-              icon="download"
-              size="sm"
-              loading={importDomains.isPending}
-              onClick={() =>
-                toastResult(
-                  importDomains.mutateAsync(),
-                  (r) => `${r.imported} imported, ${r.updated} refreshed, ${r.total} found in SES`,
-                )
-              }
-            >
-              Import from SES
-            </Button>
-          </CardAction>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {warning && <Notice tone="warning">{warning}. Showing what was last saved.</Notice>}
-          <List className="bg-box">
-            {nestDomains(data).map(({ domain, children }) => (
-              <li key={domain.id} className="list-none">
-                <ul className="flex flex-col gap-0.5">
-                  <DomainItem domain={domain} />
-                  {children.map((child) => (
-                    <DomainItem key={child.id} domain={child} nested />
-                  ))}
-                </ul>
-              </li>
-            ))}
-            {data.length === 0 && (
-              <ListEmpty>No domains yet. Import from SES or add one below.</ListEmpty>
-            )}
-          </List>
-        </CardContent>
-      </Card>
-      <AddDomain />
+      <PageAction>
+        <Button
+          icon="download"
+          loading={importDomains.isPending}
+          onClick={() =>
+            toastResult(
+              importDomains.mutateAsync(),
+              (r) => `${r.imported} imported, ${r.updated} refreshed, ${r.total} found in SES`,
+            )
+          }
+        >
+          Import from SES
+        </Button>
+        <Button variant="primary" icon="add" onClick={() => setAdding(true)}>
+          Add domain
+        </Button>
+      </PageAction>
+      {warning && (
+        <Notice tone="warning">{warning.replace(/\.$/, "")}. Showing what was last saved.</Notice>
+      )}
+      {data.length === 0 ? (
+        <div className={emptyBox}>
+          <p className="text-muted-foreground">
+            No domains yet. Import the ones already in SES, or add one.
+          </p>
+          <Button variant="primary" icon="add" className="mt-4" onClick={() => setAdding(true)}>
+            Add domain
+          </Button>
+        </div>
+      ) : (
+        <List>
+          {nestDomains(data).flatMap(({ domain, children }) => [
+            <DomainItem key={domain.id} domain={domain} />,
+            ...children.map((child) => <DomainItem key={child.id} domain={child} nested />),
+          ])}
+        </List>
+      )}
+      <AddDomain open={adding} onOpenChange={setAdding} />
     </div>
   );
 }
 
-function AddDomain() {
+function AddDomain({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const [name, setName] = useState("");
   const add = useAddDomain();
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!name.trim()) return;
+    void toastResult(add.mutateAsync(name.trim()), (d) =>
+      d.inherited_from
+        ? `${d.name} added. It sends on ${d.inherited_from}'s verification.`
+        : `${d.name} added. Publish its DNS records at your DNS host.`,
+    ).then((d) => {
+      if (!d) return;
+      setName("");
+      onOpenChange(false);
+    });
+  }
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Add a domain</CardTitle>
-        <CardDescription>
-          A subdomain of a verified domain is added with nothing to publish: it sends on its
-          parent's verification. Anything else becomes an SES identity with its own DKIM key and
-          return path.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form
-          className="flex flex-col gap-2 sm:flex-row sm:items-end"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!name.trim()) return;
-            void toastResult(add.mutateAsync(name.trim()), (d) =>
-              d.inherited_from
-                ? `${d.name} added. It sends on ${d.inherited_from}'s verification.`
-                : `${d.name} added. Publish its DNS records at your DNS host.`,
-            ).then((d) => d && setName(""));
-          }}
-        >
-          <Field label="Domain" className="flex-1">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add a domain</DialogTitle>
+          <DialogDescription>
+            A subdomain of a verified domain needs nothing published: it sends on its parent's
+            verification. Anything else becomes an SES identity with its own DKIM key and return
+            path.
+          </DialogDescription>
+        </DialogHeader>
+        <form id="add-domain" onSubmit={submit}>
+          <Field label="Domain">
             <Input
               value={name}
               onChange={(event) => setName(event.target.value)}
@@ -135,97 +155,111 @@ function AddDomain() {
               className="font-mono"
             />
           </Field>
-          <Button type="submit" variant="primary" loading={add.isPending} disabled={!name.trim()}>
+        </form>
+        <DialogFooter>
+          <DialogClose render={<Button variant="ghost" />}>Cancel</DialogClose>
+          <Button
+            type="submit"
+            form="add-domain"
+            variant="primary"
+            loading={add.isPending}
+            disabled={!name.trim()}
+          >
             Add domain
           </Button>
-        </form>
-      </CardContent>
-    </Card>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
+}
+
+/** The one-word status beside a domain; the details say what is left. */
+function domainStatus(domain: Domain) {
+  const summary = domainSummary(domain);
+  if (summary.ready)
+    return { tone: "ok", text: domain.inherited_from ? "Inherited" : "Verified" } as const;
+  if (summary.danger) return { tone: "bad", text: "Failing" } as const;
+  return { tone: "pending", text: "Pending" } as const;
 }
 
 function DomainItem({ domain, nested }: { domain: Domain; nested?: boolean }) {
   const summary = domainSummary(domain);
+  const status = domainStatus(domain);
   const inherited = Boolean(domain.inherited_from);
   // Open what still needs work; a ready domain stays folded.
   const [open, setOpen] = useState(!summary.ready);
   const [removing, setRemoving] = useState(false);
   const [alsoSes, setAlsoSes] = useState(false);
-  const verify = useVerifyDomain();
   const remove = useRemoveDomain();
   const panelId = useId();
   const checkboxId = useId();
 
+  const details = inherited
+    ? `sends on ${domain.inherited_from}'s verification`
+    : [
+        domain.region,
+        domain.imported && "imported",
+        domain.last_checked_at && `checked ${formatDateTime(domain.last_checked_at)}`,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+  const body = (
+    <>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-semibold">{domain.name}</div>
+        <div className="truncate font-mono text-xs text-muted-foreground">{details}</div>
+      </div>
+      <StatusDot tone={status.tone}>{status.text}</StatusDot>
+    </>
+  );
+
   return (
-    <li className={cn("rounded-2xl", open && "bg-surface")}>
-      <div className={cn("flex min-h-14 items-center gap-2 px-2 py-2", nested && "pl-6")}>
+    <li className="group/row">
+      <div className="flex items-center gap-1 pr-3 transition-colors hover:bg-box">
         {inherited ? (
-          <span aria-hidden className="grid size-10 shrink-0 place-items-center">
-            <span className="mb-2 ml-1 size-3.5 rounded-bl-md border-b-2 border-l-2 border-input" />
-          </span>
+          <div
+            className={cn("flex min-w-0 flex-1 items-center gap-3 py-3.5 pl-4", nested && "pl-10")}
+          >
+            <span
+              aria-hidden
+              className="mb-1.5 size-3 shrink-0 rounded-bl-[4px] border-b-2 border-l-2 border-input"
+            />
+            {body}
+          </div>
         ) : (
-          <IconButton
-            icon={open ? "expand_less" : "expand_more"}
-            label={open ? `Hide records for ${domain.name}` : `Show records for ${domain.name}`}
+          <button
+            type="button"
             aria-expanded={open}
             aria-controls={panelId}
             onClick={() => setOpen(!open)}
-          />
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-mono text-[13px] font-medium">{domain.name}</div>
-          <div className="truncate text-xs text-muted-foreground">
-            {inherited
-              ? `Sends on ${domain.inherited_from}'s verification`
-              : [
-                  domain.region,
-                  domain.imported && "imported",
-                  domain.last_checked_at && `checked ${formatDateTime(domain.last_checked_at)}`,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-          </div>
-        </div>
-        <Badge
-          tone={summary.danger ? "danger" : summary.ready ? "strong" : "neutral"}
-          className="hidden sm:inline-flex"
-        >
-          {summary.ready && <Icon name="check" size={14} />}
-          {summary.text}
-        </Badge>
-        {!inherited && (
-          <Tooltip label="Check now">
-            <IconButton
-              icon="refresh"
-              label={`Check ${domain.name} now`}
-              loading={verify.isPending}
-              onClick={() =>
-                toastResult(verify.mutateAsync(domain.id), (d) =>
-                  domainSummary(d).ready
-                    ? `${d.name} is ready`
-                    : `${d.name}: ${domainSummary(d).text}`,
-                )
-              }
+            className={cn(
+              "flex min-w-0 flex-1 items-center gap-3 py-3.5 pl-4 text-left outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
+              nested && "pl-10",
+            )}
+          >
+            <Icon
+              name="expand_more"
+              size={18}
+              className={cn(
+                "shrink-0 text-muted-foreground transition-transform",
+                open && "rotate-180",
+              )}
             />
-          </Tooltip>
+            {body}
+          </button>
         )}
-        <Tooltip label="Remove">
+        <div className={ROW_ACTIONS}>
           <IconButton
             icon="delete"
+            size="sm"
             label={`Remove ${domain.name}`}
             onClick={() => setRemoving(true)}
           />
-        </Tooltip>
+        </div>
       </div>
-      <Badge
-        tone={summary.danger ? "danger" : summary.ready ? "strong" : "neutral"}
-        className="mb-2 ml-14 sm:hidden"
-      >
-        {summary.text}
-      </Badge>
 
       {open && !inherited && (
-        <div id={panelId} className="space-y-4 px-3 pt-1 pb-4 sm:px-4">
+        <div id={panelId} className="border-t border-border px-4 pt-4 pb-5 sm:pl-12">
           <DomainDetails domain={domain} />
         </div>
       )}
@@ -251,7 +285,7 @@ function DomainItem({ domain, nested }: { domain: Domain; nested?: boolean }) {
         {!inherited && (
           <label
             htmlFor={checkboxId}
-            className="flex cursor-pointer items-start gap-3 rounded-2xl bg-box px-3.5 py-3"
+            className="flex cursor-pointer items-start gap-3 rounded-[10px] border border-border px-3.5 py-3"
           >
             <Checkbox
               id={checkboxId}
@@ -272,29 +306,41 @@ function DomainItem({ domain, nested }: { domain: Domain; nested?: boolean }) {
   );
 }
 
+/** Which check a DNS record proves, by the purpose the server gives it. */
+function recordCheck(record: DnsRecord, checks: DomainCheck[]) {
+  const key = record.purpose.startsWith("DKIM")
+    ? "dkim"
+    : record.purpose.includes("return path")
+      ? "mail-from"
+      : record.purpose.startsWith("SPF")
+        ? "spf"
+        : record.purpose.startsWith("DMARC")
+          ? "dmarc"
+          : undefined;
+  return checks.find((c) => c.key === key);
+}
+
 function DomainDetails({ domain }: { domain: Domain }) {
   const update = useUpdateDomain();
+  const verify = useVerifyDomain();
   const ownDkim = useOwnDkim();
   const checks = domainChecks(domain);
+  const summary = domainSummary(domain);
+
   return (
-    <>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <ul className="flex flex-wrap gap-1.5" aria-label="Checks">
-          {checks.map((check) => (
-            <li key={check.key}>
-              <Badge tone={check.ok ? "strong" : "neutral"} size="sm">
-                <Icon name={check.ok ? "check" : "circle"} size={12} />
-                {check.label}
-                {!check.ok && (check.required ? " pending" : " optional")}
-              </Badge>
-            </li>
-          ))}
-        </ul>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start gap-3">
+        <div className="min-w-0 flex-1 basis-60">
+          <h3 className="text-sm font-semibold">DNS records</h3>
+          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+            {!summary.ready && <span className="text-soft-foreground">{summary.text}. </span>}
+            Add these at your DNS host. Names are relative to {domain.name}.
+          </p>
+        </div>
         {canUseOwnDkim(domain) && (
           <Button
             size="sm"
             variant="ghost"
-            className="ml-auto"
             loading={ownDkim.isPending}
             onClick={() =>
               toastResult(
@@ -306,7 +352,32 @@ function DomainDetails({ domain }: { domain: Domain }) {
             Use one TXT record for DKIM
           </Button>
         )}
+        <Button
+          size="sm"
+          icon="refresh"
+          loading={verify.isPending}
+          onClick={() =>
+            toastResult(verify.mutateAsync(domain.id), (d) =>
+              domainSummary(d).ready ? `${d.name} is ready` : `${d.name}: ${domainSummary(d).text}`,
+            )
+          }
+        >
+          Check again
+        </Button>
       </div>
+
+      {domain.records.length > 0 && (
+        <ul aria-label={`DNS records for ${domain.name}`} className="divide-y divide-border">
+          {domain.records.map((record) => (
+            <RecordItem
+              key={`${record.kind}-${record.name}-${record.value}`}
+              record={record}
+              check={recordCheck(record, checks)}
+              zone={domain.name}
+            />
+          ))}
+        </ul>
+      )}
 
       <SwitchRow
         label="Capture every address"
@@ -318,48 +389,42 @@ function DomainDetails({ domain }: { domain: Domain }) {
             { onError: (error) => toast.error(errorMessage(error)) },
           )
         }
-        className="rounded-2xl bg-box px-3.5 py-3"
+        className="border-t border-border pt-4"
       />
-
-      {domain.records.length > 0 && (
-        <section aria-label={`DNS records for ${domain.name}`} className="space-y-2">
-          <p className="text-xs text-muted-foreground">
-            Add these at your DNS host. Names are relative to {domain.name}; the copy button copies
-            the name as shown, the value whole.
-          </p>
-          <ul className="space-y-2">
-            {domain.records.map((record) => (
-              <RecordItem
-                key={`${record.kind}-${record.name}-${record.value}`}
-                record={record}
-                zone={domain.name}
-              />
-            ))}
-          </ul>
-        </section>
-      )}
-    </>
+    </div>
   );
 }
 
-function RecordItem({ record, zone }: { record: DnsRecord; zone: string }) {
+function RecordItem({
+  record,
+  check,
+  zone,
+}: {
+  record: DnsRecord;
+  check: DomainCheck | undefined;
+  zone: string;
+}) {
   return (
-    <li className="space-y-1.5 rounded-2xl bg-box p-3">
+    <li className="space-y-2 py-3 first:pt-0">
       <div className="flex flex-wrap items-center gap-2 text-xs">
-        <Badge size="sm" tone="strong" className="font-mono">
+        {check?.ok ? (
+          <StatusDot tone="ok">Verified</StatusDot>
+        ) : record.required ? (
+          <StatusDot tone="pending">Pending</StatusDot>
+        ) : (
+          <StatusDot tone="off">Optional</StatusDot>
+        )}
+        <Badge size="sm" className="font-mono">
           {record.kind}
         </Badge>
-        <span className="text-muted-foreground">
-          {record.purpose}
-          {!record.required && " (optional)"}
-        </span>
+        <span className="text-muted-foreground">{record.purpose}</span>
         {record.priority !== undefined && (
           <span className="ml-auto font-mono text-muted-foreground">
             priority {record.priority}
           </span>
         )}
       </div>
-      <div className="grid gap-1.5 sm:grid-cols-[3.5rem_1fr] sm:items-center">
+      <div className="grid gap-1.5 sm:grid-cols-[3rem_1fr] sm:items-center">
         <span className="text-xs text-muted-foreground">Name</span>
         <CopyValue value={relativeName(record.name, zone)} label="Copy name" />
         <span className="text-xs text-muted-foreground">Value</span>

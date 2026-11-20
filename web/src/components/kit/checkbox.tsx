@@ -9,7 +9,7 @@ export function Checkbox({ className, ...props }: Props) {
   return (
     <BaseCheckbox.Root
       className={cn(
-        "grid size-[18px] shrink-0 place-items-center rounded-[5px] border-2 border-muted-foreground text-primary-foreground outline-none transition-colors",
+        "grid size-[18px] shrink-0 place-items-center rounded-[5px] border-[1.5px] border-muted-foreground text-primary-foreground outline-none transition-colors",
         "data-checked:border-primary data-checked:bg-primary data-indeterminate:border-primary data-indeterminate:bg-primary",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring data-disabled:opacity-50",
         className,

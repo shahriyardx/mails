@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import { cn } from "@/lib/cn";
 
-/** A large rounded tonal surface. `size="sm"` tightens the padding. */
+/** A flat panel with a hairline border. `size="sm"` tightens the padding. */
 export function Card({
   className,
   size = "default",
@@ -12,7 +12,7 @@ export function Card({
       data-slot="card"
       data-size={size}
       className={cn(
-        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-3xl bg-surface py-(--card-spacing) text-sm [--card-spacing:--spacing(6)] data-[size=sm]:[--card-spacing:--spacing(4)]",
+        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-[14px] border border-border bg-surface py-(--card-spacing) text-sm [--card-spacing:--spacing(5)] data-[size=sm]:[--card-spacing:--spacing(4)]",
         className,
       )}
       {...props}
@@ -38,7 +38,7 @@ export function CardTitle({ className, ...props }: ComponentProps<"h3">) {
     <h3
       data-slot="card-title"
       className={cn(
-        "text-base font-medium leading-normal group-data-[size=sm]/card:text-sm",
+        "font-display text-[15px] font-semibold leading-normal tracking-[-0.01em] group-data-[size=sm]/card:text-sm",
         className,
       )}
       {...props}

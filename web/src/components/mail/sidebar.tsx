@@ -1,8 +1,8 @@
-import { motion } from "motion/react";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useMemo } from "react";
 import { Link } from "react-router";
+import { AccountMenu } from "@/components/app/account-menu";
+import { ThemeToggle } from "@/components/app/theme-toggle";
 import { Button, Count, Icon, Wordmark } from "@/components/kit";
-import { spatial } from "@/components/kit/motion";
 import { useCounts, useLabels, useMailboxes } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { FOLDER_META, FOLDERS, mailHref, type Scope, scopeSegment } from "@/lib/mail";
@@ -10,21 +10,19 @@ import type { Mailbox, ViewFolder } from "@/lib/types";
 import { useComposer } from "./composer-provider";
 
 /**
- * Folders, mailboxes grouped by domain, and labels. The active item wears a
- * pill that slides between items (shared layout animation). Rendered twice
- * (fixed column and phone drawer), so each copy names its own pill ids.
+ * Brand and theme switch, Write message, folders, then mailboxes and labels
+ * marked with small coloured squares. Rendered in the fixed column and in
+ * the phone drawer.
  */
 export function Sidebar({
   scope,
   folder,
   label,
-  instance,
   onNavigate,
 }: {
   scope: Scope;
   folder: ViewFolder;
   label: string | null;
-  instance: string;
   onNavigate?: () => void;
 }) {
   const counts = useCounts(
@@ -45,40 +43,29 @@ export function Sidebar({
       map.set(box.domain, [...(map.get(box.domain) ?? []), box]);
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [mailboxes.data]);
-
-  const pill = `${instance}-folder`;
-  const scopePill = `${instance}-scope`;
+  const unread = counts.data?.mailboxes ?? {};
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-16 shrink-0 items-center px-5">
-        <Wordmark />
-      </div>
+    <SidebarFrame>
+      <Button
+        variant="primary"
+        icon="edit"
+        className="h-10 w-full shrink-0 font-semibold"
+        onClick={() => {
+          onNavigate?.();
+          composer.open();
+        }}
+      >
+        Write message
+      </Button>
 
-      <div className="px-3 pb-4">
-        <Button
-          variant="primary"
-          size="lg"
-          icon="edit"
-          className="w-full px-5"
-          onClick={() => {
-            onNavigate?.();
-            composer.open();
-          }}
-        >
-          Compose
-        </Button>
-      </div>
-
-      <nav aria-label="Mail" className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
-        <ul className="space-y-0.5">
+      <nav aria-label="Mail" className="-mx-1 min-h-0 flex-1 space-y-5 overflow-y-auto px-1">
+        <ul className="space-y-px">
           {FOLDERS.map((item) => (
             <li key={item}>
-              <NavItem
+              <NavRow
                 to={mailHref(segment, item)}
                 active={folder === item && !label}
-                pill={pill}
-                icon={FOLDER_META[item].icon}
                 onClick={onNavigate}
                 end={
                   item !== "trash" && item !== "archive" ? (
@@ -87,97 +74,137 @@ export function Sidebar({
                 }
               >
                 {FOLDER_META[item].label}
-              </NavItem>
+              </NavRow>
             </li>
           ))}
         </ul>
 
-        <Section title="Mailboxes">
+        <NavGroup title="Mailboxes">
           <li>
-            <NavItem
+            <NavRow
               to={mailHref("all", folder)}
               active={scope.kind === "all"}
-              pill={scopePill}
-              icon="all_inbox"
               onClick={onNavigate}
+              lead={<Square className="border border-muted-foreground" />}
             >
-              All mail
-            </NavItem>
+              All mailboxes
+            </NavRow>
           </li>
           {domains.map(([domain, boxes]) => (
-            <DomainGroup
-              key={domain}
-              domain={domain}
-              boxes={boxes}
-              scope={scope}
-              folder={folder}
-              unread={counts.data?.mailboxes ?? {}}
-              pill={scopePill}
-              onNavigate={onNavigate}
-            />
+            <li key={domain}>
+              {domains.length > 1 && (
+                <NavRow
+                  to={mailHref(domain, folder)}
+                  active={scope.kind === "domain" && scope.domain === domain}
+                  onClick={onNavigate}
+                  lead={<Square className="border border-muted-foreground" />}
+                >
+                  {domain}
+                </NavRow>
+              )}
+              <ul className={cn("space-y-px", domains.length > 1 && "pl-4")}>
+                {boxes.map((box) => (
+                  <li key={box.id}>
+                    <NavRow
+                      to={mailHref(box.id, folder)}
+                      active={scope.kind === "mailbox" && scope.id === box.id}
+                      onClick={onNavigate}
+                      lead={<Square color={box.color} />}
+                      end={<Count value={unread[box.id] ?? 0} />}
+                    >
+                      {domains.length > 1 ? `${box.address.split("@")[0]}@` : box.address}
+                    </NavRow>
+                  </li>
+                ))}
+              </ul>
+            </li>
           ))}
           {mailboxes.data?.length === 0 && (
-            <li className="px-4 py-2 text-[13px] text-muted-foreground">
+            <li className="px-2.5 py-1.5 text-[13px] text-muted-foreground">
               None yet.{" "}
-              <Link
-                to="/settings/mailboxes"
-                className="text-foreground underline"
-                onClick={onNavigate}
-              >
+              <Link to="/settings/mailboxes" className="text-accent underline" onClick={onNavigate}>
                 Add one
               </Link>
             </li>
           )}
-        </Section>
+        </NavGroup>
 
         {(labels.data?.length ?? 0) > 0 && (
-          <Section title="Labels">
+          <NavGroup title="Labels">
             {labels.data!.map((item) => (
               <li key={item.id}>
-                <NavItem
+                <NavRow
                   to={mailHref(segment, folder, { label: item.id })}
                   active={label === item.id}
-                  pill={pill}
                   onClick={onNavigate}
-                  lead={
-                    <span
-                      className="mx-[5px] size-2.5 rounded-full"
-                      style={{ background: item.color }}
-                      aria-hidden
-                    />
-                  }
+                  lead={<Square color={item.color} />}
                 >
                   {item.name}
-                </NavItem>
+                </NavRow>
               </li>
             ))}
-          </Section>
+          </NavGroup>
         )}
       </nav>
 
-      <div className="shrink-0 space-y-0.5 px-3 pb-3">
-        <NavItem to="/settings" active={false} pill={pill} icon="settings" onClick={onNavigate}>
+      <div className="-mx-1 flex shrink-0 items-center gap-1 px-1">
+        <NavRow
+          to="/settings"
+          active={false}
+          onClick={onNavigate}
+          lead={<Icon name="settings" size={18} className="text-muted-foreground" />}
+          className="flex-1"
+        >
           Settings
-        </NavItem>
+        </NavRow>
+        <AccountMenu />
       </div>
+    </SidebarFrame>
+  );
+}
+
+/** The sidebar's shell, shared with settings: brand and theme switch on top. */
+export function SidebarFrame({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-5 px-4 pt-5 pb-3">
+      <div className="flex h-8 shrink-0 items-center justify-between pl-2">
+        <Link
+          to="/mail/all/inbox"
+          className="rounded-md outline-none focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          <Wordmark />
+        </Link>
+        <ThemeToggle />
+      </div>
+      {children}
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+export function NavGroup({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <>
-      <h2 className="px-4 pt-6 pb-1.5 text-xs font-medium text-muted-foreground">{title}</h2>
-      <ul className="space-y-0.5">{children}</ul>
-    </>
+    <section>
+      <h2 className="px-2.5 pb-1.5 font-sans text-[11px] font-semibold tracking-[0.1em] text-muted-foreground uppercase">
+        {title}
+      </h2>
+      <ul className="space-y-px">{children}</ul>
+    </section>
   );
 }
 
-function NavItem({
+function Square({ color, className }: { color?: string; className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn("size-2 shrink-0 rounded-[2px]", className)}
+      style={color ? { background: color } : undefined}
+    />
+  );
+}
+
+export function NavRow({
   to,
   active,
-  pill,
-  icon,
   lead,
   end,
   onClick,
@@ -186,8 +213,6 @@ function NavItem({
 }: {
   to: string;
   active: boolean;
-  pill: string;
-  icon?: string;
   lead?: ReactNode;
   end?: ReactNode;
   onClick?: () => void;
@@ -200,95 +225,16 @@ function NavItem({
       onClick={onClick}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative isolate flex h-10 items-center gap-3 rounded-full px-4 text-sm outline-none transition-colors focus-visible:outline-2 focus-visible:outline-ring",
-        active ? "font-semibold" : "text-foreground/90 hover:bg-tonal",
+        "flex h-8.5 min-w-0 items-center gap-2.5 rounded-lg px-2.5 font-medium outline-none transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
+        active
+          ? "bg-surface text-foreground shadow-[inset_0_0_0_1px_var(--border)]"
+          : "text-soft-foreground hover:bg-surface hover:text-foreground",
         className,
       )}
     >
-      {active && (
-        <motion.span
-          layoutId={pill}
-          transition={spatial}
-          className="absolute inset-0 -z-10 rounded-full bg-selected"
-        />
-      )}
-      {icon && <Icon name={icon} filled={active} />}
       {lead}
       <span className="min-w-0 flex-1 truncate">{children}</span>
       {end}
     </Link>
-  );
-}
-
-function DomainGroup({
-  domain,
-  boxes,
-  scope,
-  folder,
-  unread,
-  pill,
-  onNavigate,
-}: {
-  domain: string;
-  boxes: Mailbox[];
-  scope: Scope;
-  folder: ViewFolder;
-  unread: Record<string, number>;
-  pill: string;
-  onNavigate?: () => void;
-}) {
-  const inside =
-    (scope.kind === "domain" && scope.domain === domain) ||
-    boxes.some((b) => scope.kind === "mailbox" && scope.id === b.id);
-  const [open, setOpen] = useState(inside || boxes.length === 1);
-  const total = boxes.reduce((sum, box) => sum + (unread[box.id] ?? 0), 0);
-
-  return (
-    <li>
-      <div className="relative flex items-center">
-        <NavItem
-          to={mailHref(domain, folder)}
-          active={scope.kind === "domain" && scope.domain === domain}
-          pill={pill}
-          icon="language"
-          onClick={onNavigate}
-          className="flex-1 pr-11"
-          end={<Count value={open ? 0 : total} />}
-        >
-          {domain}
-        </NavItem>
-        <button
-          type="button"
-          aria-label={open ? `Collapse ${domain}` : `Expand ${domain}`}
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
-          className="absolute right-1 grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-tonal-hover hover:text-foreground"
-        >
-          <Icon
-            name="expand_more"
-            size={18}
-            className={cn("transition-transform", open && "rotate-180")}
-          />
-        </button>
-      </div>
-      {open && (
-        <ul className="mt-0.5 space-y-0.5 pl-4">
-          {boxes.map((box) => (
-            <li key={box.id}>
-              <NavItem
-                to={mailHref(box.id, folder)}
-                active={scope.kind === "mailbox" && scope.id === box.id}
-                pill={pill}
-                icon="alternate_email"
-                onClick={onNavigate}
-                end={<Count value={unread[box.id] ?? 0} />}
-              >
-                <span className="font-mono text-[13px]">{box.address.split("@")[0]}</span>
-              </NavItem>
-            </li>
-          ))}
-        </ul>
-      )}
-    </li>
   );
 }

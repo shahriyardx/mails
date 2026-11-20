@@ -30,12 +30,15 @@ export function LabelMenu({
   threadIds,
   applied = [],
   onDone,
+  trigger,
 }: {
   /** One open thread, or every selected one. */
   threadIds: string[];
   /** Label ids already on the thread (empty for a multiple selection). */
   applied?: string[];
   onDone?: () => void;
+  /** The trigger element; an icon button by default. */
+  trigger?: React.ReactElement;
 }) {
   const labels = useLabels();
   const change = useChangeThreads();
@@ -72,7 +75,7 @@ export function LabelMenu({
         <Tooltip label="Labels">
           <DropdownMenuTrigger
             disabled={threadIds.length === 0}
-            render={<IconButton icon="label" label="Labels" />}
+            render={trigger ?? <IconButton icon="label" label="Labels" />}
           />
         </Tooltip>
         <DropdownMenuContent className="w-60">
@@ -87,7 +90,7 @@ export function LabelMenu({
               onCheckedChange={(on) => toggle(label.id, on)}
             >
               <span
-                className="size-2.5 shrink-0 rounded-full"
+                className="size-2 shrink-0 rounded-[2px]"
                 style={{ background: label.color }}
                 aria-hidden
               />

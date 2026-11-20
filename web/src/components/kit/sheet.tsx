@@ -41,15 +41,15 @@ export function SheetContent({
   const out = side === "left" ? "-100%" : "100%";
   return (
     <BaseDialog.Portal>
-      <Drawer.Backdrop className="fixed inset-0 z-50 bg-black/50 opacity-[calc(1-var(--drawer-swipe-progress))] [transition:opacity_var(--spring-effects)] data-starting-style:opacity-0 data-ending-style:opacity-0 data-swiping:duration-0" />
+      <Drawer.Backdrop className="fixed inset-0 z-50 bg-black/45 opacity-[calc(1-var(--drawer-swipe-progress))] [transition:opacity_var(--spring-effects)] data-starting-style:opacity-0 data-ending-style:opacity-0 data-swiping:duration-0" />
       <Drawer.Viewport
         className={cn("fixed inset-0 z-50 flex", side === "left" ? "justify-start" : "justify-end")}
       >
         <Drawer.Popup
           style={{ "--sheet-out": out } as React.CSSProperties}
           className={cn(
-            "flex h-full w-[min(20rem,calc(100vw-3rem))] flex-col overflow-y-auto overscroll-contain bg-background outline-none",
-            side === "left" ? "rounded-r-3xl" : "rounded-l-3xl",
+            "flex h-full w-[min(20rem,calc(100vw-3rem))] flex-col overflow-y-auto overscroll-contain border-border bg-background outline-none",
+            side === "left" ? "border-r" : "border-l",
             "[transform:translateX(var(--drawer-swipe-movement-x))] [transition:transform_var(--spring-spatial)]",
             "data-starting-style:[transform:translateX(var(--sheet-out))] data-ending-style:[transform:translateX(var(--sheet-out))]",
             className,
@@ -63,5 +63,10 @@ export function SheetContent({
 }
 
 export function SheetTitle({ className, ...props }: ComponentProps<"h2">) {
-  return <BaseDialog.Title className={cn("text-base font-medium", className)} {...props} />;
+  return (
+    <BaseDialog.Title
+      className={cn("font-display text-base font-semibold", className)}
+      {...props}
+    />
+  );
 }

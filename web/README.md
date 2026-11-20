@@ -37,9 +37,10 @@ src/
   lib/types.ts           JSON shapes of the Go API
   lib/mail.ts            routes, addresses, subjects, quoting, formatting
   lib/sanitize.ts        mail HTML policy (DOMPurify), keep in step with packages/extension
-  styles/tokens.css      colour tokens (soothing dark, the only theme)
-  styles/app.css         Tailwind, fonts, theme mapping
-  test/contrast.test.ts  fails if any text/surface pair in tokens.css is under 4.5:1
+  lib/theme.ts           dark/light/system: useTheme, applyTheme (index.html sets it before paint)
+  styles/tokens.css      colour tokens for the dark (default) and light themes
+  styles/app.css         Tailwind, fonts (Sora, Inter, JetBrains Mono), theme mapping
+  test/contrast.test.ts  fails if any text/surface pair in either theme is under 4.5:1
 public/
   fonts/material-symbols-rounded.woff2   icon subset
   sw.js                  service worker for web push ({title, body, url, tag})
@@ -61,35 +62,45 @@ public/
 1. Create `src/routes/settings/<name>.tsx` with a default export:
 
    ```tsx
-   import { Card, CardContent, CardHeader, CardTitle, List, ListRow, Button } from "@/components/kit";
+   import { Button, List, ListRow } from "@/components/kit";
    import { useMailboxes } from "@/lib/api";
+   import { PageAction, StatusDot } from "./parts";
 
    export default function Mailboxes() {
      const mailboxes = useMailboxes();
      return (
-       <Card>
-         <CardHeader><CardTitle>Mailboxes</CardTitle></CardHeader>
-         <CardContent>
-           <List>
-             {mailboxes.data?.map((m) => <ListRow key={m.id} icon="alternate_email" title={m.address} />)}
-           </List>
-         </CardContent>
-       </Card>
+       <>
+         <PageAction><Button variant="primary" icon="add">Add mailbox</Button></PageAction>
+         <List>
+           {mailboxes.data?.map((m) => (
+             <ListRow key={m.id} title={m.display_name} description={m.address}
+               action={<StatusDot tone="ok">Receiving</StatusDot>} />
+           ))}
+         </List>
+       </>
      );
    }
    ```
 
-2. In `src/routes/settings/pages.ts`, add `load` to the page's entry (or a new
-   entry; `icon` must be in the icon subset):
+2. In `src/routes/settings/pages.ts`, add the page's entry (`icon` must be in
+   the icon subset; `description` is the line under the title):
 
    ```ts
-   { path: "mailboxes", title: "Mailboxes", icon: "alternate_email", group: "Mail",
+   { path: "mailboxes", title: "Mailboxes", group: "Sending", icon: "alternate_email",
+     description: "The addresses that send and receive mail.",
      load: () => import("./mailboxes") },
    ```
 
-That is all: the router, the settings nav and the page title read that list.
-The page renders inside the settings shell (header with the title, a centred
-`max-w-3xl` column). Nothing else needs to change.
+That is all: the router, the settings nav and the page header read that list.
+The page renders inside the settings shell (a centred 760px column under the
+big title and its description; `<PageAction>` puts the primary action on the
+title row). Nothing else needs to change.
+
+Settings pieces in `src/routes/settings/parts.tsx`: `PageAction`, `Section`
+(heading + muted line, no box), `StatusDot` (`ok | pending | bad | off`),
+`DangerZone` + `DangerRow` (last on the page), `CopyValue`, `Notice`,
+`SwitchRow`, `PageLoading`, `LoadError`. Secrets shown once: `OnceSecret` in
+`src/components/app/copy.tsx`.
 
 ### Data for a page
 
@@ -138,36 +149,44 @@ webhooks, logs, metrics, push subscribe (`POST /api/app/push/subscribe`, with
   `Select` (+ `SelectTrigger`, `SelectContent`, `SelectItem`; pass `items` to
   the root so the trigger shows labels), `Switch`, `Checkbox`, `ColorPicker`,
   `ColorInput`.
-- Actions: `Button` (variants `primary | tonal | ghost | destructive`, sizes
-  `sm | md | lg`, `icon`, `loading`; `render={<Link to=... />} nativeButton={false}`
+- Actions: `Button` (variants `primary | tonal | outline | ghost | destructive`,
+  sizes `xs | sm | md | lg`, `icon`, `loading`; `render={<Link to=... />} nativeButton={false}`
   for links), `IconButton` (`icon` + required `label`), `Tooltip`.
+- People: `Avatar` (`name`, `address`; initials on a tint from the address,
+  with `/api/app/avatar` laid over once it loads), `Badge` (`neutral | accent |
+  strong | danger`), `Count`.
 - Overlays: `Dialog` (+ `DialogContent`, `DialogHeader`, `DialogTitle`,
   `DialogDescription`, `DialogFooter`, `DialogClose`; a bottom sheet on phones),
   `ConfirmDialog` for anything destructive, `DropdownMenu` (+ `...Trigger`,
   `...Content`, `...Item`, `...LinkItem`, `...CheckboxItem`, `...Label`,
   `...Separator`), `Popover`, `Sheet`, `Tabs` (+ `TabsList`, `TabsTab`,
   `TabsPanel`), `ProgressBar`, `toast`.
-- Text: Google Sans Flex by default; add `font-mono` (Geist Mono) for values
-  read as data: addresses, DNS records, ids, keys.
+- Text: Inter by default, Sora for headings (h1-h3 get it; `font-display`
+  elsewhere), `font-mono` (JetBrains Mono) for values read as data: times,
+  addresses, DNS records, ids, keys, counts.
 
 Triggers take the element to render as `render`, Base UI style:
 `<DropdownMenuTrigger render={<IconButton icon="more_vert" label="More" />} />`.
 
 ## Design rules
 
-- Colours only from tokens (`bg-surface`, `bg-box`, `bg-field`, `bg-tonal`,
-  `bg-selected`, `text-muted-foreground`, `text-destructive`...). No accent
-  colour; no light mode. Change `tokens.css` only with `pnpm test` green.
-- Shape: pills for buttons, `rounded-3xl` cards and dialogs, `rounded-2xl`
-  menus, `rounded-xl` fields.
+Full rules: `docs/design.md`.
+
+- Colours only from tokens (`bg-background`, `bg-surface`, `bg-surface-high`,
+  `bg-tonal`, `bg-accent-soft`, `border-border`, `text-soft-foreground`,
+  `text-muted-foreground`, `text-accent`, `text-destructive`...), so both
+  themes work. Change `tokens.css` only with `pnpm test` green.
+- Shape: flat panels with a 1px `border-border`, 14px corners for cards, 16px
+  dialogs, 8-10px buttons and fields. No pill buttons; only filter chips and
+  avatars are round.
 - Motion: springs from `components/kit/motion.ts` (`spatial`, `spatialFast`,
   `effects`) for motion components; CSS uses `var(--spring-spatial)` and
-  `var(--spring-effects)`. Reduced motion is handled globally.
+  `var(--spring-effects)`. No press morphs. Reduced motion is handled globally.
 - Every icon-only control has a label (`IconButton` requires one).
 
 ## Icons
 
-Material Symbols Rounded, self-hosted as a subset (~30 KB). To add an icon, add
+Material Symbols Rounded (weight 300), self-hosted as a subset (~34 KB). To add an icon, add
 its name to `ICONS` in `scripts/fetch-icons.mjs`, run `pnpm icons`, commit the
 new `public/fonts/material-symbols-rounded.woff2`, and bump `?v=` in
 `src/styles/app.css` and `index.html`. Render with `<Icon name="inbox" />`.

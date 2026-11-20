@@ -26,6 +26,8 @@ const ICONS = [
   "cloud",
   "code",
   "content_copy",
+  "contrast",
+  "dark_mode",
   "dashboard",
   "delete",
   "delete_forever",
@@ -61,6 +63,7 @@ const ICONS = [
   "language",
   "link",
   "list_alt",
+  "light_mode",
   "lock",
   "logout",
   "mail",
@@ -104,7 +107,7 @@ const ICONS = [
 
 const names = [...new Set(ICONS)].sort().join(",");
 const css = await fetch(
-  `https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&icon_names=${names}&display=block`,
+  `https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300,0..1,0&icon_names=${names}&display=block`,
   // A browser user agent, or Google serves TTF instead of woff2.
   {
     headers: {

@@ -18,7 +18,7 @@ export function useOwner() {
 export function Splash() {
   return (
     <div className="grid h-dvh place-items-center">
-      <Logo className="size-10 animate-pulse" />
+      <Logo className="size-5 animate-pulse rounded-[5px]" />
     </div>
   );
 }

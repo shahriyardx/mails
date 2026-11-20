@@ -1,43 +1,97 @@
-/* Soothing dark: the only theme. Values follow the "Color: soothing dark"
-   table in docs/specs/2026-11-20-mails-design.md. Every grey sits at hue 85 with
-   chroma at or below 0.01. Surfaces are mixed from --foreground into
-   --background in srgb (an oklch mix of two greys drifts in hue).
+/* Colour tokens for both themes. docs/design.md explains each one.
 
-   src/test/contrast.test.ts parses this file: every text/background pair
-   must stay at or above 4.5:1. --muted-foreground drops under that past an
-   11% mix, so no surface that carries text goes beyond 11%. */
-:root {
+   Dark is the default; <html data-theme="light"> switches. index.html sets
+   the attribute before first paint from localStorage ("mails-theme"), and
+   src/lib/theme.ts keeps it in step with Settings -> Appearance. The
+   attribute always holds the resolved theme ("dark" or "light"), never
+   "system", so CSS has no prefers-color-scheme branch.
+
+   src/test/contrast.test.ts parses both blocks: every text/background pair
+   must stay at or above 4.5:1 in each theme. */
+:root,
+:root[data-theme="dark"] {
   color-scheme: dark;
 
-  --background: oklch(0.2 0.005 85);
-  --foreground: oklch(0.88 0.01 85);
-  --muted-foreground: oklch(0.66 0.008 85);
-  --primary: oklch(0.8 0.01 85);
-  --primary-foreground: var(--background);
-  --destructive: oklch(0.68 0.1 25);
+  --background: #16151a;
+  --foreground: #ecebf0;
+  --soft-foreground: #b9b7c3;
+  --muted-foreground: #94929f;
 
-  /* Tonal surfaces, each a small step lighter than what it sits on. */
-  --surface-1: color-mix(in srgb, var(--foreground) 4%, var(--background));
-  --surface-2: color-mix(in srgb, var(--foreground) 7%, var(--background));
-  --surface-box: color-mix(in srgb, var(--foreground) 7%, var(--background));
-  --field-card: color-mix(in srgb, var(--foreground) 9%, var(--background));
-  --field-box: color-mix(in srgb, var(--foreground) 11%, var(--background));
-  --border: color-mix(in srgb, var(--foreground) 12%, var(--background));
-  --input: color-mix(in srgb, var(--foreground) 16%, var(--background));
+  /* Lavender: the one accent. --primary fills, --accent is accent text. */
+  --primary: #a99cf5;
+  --primary-foreground: #16151a;
+  --accent: #a99cf5;
+  --accent-soft: #2a2640;
 
-  /* Tonal buttons and hover/selected fills. */
-  --tonal: color-mix(in srgb, var(--foreground) 9%, var(--background));
-  --tonal-hover: color-mix(in srgb, var(--foreground) 11%, var(--background));
-  --tonal-foreground: var(--foreground);
-  --selected: color-mix(in srgb, var(--foreground) 10%, var(--background));
+  --destructive: #f0938b;
+  --destructive-soft: #3a2226;
 
-  /* Errors: a soft wash with the destructive text on it. */
-  --destructive-soft: color-mix(in srgb, var(--destructive) 14%, var(--background));
+  /* Panels are flat, each separated by a hairline (--border). */
+  --surface-1: #1d1c22;
+  --surface-2: #232229;
+  --surface-box: #1a191f;
+  --field-card: #18171c;
+  --field-box: #1d1c22;
+  --border: #2a2930;
+  --input: #3a3942;
 
-  /* Focus: an off-white ring, no accent colour. */
-  --ring: color-mix(in srgb, var(--foreground) 75%, var(--background));
+  /* Chips, secondary buttons and their hover; the selected fill. */
+  --tonal: #25242b;
+  --tonal-hover: #2c2b33;
+  --tonal-foreground: #ecebf0;
+  --selected: #24232a;
 
-  /* Snackbars: the inverse of the page, as Material does it. */
-  --inverse: var(--primary);
-  --inverse-foreground: var(--background);
+  --ring: #a99cf5;
+
+  /* Tooltips and toasts: the opposite of the page. */
+  --inverse: #ecebf0;
+  --inverse-foreground: #16151a;
+
+  /* Popup shadow and the initials avatar (hue comes from the address). */
+  --shadow: rgb(0 0 0 / 0.45);
+  --avatar-bg-l: 0.34;
+  --avatar-bg-c: 0.07;
+  --avatar-fg-l: 0.88;
+  --avatar-fg-c: 0.07;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --background: #f6f5f9;
+  --foreground: #1b1a22;
+  --soft-foreground: #4b4957;
+  --muted-foreground: #686574;
+
+  --primary: #6b5bd6;
+  --primary-foreground: #ffffff;
+  --accent: #5b4bc8;
+  --accent-soft: #ece9fb;
+
+  --destructive: #b8362f;
+  --destructive-soft: #fbe9e7;
+
+  --surface-1: #ffffff;
+  --surface-2: #ffffff;
+  --surface-box: #f8f7fb;
+  --field-card: #ffffff;
+  --field-box: #ffffff;
+  --border: #e6e4ee;
+  --input: #d4d1de;
+
+  --tonal: #efedf5;
+  --tonal-hover: #e7e5ef;
+  --tonal-foreground: #1b1a22;
+  --selected: #f1effa;
+
+  --ring: #6b5bd6;
+
+  --inverse: #1b1a22;
+  --inverse-foreground: #f6f5f9;
+
+  --shadow: rgb(27 26 34 / 0.12);
+  --avatar-bg-l: 0.93;
+  --avatar-bg-c: 0.04;
+  --avatar-fg-l: 0.45;
+  --avatar-fg-c: 0.13;
 }
