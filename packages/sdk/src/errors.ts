@@ -5,7 +5,7 @@
  * The server sends `{ error, code }` on every non-2xx reply, so `code` is the
  * field to branch on and `message` is the sentence to log.
  */
-export type MailroomErrorCode =
+export type MailsErrorCode =
   | "unauthorized"
   | "forbidden"
   | "not_found"
@@ -19,9 +19,9 @@ export type MailroomErrorCode =
   /** No reply within the configured timeout. */
   | "timeout";
 
-export interface MailroomErrorOptions {
+export interface MailsErrorOptions {
   status: number;
-  code: MailroomErrorCode;
+  code: MailsErrorCode;
   /** The decoded reply body, when there was one. */
   body?: unknown;
   /** Which field the server objected to, for `invalid_request`. */
@@ -32,15 +32,15 @@ export interface MailroomErrorOptions {
 }
 
 /** The base class every error this package throws extends. */
-export class MailroomError extends Error {
+export class MailsError extends Error {
   readonly status: number;
-  readonly code: MailroomErrorCode;
+  readonly code: MailsErrorCode;
   readonly body: unknown;
   readonly param?: string;
   readonly method?: string;
   readonly path?: string;
 
-  constructor(message: string, options: MailroomErrorOptions) {
+  constructor(message: string, options: MailsErrorOptions) {
     super(message, options.cause === undefined ? undefined : { cause: options.cause });
     this.name = new.target.name;
     this.status = options.status;
@@ -53,17 +53,17 @@ export class MailroomError extends Error {
 }
 
 /** 401 — the key is missing, mistyped, or has been revoked. */
-export class AuthenticationError extends MailroomError {}
+export class AuthenticationError extends MailsError {}
 
 /**
  * 403 — the key is real but not allowed to do this. Either it lacks a scope,
  * or the thing being touched is outside its reach.
  */
-export class PermissionError extends MailroomError {
+export class PermissionError extends MailsError {
   /** The scope the endpoint wanted, when a missing scope was the reason. */
   readonly requiredScope?: string;
 
-  constructor(message: string, options: MailroomErrorOptions) {
+  constructor(message: string, options: MailsErrorOptions) {
     super(message, options);
     const body = options.body as { required_scope?: string } | undefined;
     this.requiredScope = body?.required_scope;
@@ -71,41 +71,41 @@ export class PermissionError extends MailroomError {
 }
 
 /** 404 — no such object, or none this key may see. The two look the same on purpose. */
-export class NotFoundError extends MailroomError {}
+export class NotFoundError extends MailsError {}
 
 /** 422 — the request was understood and is wrong. `param` names the field. */
-export class ValidationError extends MailroomError {}
+export class ValidationError extends MailsError {}
 
 /** 409 — it already exists, or a destructive call needs its confirmation flag. */
-export class ConflictError extends MailroomError {}
+export class ConflictError extends MailsError {}
 
 /** 413 — the body is over the 30 MB limit. Usually an attachment. */
-export class PayloadTooLargeError extends MailroomError {}
+export class PayloadTooLargeError extends MailsError {}
 
 /** 429 — too many calls this minute. */
-export class RateLimitError extends MailroomError {
+export class RateLimitError extends MailsError {
   /** Seconds to wait, straight from the `Retry-After` header. */
   readonly retryAfter?: number;
 
-  constructor(message: string, options: MailroomErrorOptions & { retryAfter?: number }) {
+  constructor(message: string, options: MailsErrorOptions & { retryAfter?: number }) {
     super(message, options);
     this.retryAfter = options.retryAfter;
   }
 }
 
 /** 5xx — the instance failed. Safe to retry. */
-export class ServerError extends MailroomError {}
+export class ServerError extends MailsError {}
 
 /** The request never got a reply: DNS, TLS, a dropped socket, an abort. */
-export class ConnectionError extends MailroomError {
-  constructor(message: string, options: Omit<MailroomErrorOptions, "status" | "code">) {
+export class ConnectionError extends MailsError {
+  constructor(message: string, options: Omit<MailsErrorOptions, "status" | "code">) {
     super(message, { ...options, status: 0, code: "connection_error" });
   }
 }
 
 /** No reply within `timeout` milliseconds. */
-export class TimeoutError extends MailroomError {
-  constructor(message: string, options: Omit<MailroomErrorOptions, "status" | "code">) {
+export class TimeoutError extends MailsError {
+  constructor(message: string, options: Omit<MailsErrorOptions, "status" | "code">) {
     super(message, { ...options, status: 0, code: "timeout" });
   }
 }
@@ -118,11 +118,11 @@ export class WebhookVerificationError extends Error {
   }
 }
 
-export function isMailroomError(value: unknown): value is MailroomError {
-  return value instanceof MailroomError;
+export function isMailsError(value: unknown): value is MailsError {
+  return value instanceof MailsError;
 }
 
-const BY_STATUS: Record<number, typeof MailroomError> = {
+const BY_STATUS: Record<number, typeof MailsError> = {
   401: AuthenticationError,
   403: PermissionError,
   404: NotFoundError,
@@ -139,15 +139,15 @@ export function errorFromResponse(
   headers: Headers,
   method: string,
   path: string,
-): MailroomError {
-  const shape = body as { error?: string; code?: MailroomErrorCode; param?: string } | undefined;
+): MailsError {
+  const shape = body as { error?: string; code?: MailsErrorCode; param?: string } | undefined;
   const message =
     typeof shape?.error === "string" && shape.error.length > 0
       ? shape.error
-      : `Mailroom replied ${status}`;
+      : `Mails replied ${status}`;
   const code = shape?.code ?? fallbackCode(status);
 
-  const options: MailroomErrorOptions = { status, code, body, param: shape?.param, method, path };
+  const options: MailsErrorOptions = { status, code, body, param: shape?.param, method, path };
 
   if (status === 429) {
     const header = headers.get("retry-after");
@@ -158,11 +158,11 @@ export function errorFromResponse(
     });
   }
 
-  const Kind = BY_STATUS[status] ?? (status >= 500 ? ServerError : MailroomError);
+  const Kind = BY_STATUS[status] ?? (status >= 500 ? ServerError : MailsError);
   return new Kind(message, options);
 }
 
-function fallbackCode(status: number): MailroomErrorCode {
+function fallbackCode(status: number): MailsErrorCode {
   if (status === 401) return "unauthorized";
   if (status === 403) return "forbidden";
   if (status === 404) return "not_found";

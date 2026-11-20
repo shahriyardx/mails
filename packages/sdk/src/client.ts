@@ -1,4 +1,4 @@
-import { HttpClient, type MailroomOptions, type RequestOptions } from "./http.js";
+import { HttpClient, type MailsOptions, type RequestOptions } from "./http.js";
 import { Attachments } from "./resources/attachments.js";
 import { Contacts } from "./resources/contacts.js";
 import { Domains } from "./resources/domains.js";
@@ -8,19 +8,18 @@ import { Mailboxes } from "./resources/mailboxes.js";
 import { Messages } from "./resources/messages.js";
 import { StatsResource } from "./resources/stats.js";
 import { Suppressions } from "./resources/suppressions.js";
-import { Templates } from "./resources/templates.js";
 import { Threads } from "./resources/threads.js";
 import { Webhooks } from "./resources/webhooks.js";
 import type { ApiKeyInfo } from "./types.js";
 
 /**
- * A Mailroom instance, as one object.
+ * A Mails instance, as one object.
  *
  * ```ts
- * import { Mailroom } from "@shahriyardx/mailroom";
+ * import { Mails } from "@shahriyardx/mails";
  *
- * const mail = new Mailroom({
- *   apiKey: process.env.MAILROOM_API_KEY,
+ * const mail = new Mails({
+ *   apiKey: process.env.MAILS_API_KEY,
  *   baseUrl: "https://mail.example.com",
  * });
  *
@@ -32,10 +31,10 @@ import type { ApiKeyInfo } from "./types.js";
  * });
  * ```
  *
- * Both settings fall back to `MAILROOM_API_KEY` and `MAILROOM_BASE_URL`, so
- * `new Mailroom()` is enough when the environment is set.
+ * Both settings fall back to `MAILS_API_KEY` and `MAILS_BASE_URL`, so
+ * `new Mails()` is enough when the environment is set.
  */
-export class Mailroom {
+export class Mails {
   /** The HTTP layer, for an endpoint this package has not wrapped yet. */
   readonly http: HttpClient;
 
@@ -57,14 +56,12 @@ export class Mailroom {
   readonly contacts: Contacts;
   /** Addresses that will not be sent to again. */
   readonly suppressions: Suppressions;
-  /** Saved subjects and bodies, sent by name. */
-  readonly templates: Templates;
   /** Where events are sent, and what happened when they were. */
   readonly webhooks: Webhooks;
   /** How much was sent and received, and how it landed. */
   readonly stats: StatsResource;
 
-  constructor(options: MailroomOptions = {}) {
+  constructor(options: MailsOptions = {}) {
     this.http = new HttpClient(options);
     this.emails = new Emails(this.http);
     this.threads = new Threads(this.http);
@@ -75,7 +72,6 @@ export class Mailroom {
     this.labels = new Labels(this.http);
     this.contacts = new Contacts(this.http);
     this.suppressions = new Suppressions(this.http);
-    this.templates = new Templates(this.http);
     this.webhooks = new Webhooks(this.http);
     this.stats = new StatsResource(this.http);
   }

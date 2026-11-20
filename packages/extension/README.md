@@ -1,6 +1,6 @@
-# Mailroom browser extension
+# Mails browser extension
 
-Your [Mailroom](https://github.com/shahriyardx/mailroom) inbox in the toolbar.
+Your Mails inbox in the toolbar.
 One codebase, three browsers: Chrome, Firefox and Edge.
 
 It holds the address of your instance and an API key you made, and calls your
@@ -79,4 +79,4 @@ there.
 
 ## Licence
 
-PolyForm Noncommercial 1.0.0, the same as the rest of Mailroom.
+PolyForm Noncommercial 1.0.0, the same as the rest of Mails.

@@ -1,8 +1,8 @@
 {
-  "name": "mailroom-extension",
+  "name": "mails-extension",
   "version": "0.1.0",
   "private": true,
-  "description": "Mailroom in the browser toolbar: new-mail notifications, inbox and reading, for Chrome, Firefox and Edge.",
+  "description": "Mails in the browser toolbar: new-mail notifications, inbox and reading, for Chrome, Firefox and Edge.",
   "license": "PolyForm-Noncommercial-1.0.0",
   "author": "Md Shahriyar Alam <mdshahriyaralam552@gmail.com>",
   "type": "module",
@@ -17,9 +17,12 @@
     "zip:firefox": "wxt zip -b firefox",
     "zip:all": "wxt zip && wxt zip -b firefox && wxt zip -b edge",
     "prepare": "wxt prepare",
-    "typecheck": "wxt prepare && tsc --noEmit"
+    "typecheck": "wxt prepare && tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@fontsource-variable/geist-mono": "^5.3.0",
+    "@fontsource-variable/google-sans-flex": "^5.3.2",
     "dompurify": "^3.2.3",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
@@ -30,9 +33,11 @@
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^5.0.0",
+    "jsdom": "^31.0.1",
     "tailwindcss": "^4.1.0",
     "typescript": "^5.7.2",
     "vite": "^7.0.0",
+    "vitest": "^5.1.1",
     "wxt": "^0.21.0"
   }
 }

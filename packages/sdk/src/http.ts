@@ -1,6 +1,6 @@
 import {
   ConnectionError,
-  MailroomError,
+  MailsError,
   RateLimitError,
   TimeoutError,
   errorFromResponse,
@@ -11,16 +11,16 @@ import type { Page } from "./types.js";
 export type QueryValue = string | number | boolean | Date | string[] | null | undefined;
 export type Query = Record<string, QueryValue>;
 
-export interface MailroomOptions {
+export interface MailsOptions {
   /**
    * The key, `mk_live_…`, from Settings → API keys.
-   * Defaults to `process.env.MAILROOM_API_KEY`.
+   * Defaults to `process.env.MAILS_API_KEY`.
    */
   apiKey?: string;
   /**
    * Where your instance lives, e.g. `https://mail.example.com`. The `/api/v1`
    * suffix is added for you if you leave it off.
-   * Defaults to `process.env.MAILROOM_BASE_URL`.
+   * Defaults to `process.env.MAILS_BASE_URL`.
    */
   baseUrl?: string;
   /** Milliseconds to wait for a reply. Default 30000. */
@@ -96,18 +96,18 @@ export class HttpClient {
   /** The rate-limit headers from the most recent reply, or null before one. */
   rateLimit: RateLimitState | null = null;
 
-  constructor(options: MailroomOptions = {}) {
-    const apiKey = options.apiKey ?? env("MAILROOM_API_KEY");
+  constructor(options: MailsOptions = {}) {
+    const apiKey = options.apiKey ?? env("MAILS_API_KEY");
     if (!apiKey) {
       throw new Error(
-        "No API key. Pass { apiKey } or set MAILROOM_API_KEY. Keys are made in Settings → API keys.",
+        "No API key. Pass { apiKey } or set MAILS_API_KEY. Keys are made in Settings → API keys.",
       );
     }
 
-    const baseUrl = options.baseUrl ?? env("MAILROOM_BASE_URL");
+    const baseUrl = options.baseUrl ?? env("MAILS_BASE_URL");
     if (!baseUrl) {
       throw new Error(
-        "No base URL. Pass { baseUrl: 'https://mail.example.com' } or set MAILROOM_BASE_URL.",
+        "No base URL. Pass { baseUrl: 'https://mail.example.com' } or set MAILS_BASE_URL.",
       );
     }
 
@@ -142,13 +142,13 @@ export class HttpClient {
     const repeatable = call.method === "GET" || Boolean(call.options?.idempotencyKey);
     const attempts = repeatable ? this.maxRetries + 1 : 1;
 
-    let lastError: MailroomError | undefined;
+    let lastError: MailsError | undefined;
 
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
       try {
         return await this.once(url, call);
       } catch (error) {
-        if (!(error instanceof MailroomError)) throw error;
+        if (!(error instanceof MailsError)) throw error;
         if (attempt === attempts || !worthRetrying(error)) throw error;
         lastError = error;
         await sleep(backoffMs(attempt, error));
@@ -163,7 +163,7 @@ export class HttpClient {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.apiKey}`,
       Accept: call.raw ? "*/*" : "application/json",
-      "User-Agent": `mailroom-node/${VERSION}`,
+      "User-Agent": `mails-node/${VERSION}`,
       ...this.extraHeaders,
       ...call.options?.headers,
     };
@@ -268,7 +268,7 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
-function worthRetrying(error: MailroomError) {
+function worthRetrying(error: MailsError) {
   return (
     error.code === "connection_error" ||
     error.code === "timeout" ||
@@ -278,7 +278,7 @@ function worthRetrying(error: MailroomError) {
 }
 
 /** Exponential, with jitter, and never shorter than the server asked for. */
-function backoffMs(attempt: number, error: MailroomError) {
+function backoffMs(attempt: number, error: MailsError) {
   if (error instanceof RateLimitError && error.retryAfter) {
     return Math.min(error.retryAfter * 1000, 60_000);
   }

@@ -18,5 +18,11 @@ MAX_ATTACHMENT_BYTES = "26214400"
 # Optional: also forward every message on to these addresses, comma separated.
 # Each one must be verified under Email Routing -> Destination addresses.
 FORWARD_TO = ""
+# Read SPF/DKIM/DMARC from Cloudflare's Authentication-Results header. Off by
+# default: nothing in a message proves Cloudflare wrote that header, and a
+# sender can forge one. Turn on only after checking a raw .eml in R2 shows
+# "Authentication-Results: mx.cloudflare.net; ..." as the topmost one on
+# every message. See PAYLOAD.md.
+TRUST_AUTH_RESULTS = "false"
 
 # Secret, set with: wrangler secret put INBOUND_WEBHOOK_SECRET --config worker/wrangler.toml

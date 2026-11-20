@@ -17,16 +17,16 @@ export default defineConfig({
   srcDir: ".",
   outDir: ".output",
   manifest: {
-    name: "Mailroom",
-    short_name: "Mailroom",
-    description: "Your Mailroom inbox in the toolbar: new mail notifications, read and triage.",
+    name: "Mails",
+    short_name: "Mails",
+    description: "Your Mails inbox in the toolbar: new mail notifications, read and triage.",
     // The base URL is whatever the reader self-hosts, so it cannot be named
     // up front. The host permission is asked for on the connect screen and
     // narrowed to that one origin.
     permissions: ["storage", "alarms", "notifications"],
     optional_host_permissions: ["https://*/*", "http://*/*"],
     action: {
-      default_title: "Mailroom",
+      default_title: "Mails",
     },
     // A real tab, not the panel inside the add-ons page: the connect screen
     // asks for a host permission, and a prompt raised from a cramped embedded
@@ -36,7 +36,7 @@ export default defineConfig({
     },
     browser_specific_settings: {
       gecko: {
-        id: "mailroom@shahriyar.dev",
+        id: "mails@shahriyar.dev",
         strict_min_version: "115.0",
       },
     },

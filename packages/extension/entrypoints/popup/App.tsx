@@ -13,7 +13,7 @@ import {
 } from "@/lib/api";
 import { cacheList, cacheMailboxes, cachedList, cachedMailboxes } from "@/lib/cache";
 import { cx } from "@/lib/format";
-import { openTab, refreshBadge, useDebounced, useSettings, useTheme } from "@/lib/hooks";
+import { openTab, refreshBadge, useDebounced, useSettings } from "@/lib/hooks";
 import { isConnected, watchesNothing } from "@/lib/settings";
 import {
   type ApiMailbox,
@@ -56,7 +56,6 @@ const PAGE = 25;
 
 export function App({ inTab }: { inTab: boolean }) {
   const { settings, update } = useSettings();
-  const dark = useTheme(settings?.theme);
 
   const [view, setView] = useState<View>("inbox");
   const [search, setSearch] = useState("");
@@ -391,7 +390,6 @@ export function App({ inTab }: { inTab: boolean }) {
       error={openError}
       view={view}
       settings={settings}
-      dark={dark}
       showBack={!wide}
       onBack={closeThread}
       roomy={wide}
@@ -539,7 +537,7 @@ function Header({
         </>
       ) : (
         <>
-          <span className="ml-1 mr-1 text-[13.5px] font-semibold tracking-[-0.01em]">Mailroom</span>
+          <span className="ml-1 mr-1 text-[13.5px] font-semibold tracking-[-0.01em]">Mails</span>
 
           {mailboxes.length > 1 ? (
             <MailboxPicker
@@ -565,7 +563,7 @@ function Header({
                 <Maximize2 />
               </IconButton>
             ) : null}
-            <IconButton label="Open Mailroom" onClick={onOpenApp}>
+            <IconButton label="Open Mails" onClick={onOpenApp}>
               <ExternalLink />
             </IconButton>
             <IconButton label="Settings" onClick={() => void browser.runtime.openOptionsPage()}>
@@ -609,7 +607,7 @@ function Rail({
   return (
     <nav className="flex w-[216px] shrink-0 flex-col border-r border-border bg-rail">
       <div className="flex h-12 shrink-0 items-center gap-2 px-4">
-        <span className="text-[14px] font-semibold tracking-[-0.01em]">Mailroom</span>
+        <span className="text-[14px] font-semibold tracking-[-0.01em]">Mails</span>
       </div>
 
       <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 py-1">
@@ -632,7 +630,7 @@ function Rail({
       </div>
 
       <div className="shrink-0 space-y-0.5 border-t border-border px-2 py-2">
-        <RailAction icon={<ExternalLink />} label="Open Mailroom" onClick={onOpenApp} />
+        <RailAction icon={<ExternalLink />} label="Open Mails" onClick={onOpenApp} />
         <RailAction
           icon={<Settings />}
           label="Settings"
@@ -765,7 +763,7 @@ function Connect() {
       <div className="flex size-11 items-center justify-center rounded-full bg-primary-soft text-primary-soft-foreground">
         <Plug className="size-5" />
       </div>
-      <div className="text-[15px] font-semibold">Connect to Mailroom</div>
+      <div className="text-[15px] font-semibold">Connect to Mails</div>
       <p className="text-[12.5px] text-muted-foreground">
         Point this at your own instance with its address and an API key, and your inbox turns up
         here.

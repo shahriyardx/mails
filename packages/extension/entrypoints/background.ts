@@ -17,7 +17,7 @@ import { defineBackground } from "wxt/utils/define-background";
  * is exactly the property needed here.
  */
 
-const ALARM = "mailroom:poll";
+const ALARM = "mails:poll";
 const SEEN_KEY = "seen";
 const STATE_KEY = "state";
 
@@ -59,13 +59,13 @@ async function paintBadge(count: number, settings: Settings) {
   const text = !settings.badge || count === 0 ? "" : count > 99 ? "99+" : String(count);
   try {
     await browser.action.setBadgeText({ text });
-    await browser.action.setBadgeBackgroundColor({ color: "#5b5bd6" });
-    // Firefox picks its own text colour, and picks a poor one against indigo.
+    await browser.action.setBadgeBackgroundColor({ color: "#c1bdb7" }); // --primary
+    // Firefox picks its own text colour, and picks a poor one against grey.
     // Chrome grew this call later than the rest, so it is allowed to be absent.
     const action = browser.action as typeof browser.action & {
       setBadgeTextColor?: (details: { color: string }) => Promise<void>;
     };
-    await action.setBadgeTextColor?.({ color: "#ffffff" });
+    await action.setBadgeTextColor?.({ color: "#171613" }); // --background
   } catch {
     // A browser that cannot paint a badge still polls and notifies.
   }
@@ -86,7 +86,7 @@ async function poll(): Promise<void> {
 
   if (!isConnected(settings)) {
     await paintBadge(0, settings);
-    await setTitle("Mailroom — not connected");
+    await setTitle("Mails — not connected");
     await setState({ unread: 0, error: null });
     return;
   }
@@ -101,7 +101,7 @@ async function poll(): Promise<void> {
         ? error.message
         : "Something went wrong while checking for new mail.";
     await setState({ error: message, lastPolledAt: Date.now() });
-    await setTitle(`Mailroom — ${message}`);
+    await setTitle(`Mails — ${message}`);
     // The badge is left as it was: blanking it on a dropped connection would
     // read as "you have nothing", which is a different and wrong claim.
     return;
@@ -112,7 +112,7 @@ async function poll(): Promise<void> {
   const seen = await getSeen();
 
   await paintBadge(unread, settings);
-  await setTitle(unread === 0 ? "Mailroom" : `Mailroom — ${unread} unread`);
+  await setTitle(unread === 0 ? "Mails" : `Mails — ${unread} unread`);
 
   const fresh = threads.filter((thread) => {
     const stamp = Date.parse(thread.last_message_at);
@@ -165,7 +165,7 @@ async function announce(threads: ApiThread[]) {
       await browser.notifications.create(`more:${Date.now()}`, {
         type: "basic",
         iconUrl: icon,
-        title: "Mailroom",
+        title: "Mails",
         message: `and ${rest} more new ${rest === 1 ? "message" : "messages"}`,
       });
     } catch {
