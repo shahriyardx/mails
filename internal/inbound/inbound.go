@@ -346,6 +346,12 @@ func (s *Service) receivedAt(date *string) time.Time {
 // findThread threads on In-Reply-To/References first, then on subject
 // within 30 days. SES replaces our Message-ID with its own
 // (<id@email.amazonses.com>), so a reference also matches ses_message_id.
+//
+// Both signals are written by the sender, so neither alone may put a
+// message into a conversation: anyone can copy a subject, and a Message-ID
+// leaks with every forward. A reference match also needs the sender to be
+// on the thread already or the subject to match; a subject match needs the
+// sender to be on the thread.
 func findThread(ctx context.Context, tx pgx.Tx, mailboxID string, p *Payload, subject string) (string, error) {
 	var refs, sesIDs []string
 	if p.InReplyTo != nil && *p.InReplyTo != "" {
@@ -358,26 +364,34 @@ func findThread(ctx context.Context, tx pgx.Tx, mailboxID string, p *Payload, su
 			sesIDs = append(sesIDs, local)
 		}
 	}
-	var threadID string
+	type cand struct {
+		ID          string
+		Subject     string
+		Participant bool
+	}
+	isParticipant := `t.participants @> jsonb_build_array(jsonb_build_object('address', $2::text))`
 	if len(refs) > 0 {
-		err := tx.QueryRow(ctx, `SELECT thread_id FROM message WHERE mailbox_id = $1
-			AND (rfc_message_id = ANY($2) OR ses_message_id = ANY($3)) ORDER BY received_at DESC LIMIT 1`,
-			mailboxID, refs, nonNil(sesIDs)).Scan(&threadID)
-		if err == nil {
-			return threadID, nil
-		}
-		if !errors.Is(err, pgx.ErrNoRows) {
+		rows, _ := tx.Query(ctx, `SELECT DISTINCT ON (t.id) t.id, t.subject, `+isParticipant+`
+			FROM message m JOIN thread t ON t.id = m.thread_id
+			WHERE m.mailbox_id = $1 AND (m.rfc_message_id = ANY($3) OR m.ses_message_id = ANY($4))
+			ORDER BY t.id LIMIT 20`, mailboxID, p.From.Address, refs, nonNil(sesIDs))
+		cands, err := pgx.CollectRows(rows, pgx.RowToStructByPos[cand])
+		if err != nil {
 			return "", fmt.Errorf("thread by reference: %w", err)
+		}
+		for _, c := range cands {
+			if c.Participant || (subject != "" && strings.EqualFold(addr.NormalizeSubject(c.Subject), subject)) {
+				return c.ID, nil
+			}
 		}
 	}
 	if subject == "" {
 		return "", nil
 	}
 	// The thread's subject may carry "Re:" itself, so compare normalized.
-	rows, _ := tx.Query(ctx, `SELECT id, subject FROM thread WHERE mailbox_id = $1
-		AND last_message_at > now() - interval '30 days' AND lower(subject) LIKE '%' || lower($2)
-		ORDER BY last_message_at DESC LIMIT 20`, mailboxID, subject)
-	type cand struct{ ID, Subject string }
+	rows, _ := tx.Query(ctx, `SELECT t.id, t.subject, true FROM thread t WHERE t.mailbox_id = $1 AND `+isParticipant+`
+		AND t.last_message_at > now() - interval '30 days' AND lower(t.subject) LIKE '%' || lower($3)
+		ORDER BY t.last_message_at DESC LIMIT 20`, mailboxID, p.From.Address, subject)
 	cands, err := pgx.CollectRows(rows, pgx.RowToStructByPos[cand])
 	if err != nil {
 		return "", fmt.Errorf("thread by subject: %w", err)

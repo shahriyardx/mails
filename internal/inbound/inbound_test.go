@@ -18,6 +18,7 @@ import (
 	"github.com/shahriyardx/mails/internal/addr"
 	"github.com/shahriyardx/mails/internal/db/dbtest"
 	"github.com/shahriyardx/mails/internal/inbound"
+	"github.com/shahriyardx/mails/internal/mail"
 	"github.com/shahriyardx/mails/internal/realtime"
 )
 
@@ -107,9 +108,12 @@ func TestReplyToOurSentMailThreadsBySESID(t *testing.T) {
 	ctx := context.Background()
 	_, err := pool.Exec(ctx, `
 		INSERT INTO thread (id, mailbox_id, subject) VALUES ('thr_sent', 'mbx_hi', 'Quote');
-		INSERT INTO message (id, thread_id, mailbox_id, from_address, subject, folder, is_outbound, is_read, ses_message_id, rfc_message_id)
-			VALUES ('msg_sent', 'thr_sent', 'mbx_hi', 'hi@a.test', 'Quote', 'sent', true, true, '0100abc', '<ours@a.test>');`)
+		INSERT INTO message (id, thread_id, mailbox_id, from_address, to_addrs, subject, folder, is_outbound, is_read, ses_message_id, rfc_message_id)
+			VALUES ('msg_sent', 'thr_sent', 'mbx_hi', 'hi@a.test', '[{"name":null,"address":"ada@sender.test"}]', 'Quote', 'sent', true, true, '0100abc', '<ours@a.test>');`)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := mail.Recompute(ctx, pool, "thr_sent"); err != nil {
 		t.Fatal(err)
 	}
 	p := msg("hi@a.test", "<r@sender.test>", "unrelated")
@@ -121,6 +125,36 @@ func TestReplyToOurSentMailThreadsBySESID(t *testing.T) {
 	_ = pool.QueryRow(ctx, `SELECT folders::text FROM thread WHERE id = 'thr_sent'`).Scan(&folders)
 	if folders != "{inbox,sent}" {
 		t.Fatalf("folders = %s", folders)
+	}
+}
+
+func TestStrangerCannotJoinThread(t *testing.T) {
+	s, pool, _ := setup(t)
+	ctx := context.Background()
+	if _, err := s.Ingest(ctx, msg("hi@a.test", "<1@sender.test>", "Invoice 7"), nil); err != nil {
+		t.Fatal(err)
+	}
+	// Same subject from someone else: a new thread.
+	copycat := msg("hi@a.test", "<x@evil.test>", "Re: Invoice 7")
+	copycat.From = addr.Address{Address: "mallory@evil.test"}
+	// A leaked Message-ID with a different subject: a new thread too.
+	leaked := msg("hi@a.test", "<y@evil.test>", "Click here")
+	leaked.From = addr.Address{Address: "mallory@evil.test"}
+	leaked.InReplyTo = ptr("<1@sender.test>")
+	// A leaked Message-ID with the matching subject is a real reply from a
+	// new participant (someone cc'd later), so it joins.
+	cc := msg("hi@a.test", "<z@other.test>", "Re: Invoice 7")
+	cc.From = addr.Address{Address: "colleague@other.test"}
+	cc.References = []string{"<1@sender.test>"}
+	for _, p := range []*inbound.Payload{copycat, leaked, cc} {
+		if _, err := s.Ingest(ctx, p, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var threads int
+	_ = pool.QueryRow(ctx, `SELECT count(*) FROM thread`).Scan(&threads)
+	if threads != 3 {
+		t.Fatalf("threads = %d, want 3 (original+cc, copycat, leaked)", threads)
 	}
 }
 
