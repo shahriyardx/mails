@@ -1,6 +1,6 @@
 import type { HttpClient, RequestOptions } from "../http.js";
 import { paginate } from "../http.js";
-import type { Deleted, Page, Suppression } from "../types.js";
+import type { Deleted, Page, Suppression, SuppressionBlocked } from "../types.js";
 
 export interface ListSuppressionsParams {
   limit?: number;
@@ -42,8 +42,8 @@ export class Suppressions {
   create(
     input: { address: string; reason?: string },
     options?: RequestOptions,
-  ): Promise<Suppression> {
-    return this.http.request<Suppression>({
+  ): Promise<Suppression | SuppressionBlocked> {
+    return this.http.request<Suppression | SuppressionBlocked>({
       method: "POST",
       path: "/suppressions",
       body: input,

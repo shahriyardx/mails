@@ -262,6 +262,13 @@ export interface Suppression {
   created_at: string;
 }
 
+/** What a key that reaches only part of the account gets after blocking. */
+export interface SuppressionBlocked {
+  object: "suppression";
+  address: string;
+  blocked: true;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Webhooks                                                                   */
 /* -------------------------------------------------------------------------- */
