@@ -30,7 +30,7 @@ import {
   validateFilter,
 } from "@/lib/settings";
 import type { Filter, FilterInput } from "@/lib/types";
-import { emptyBox, LoadError, PageAction, PageLoading, rowActions, StatusDot } from "./parts";
+import { emptyBox, LoadError, PageAction, PageLoading, rowActions } from "./parts";
 
 /** Rules run on each inbound message before it lands. */
 export default function Filters() {
@@ -104,9 +104,6 @@ function FilterRow({
           className="flex w-full min-w-0 items-center gap-2.5 text-left outline-none after:absolute after:inset-0 focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-ring"
         >
           <span className="truncate">{filter.name}</span>
-          <StatusDot tone={filter.enabled ? "ok" : "off"}>
-            {filter.enabled ? "On" : "Off"}
-          </StatusDot>
           {filter.priority !== 0 && (
             <span className="font-mono text-xs font-normal text-muted-foreground">
               priority {filter.priority}
@@ -116,7 +113,7 @@ function FilterRow({
       }
       description={<span className="whitespace-normal break-words">{description}</span>}
       action={
-        <div className={cn("relative flex items-center gap-1", rowActions)}>
+        <div className="relative flex items-center gap-1">
           <Switch
             checked={filter.enabled}
             aria-label={`${filter.name} enabled`}
@@ -128,13 +125,15 @@ function FilterRow({
               )
             }
           />
-          <IconButton icon="edit" size="sm" label={`Edit ${filter.name}`} onClick={onEdit} />
-          <IconButton
-            icon="delete"
-            size="sm"
-            label={`Delete ${filter.name}`}
-            onClick={() => setDeleting(true)}
-          />
+          <div className={cn("flex items-center gap-1", rowActions)}>
+            <IconButton icon="edit" size="sm" label={`Edit ${filter.name}`} onClick={onEdit} />
+            <IconButton
+              icon="delete"
+              size="sm"
+              label={`Delete ${filter.name}`}
+              onClick={() => setDeleting(true)}
+            />
+          </div>
         </div>
       }
     >

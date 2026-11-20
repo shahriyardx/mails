@@ -558,8 +558,8 @@ function EndpointDialog({
             )}
           </fieldset>
           <SwitchRow
-            label="On"
-            description="Off keeps the endpoint and its history but stops calls."
+            label="Send events"
+            description="Turn off to pause calls. The endpoint and its history stay."
             checked={enabled}
             onCheckedChange={setEnabled}
             className="border-t border-border pt-5"

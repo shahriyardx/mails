@@ -128,11 +128,7 @@ export default function ApiKeys() {
                           {key.prefix} · {describeScopes(keys.data.areas, key.scopes)} · {used}
                         </span>
                       </span>
-                      {key.revoked_at ? (
-                        <StatusDot tone="off">Revoked</StatusDot>
-                      ) : (
-                        <StatusDot tone="ok">Active</StatusDot>
-                      )}
+                      {key.revoked_at && <StatusDot tone="off">Revoked</StatusDot>}
                     </button>
                     <div className={cn(ROW_ACTIONS, expanded && "md:opacity-100")}>
                       {key.revoked_at ? (
