@@ -27,6 +27,8 @@ type Fake struct {
 	// AccountToken makes the user token check fail, as Cloudflare does for
 	// tokens made on the Account API tokens page.
 	AccountToken bool
+	// ZonesErr, when set, is what Zones returns.
+	ZonesErr error
 }
 
 func New(zones ...cloudflare.Zone) *Fake {
@@ -55,7 +57,12 @@ func (f *Fake) VerifyToken(_ context.Context, accountID string) error {
 	return f.check()
 }
 
-func (f *Fake) Zones(context.Context) ([]cloudflare.Zone, error) { return f.ZoneList, f.check() }
+func (f *Fake) Zones(context.Context) ([]cloudflare.Zone, error) {
+	if f.ZonesErr != nil {
+		return nil, f.ZonesErr
+	}
+	return f.ZoneList, f.check()
+}
 
 func (f *Fake) WorkerModified(context.Context, string, string) (*time.Time, error) {
 	f.mu.Lock()

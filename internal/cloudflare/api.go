@@ -89,7 +89,8 @@ func Unauthorized(err error) bool {
 	var e *Error
 	if errors.As(err, &e) {
 		for _, c := range e.Codes {
-			if c == 10000 {
+			// 10000: bad token or missing permission; 1000: invalid token.
+			if c == 10000 || c == 1000 {
 				return true
 			}
 		}

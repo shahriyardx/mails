@@ -175,7 +175,7 @@ func cloudflareErr(err error) error {
 	if cloudflare.Unauthorized(err) {
 		return httpx.Invalid("", "Cloudflare rejected the token. It needs "+destinationsPermission+".")
 	}
-	return &httpx.Error{Status: 502, Code: "upstream_error", Message: err.Error()}
+	return httpx.Upstream(err.Error())
 }
 
 // Refresh pulls verification state from Cloudflare and adopts destinations

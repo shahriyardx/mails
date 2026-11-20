@@ -213,7 +213,7 @@ func withRequired(types []string) []string {
 }
 
 func upstream(err error) error {
-	return &httpx.Error{Status: 502, Code: "upstream_error", Message: ses.Explain(err)}
+	return httpx.Upstream(ses.Explain(err))
 }
 
 func deref(s *string) string {

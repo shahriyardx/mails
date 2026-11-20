@@ -72,7 +72,7 @@ func explain(err error, needs string) error {
 	}
 	var e *Error
 	if errors.As(err, &e) {
-		return &httpx.Error{Status: 502, Code: "upstream_error", Message: e.Message}
+		return httpx.Upstream(e.Message)
 	}
 	return err
 }

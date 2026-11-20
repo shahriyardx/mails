@@ -27,6 +27,11 @@ func Forbidden(msg string) *Error    { return &Error{Status: 403, Code: "forbidd
 func Conflict(msg string) *Error     { return &Error{Status: 409, Code: "conflict", Message: msg} }
 func RateLimited(msg string) *Error  { return &Error{Status: 429, Code: "rate_limited", Message: msg} }
 
+// Upstream is a refusal from a service we call (Cloudflare, SES). It is a
+// 424, not a 502: proxies in front of the app (Cloudflare among them)
+// replace 502 bodies with their own page, and the message would be lost.
+func Upstream(msg string) *Error { return &Error{Status: 424, Code: "upstream_error", Message: msg} }
+
 // Invalid reports a bad field; param names it.
 func Invalid(param, msg string) *Error {
 	e := &Error{Status: 422, Code: "invalid_request", Message: msg}

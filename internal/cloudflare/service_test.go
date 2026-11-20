@@ -40,6 +40,18 @@ func TestConnectAcceptsAccountToken(t *testing.T) {
 	}
 }
 
+// A Cloudflare refusal reaches the browser as a 424 with Cloudflare's words:
+// proxies replace 502 bodies, which hid the reason.
+func TestUpstreamErrorKeepsMessage(t *testing.T) {
+	s, fake := setup(t)
+	fake.ZonesErr = &cloudflare.Error{Codes: []int{7003}, Message: "Cloudflare said: Could not route"}
+	_, err := s.Connect(context.Background(), "tok-0001")
+	var e *httpx.Error
+	if !errors.As(err, &e) || e.Status != 424 || e.Message != "Cloudflare said: Could not route" {
+		t.Fatalf("got %#v", err)
+	}
+}
+
 func TestConnectStoresTokenSealed(t *testing.T) {
 	s, fake := setup(t)
 	ctx := context.Background()
