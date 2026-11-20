@@ -1,6 +1,6 @@
 import { cx } from "@/lib/format";
 import type { ApiMailbox } from "@/lib/types";
-import { Check, ChevronDown, Layers } from "lucide-react";
+import { Icon } from "./kit";
 import { useEffect, useRef, useState } from "react";
 
 /**
@@ -68,21 +68,25 @@ export function MailboxPicker({ mailboxes, watchAll, chosen, onChoose }: Props) 
         aria-expanded={open}
         title={label}
         className={cx(
-          "flex h-7 max-w-[180px] items-center gap-1.5 rounded-[8px] px-1.5 text-[12px] transition",
-          open ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent",
+          "flex h-7 max-w-[180px] items-center gap-1.5 rounded-[7px] px-2 text-xs font-medium transition-colors",
+          open
+            ? "bg-tonal text-foreground"
+            : "text-soft-foreground hover:bg-tonal hover:text-foreground",
         )}
       >
         <Dot color={only?.color} />
         <span className="min-w-0 truncate">{label}</span>
-        <ChevronDown
-          className={cx("size-3.5 shrink-0 opacity-60 transition-transform", open && "rotate-180")}
+        <Icon
+          name="expand_more"
+          size={16}
+          className={cx("opacity-70 transition-transform", open && "rotate-180")}
         />
       </button>
 
       {open ? (
         <div
           role="menu"
-          className="absolute left-0 top-[calc(100%+4px)] z-40 max-h-[320px] w-[248px] animate-fade-in overflow-y-auto rounded-[11px] border border-border bg-popover p-1 shadow-pop"
+          className="absolute left-0 top-[calc(100%+4px)] z-40 max-h-[320px] w-[248px] animate-fade-in overflow-y-auto rounded-xl border border-border bg-surface-high p-1 shadow-[0_12px_32px_var(--shadow)]"
         >
           <Row
             label="All mailboxes"
@@ -109,7 +113,7 @@ export function MailboxPicker({ mailboxes, watchAll, chosen, onChoose }: Props) 
           {!watchAll && chosen.length !== 1 ? (
             <>
               <div className="my-1 h-px bg-border" />
-              <p className="px-2 py-1.5 text-[11px] text-muted-foreground">
+              <p className="px-2 py-1.5 text-xs text-muted-foreground">
                 {chosen.length === 0
                   ? "No mailboxes are picked. Choose one above, or all of them."
                   : `${chosen.length} picked in settings.`}
@@ -142,29 +146,24 @@ function Row({
       aria-checked={selected}
       onClick={onClick}
       className={cx(
-        "flex w-full items-center gap-2 rounded-[8px] px-2 py-1.5 text-left transition",
-        selected ? "bg-primary-soft text-primary-soft-foreground" : "hover:bg-accent",
+        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors",
+        selected
+          ? "bg-selected text-foreground"
+          : "text-soft-foreground hover:bg-tonal hover:text-foreground",
       )}
     >
       <Dot color={color} />
       <span className="min-w-0 flex-1">
         <span className="block truncate font-mono text-[12px] leading-[17px]">{label}</span>
-        {hint ? (
-          <span className="block truncate text-[11px] text-muted-foreground">{hint}</span>
-        ) : null}
+        {hint ? <span className="block truncate text-xs text-muted-foreground">{hint}</span> : null}
       </span>
-      {selected ? <Check className="size-3.5 shrink-0" /> : null}
+      {selected ? <Icon name="check" size={16} className="text-accent" /> : null}
     </button>
   );
 }
 
 /** A mailbox's own colour, or the stack that stands for all of them. */
 function Dot({ color }: { color?: string }) {
-  if (!color) return <Layers className="size-3.5 shrink-0 opacity-70" />;
-  return (
-    <span
-      className="size-2.5 shrink-0 rounded-full ring-2 ring-inset ring-black/5"
-      style={{ backgroundColor: color }}
-    />
-  );
+  if (!color) return <Icon name="all_inbox" size={16} className="text-muted-foreground" />;
+  return <span className="size-2 shrink-0 rounded-[2px]" style={{ backgroundColor: color }} />;
 }

@@ -1,4 +1,4 @@
-import { Button, EmptyState, IconButton, RowSkeleton } from "@/components/kit";
+import { Button, Chip, EmptyState, Icon, IconButton, Logo, RowSkeleton } from "@/components/kit";
 import { MailboxPicker } from "@/components/mailbox-picker";
 import { ThreadRow } from "@/components/thread-row";
 import { ThreadView } from "@/components/thread-view";
@@ -12,9 +12,10 @@ import {
   patchThread,
 } from "@/lib/api";
 import { cacheList, cacheMailboxes, cachedList, cachedMailboxes } from "@/lib/cache";
-import { cx } from "@/lib/format";
+import { cx, dayGroup } from "@/lib/format";
 import { openTab, refreshBadge, useDebounced, useSettings } from "@/lib/hooks";
 import { isConnected, watchesNothing } from "@/lib/settings";
+import { useTheme } from "@/lib/theme";
 import {
   type ApiMailbox,
   type ApiThread,
@@ -23,23 +24,6 @@ import {
   VIEW_LABEL,
   type View,
 } from "@/lib/types";
-import {
-  Archive,
-  ExternalLink,
-  Inbox,
-  MailOpen,
-  Mailbox as MailboxIcon,
-  Maximize2,
-  Plug,
-  RefreshCw,
-  Search,
-  Send,
-  Settings,
-  ShieldAlert,
-  Star,
-  Trash2,
-  X,
-} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { browser } from "wxt/browser";
 
@@ -56,6 +40,7 @@ const PAGE = 25;
 
 export function App({ inTab }: { inTab: boolean }) {
   const { settings, update } = useSettings();
+  const theme = useTheme(settings?.theme);
 
   const [view, setView] = useState<View>("inbox");
   const [search, setSearch] = useState("");
@@ -302,9 +287,9 @@ export function App({ inTab }: { inTab: boolean }) {
    * them, and neither layout should have to own a second copy of the list.
    */
   const rows = (
-    <div className="min-h-0 flex-1 overflow-y-auto">
+    <div className="min-h-0 flex-1 overflow-y-auto pb-2">
       {loading ? (
-        <div>
+        <div className="pt-2">
           <RowSkeleton />
           <RowSkeleton />
           <RowSkeleton />
@@ -315,7 +300,7 @@ export function App({ inTab }: { inTab: boolean }) {
           title="That did not work"
           body={error}
           action={
-            <Button size="sm" variant="outline" onClick={() => void load()}>
+            <Button icon="refresh" onClick={() => void load()}>
               Try again
             </Button>
           }
@@ -324,44 +309,49 @@ export function App({ inTab }: { inTab: boolean }) {
         /* Not the same as an empty inbox, and saying "all caught up" here
              would be telling somebody their mail is read when it is hidden. */
         <EmptyState
-          icon={<MailboxIcon />}
+          icon="all_inbox"
           title="No mailboxes picked"
           body="Nothing is being watched, so there is nothing to show."
           action={
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => void browser.runtime.openOptionsPage()}
-            >
+            <Button icon="settings" onClick={() => void browser.runtime.openOptionsPage()}>
               Pick mailboxes
             </Button>
           }
         />
       ) : threads.length === 0 ? (
         <EmptyState
-          icon={<Inbox />}
+          icon={term ? "search" : "inbox"}
           title={term ? "Nothing matched" : `No mail in ${VIEW_LABEL[view].toLowerCase()}`}
           body={term ? "Try a different search." : "You are all caught up."}
         />
       ) : (
         <>
-          {threads.map((thread) => (
-            <ThreadRow
-              key={thread.id}
-              thread={thread}
-              view={view}
-              selected={thread.id === openId}
-              onOpen={() => void openThread(thread.id)}
-              onStar={() => void patch(thread.id, { is_starred: !thread.is_starred })}
-              onArchive={() => void patch(thread.id, { folder: "archive" })}
-              onTrash={() => void trash(thread.id)}
-            />
-          ))}
+          {threads.map((thread, index) => {
+            const group = dayGroup(thread.last_message_at);
+            const heading = index === 0 || group !== dayGroup(threads[index - 1]!.last_message_at);
+            return (
+              <div key={thread.id}>
+                {heading ? (
+                  <div className="px-5 pt-3 pb-1 font-display text-xs font-semibold text-soft-foreground">
+                    {group}
+                  </div>
+                ) : null}
+                <ThreadRow
+                  thread={thread}
+                  view={view}
+                  selected={thread.id === openId}
+                  onOpen={() => void openThread(thread.id)}
+                  onStar={() => void patch(thread.id, { is_starred: !thread.is_starred })}
+                  onArchive={() => void patch(thread.id, { folder: "archive" })}
+                  onTrash={() => void trash(thread.id)}
+                />
+              </div>
+            );
+          })}
 
           {cursor ? (
-            <div className="p-3">
+            <div className="px-4 py-3">
               <Button
-                size="sm"
                 variant="outline"
                 className="w-full"
                 busy={loadingMore}
@@ -390,6 +380,7 @@ export function App({ inTab }: { inTab: boolean }) {
       error={openError}
       view={view}
       settings={settings}
+      theme={theme}
       showBack={!wide}
       onBack={closeThread}
       roomy={wide}
@@ -436,7 +427,7 @@ export function App({ inTab }: { inTab: boolean }) {
             <div className="flex w-[380px] shrink-0 flex-col border-r border-border xl:w-[420px]">
               {rows}
             </div>
-            <div className="min-w-0 flex-1 bg-card/40">{reading}</div>
+            <div className="min-w-0 flex-1">{reading}</div>
           </div>
         </div>
       </div>
@@ -508,10 +499,10 @@ function Header({
   }, [searching]);
 
   return (
-    <header className="flex shrink-0 items-center gap-1 border-b border-border bg-rail px-2 py-1.5">
+    <header className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-2">
       {searching ? (
         <>
-          <Search className="ml-1 size-4 shrink-0 text-muted-foreground" />
+          <Icon name="search" className="ml-1.5 text-muted-foreground" />
           <input
             ref={box}
             value={search}
@@ -523,21 +514,24 @@ function Header({
               }
             }}
             placeholder="Search mail"
-            className="h-7 min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground"
+            aria-label="Search mail"
+            className="h-8 min-w-0 flex-1 bg-transparent px-1 text-sm outline-none placeholder:text-muted-foreground"
           />
           <IconButton
+            icon="close"
             label="Close search"
             onClick={() => {
               onSearch("");
               onSearching(false);
             }}
-          >
-            <X />
-          </IconButton>
+          />
         </>
       ) : (
         <>
-          <span className="ml-1 mr-1 text-[13.5px] font-semibold tracking-[-0.01em]">Mails</span>
+          <span className="mr-1 ml-2 flex items-center gap-2.5">
+            <Logo />
+            <span className="font-display text-[16px] font-bold tracking-[-0.02em]">Mails</span>
+          </span>
 
           {mailboxes.length > 1 ? (
             <MailboxPicker
@@ -549,26 +543,21 @@ function Header({
           ) : null}
 
           <div className="ml-auto flex items-center gap-0.5">
-            <IconButton label="Search" onClick={() => onSearching(true)}>
-              <Search />
-            </IconButton>
-            <IconButton label="Refresh" onClick={onRefresh}>
-              <RefreshCw className={cx(loading && "animate-spin")} />
-            </IconButton>
+            <IconButton icon="search" label="Search" onClick={() => onSearching(true)} />
+            <IconButton icon="refresh" label="Refresh" spin={loading} onClick={onRefresh} />
             {!inTab ? (
               <IconButton
+                icon="open_in_full"
                 label="Open in a tab"
                 onClick={() => openTab(`${browser.runtime.getURL("/popup.html")}?tab=1`)}
-              >
-                <Maximize2 />
-              </IconButton>
+              />
             ) : null}
-            <IconButton label="Open Mails" onClick={onOpenApp}>
-              <ExternalLink />
-            </IconButton>
-            <IconButton label="Settings" onClick={() => void browser.runtime.openOptionsPage()}>
-              <Settings />
-            </IconButton>
+            <IconButton icon="open_in_new" label="Open Mails" onClick={onOpenApp} />
+            <IconButton
+              icon="settings"
+              label="Settings"
+              onClick={() => void browser.runtime.openOptionsPage()}
+            />
           </div>
         </>
       )}
@@ -578,22 +567,19 @@ function Header({
 
 /* -------------------------------------------------------------- the tab rail */
 
-const VIEW_ICON: Record<View, React.ReactNode> = {
-  inbox: <Inbox />,
-  unread: <MailOpen />,
-  starred: <Star />,
-  sent: <Send />,
-  archive: <Archive />,
-  spam: <ShieldAlert />,
-  trash: <Trash2 />,
+const VIEW_ICON: Record<View, string> = {
+  inbox: "inbox",
+  unread: "mark_email_unread",
+  starred: "star",
+  sent: "send",
+  archive: "archive",
+  spam: "report",
+  trash: "delete",
 };
 
 /**
- * Where you can go, down the left.
- *
- * The same seven places the popup shows as pills, given room to be a list
- * with names and icons. A rail is also where a full-window mail client puts
- * them, so it needs no learning.
+ * Where you can go, down the left: the web sidebar's folder rows (the active
+ * one is a panel with a hairline). The popup shows the same seven as chips.
  */
 function Rail({
   view,
@@ -605,34 +591,28 @@ function Rail({
   onOpenApp: () => void;
 }) {
   return (
-    <nav className="flex w-[216px] shrink-0 flex-col border-r border-border bg-rail">
-      <div className="flex h-12 shrink-0 items-center gap-2 px-4">
-        <span className="text-[14px] font-semibold tracking-[-0.01em]">Mails</span>
+    <nav className="flex w-[232px] shrink-0 flex-col border-r border-border">
+      <div className="flex h-14 shrink-0 items-center gap-2.5 px-5">
+        <Logo />
+        <span className="font-display text-[19px] font-bold tracking-[-0.02em]">Mails</span>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 py-1">
+      <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 py-1">
         {VIEWS.map((entry) => (
-          <button
+          <RailRow
             key={entry}
-            type="button"
+            icon={VIEW_ICON[entry]}
+            label={VIEW_LABEL[entry]}
+            active={entry === view}
             onClick={() => onChange(entry)}
-            className={cx(
-              "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13px] font-medium transition [&_svg]:size-4 [&_svg]:shrink-0",
-              entry === view
-                ? "bg-primary-soft text-primary-soft-foreground"
-                : "text-rail-foreground hover:bg-accent hover:text-foreground",
-            )}
-          >
-            {VIEW_ICON[entry]}
-            {VIEW_LABEL[entry]}
-          </button>
+          />
         ))}
       </div>
 
-      <div className="shrink-0 space-y-0.5 border-t border-border px-2 py-2">
-        <RailAction icon={<ExternalLink />} label="Open Mails" onClick={onOpenApp} />
-        <RailAction
-          icon={<Settings />}
+      <div className="shrink-0 space-y-0.5 border-t border-border px-3 py-2">
+        <RailRow icon="open_in_new" label="Open Mails" onClick={onOpenApp} />
+        <RailRow
+          icon="settings"
           label="Settings"
           onClick={() => void browser.runtime.openOptionsPage()}
         />
@@ -641,33 +621,38 @@ function Rail({
   );
 }
 
-function RailAction({
+function RailRow({
   icon,
   label,
+  active = false,
   onClick,
 }: {
-  icon: React.ReactNode;
+  icon: string;
   label: string;
+  active?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[12.5px] font-medium text-muted-foreground transition hover:bg-accent hover:text-foreground [&_svg]:size-4 [&_svg]:shrink-0"
+      aria-current={active ? "page" : undefined}
+      className={cx(
+        "flex h-9 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors",
+        active
+          ? "bg-surface text-foreground shadow-[inset_0_0_0_1px_var(--border)]"
+          : "text-soft-foreground hover:bg-surface hover:text-foreground",
+      )}
     >
-      {icon}
+      <Icon name={icon} filled={active} className={active ? "text-accent" : undefined} />
       {label}
     </button>
   );
 }
 
 /**
- * The bar above both columns: where you are, and how to search it.
- *
- * Search is a real box here rather than the popup's icon that swaps the
- * header out. There is width for it, and a hidden search in a window this
- * size is a search nobody finds.
+ * The bar above both columns: where you are, and how to search it. Search is
+ * a real box here; there is width for it.
  */
 function TopBar({
   view,
@@ -691,8 +676,8 @@ function TopBar({
   onChoose: (choice: { watchAll: boolean; mailboxIds?: string[] }) => void;
 }) {
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-3">
-      <h1 className="text-[14px] font-semibold tracking-[-0.01em]">{VIEW_LABEL[view]}</h1>
+    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
+      <h1 className="text-[20px] font-bold">{VIEW_LABEL[view]}</h1>
 
       {mailboxes.length > 1 ? (
         <MailboxPicker
@@ -703,30 +688,28 @@ function TopBar({
         />
       ) : null}
 
-      <label className="ml-auto flex h-8 w-full max-w-[380px] items-center gap-2 rounded-lg border border-border bg-card px-2.5 focus-within:border-ring">
-        <Search className="size-4 shrink-0 text-muted-foreground" />
+      <label className="ml-auto flex h-9 w-full max-w-[380px] items-center gap-2 rounded-lg border border-input bg-field px-2.5 focus-within:border-primary">
+        <Icon name="search" className="text-muted-foreground" />
         <input
           value={search}
           onChange={(event) => onSearch(event.target.value)}
           onKeyDown={(event) => event.key === "Escape" && onSearch("")}
           placeholder="Search mail"
-          className="h-full min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground"
+          className="h-full min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
         />
         {search ? (
           <button
             type="button"
             aria-label="Clear search"
             onClick={() => onSearch("")}
-            className="shrink-0 text-muted-foreground transition hover:text-foreground"
+            className="grid shrink-0 place-items-center text-muted-foreground transition-colors hover:text-foreground"
           >
-            <X className="size-3.5" />
+            <Icon name="close" size={16} />
           </button>
         ) : null}
       </label>
 
-      <IconButton label="Refresh" onClick={onRefresh}>
-        <RefreshCw className={cx(loading && "animate-spin")} />
-      </IconButton>
+      <IconButton icon="refresh" label="Refresh" spin={loading} onClick={onRefresh} />
     </header>
   );
 }
@@ -735,21 +718,11 @@ function TopBar({
 
 function ViewTabs({ view, onChange }: { view: View; onChange: (value: View) => void }) {
   return (
-    <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-border bg-card px-2 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="flex shrink-0 gap-1.5 overflow-x-auto px-4 pt-3 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {VIEWS.map((entry) => (
-        <button
-          key={entry}
-          type="button"
-          onClick={() => onChange(entry)}
-          className={cx(
-            "shrink-0 rounded-full px-2.5 py-1 text-[12px] font-medium transition",
-            entry === view
-              ? "bg-primary-soft text-primary-soft-foreground"
-              : "text-muted-foreground hover:bg-accent hover:text-foreground",
-          )}
-        >
+        <Chip key={entry} active={entry === view} onClick={() => onChange(entry)}>
           {VIEW_LABEL[entry]}
-        </button>
+        </Chip>
       ))}
     </div>
   );
@@ -759,18 +732,30 @@ function ViewTabs({ view, onChange }: { view: View; onChange: (value: View) => v
 
 function Connect() {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 bg-background px-8 text-center">
-      <div className="flex size-11 items-center justify-center rounded-full bg-primary-soft text-primary-soft-foreground">
-        <Plug className="size-5" />
+    <div className="flex h-full flex-col bg-background">
+      <div className="flex h-12 shrink-0 items-center gap-2.5 border-b border-border px-4">
+        <Logo />
+        <span className="font-display text-[16px] font-bold tracking-[-0.02em]">Mails</span>
       </div>
-      <div className="text-[15px] font-semibold">Connect to Mails</div>
-      <p className="text-[12.5px] text-muted-foreground">
-        Point this at your own instance with its address and an API key, and your inbox turns up
-        here.
-      </p>
-      <Button size="md" pill onClick={() => void browser.runtime.openOptionsPage()}>
-        Set it up
-      </Button>
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-10 text-center">
+        <div className="mb-1 grid size-12 place-items-center rounded-full bg-accent-soft text-accent">
+          <Icon name="link" size={24} />
+        </div>
+        <h1 className="text-[20px] font-bold">Connect to Mails</h1>
+        <p className="text-[13px] text-muted-foreground">
+          Point this at your own instance with its address and an API key, and your inbox turns up
+          here.
+        </p>
+        <Button
+          variant="primary"
+          size="md"
+          icon="key"
+          className="mt-2"
+          onClick={() => void browser.runtime.openOptionsPage()}
+        >
+          Set it up
+        </Button>
+      </div>
     </div>
   );
 }

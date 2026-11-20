@@ -1,14 +1,12 @@
 import { cx, displayName, rowPerson, shortTime, threadSubject } from "@/lib/format";
 import type { ApiThread, View } from "@/lib/types";
-import { Archive, Paperclip, Star, Trash2 } from "lucide-react";
-import { Avatar, IconButton } from "./kit";
+import { Avatar, Icon, IconButton, LabelChip } from "./kit";
 
 /**
- * One conversation in the list.
- *
- * Three lines, same as the web app: who and when, the subject with its unread
- * dot, then the snippet. The actions live where the timestamp is and appear
- * on hover, so a resting list is only mail.
+ * One conversation in the list, shaped like the web app's row: avatar,
+ * sender (bold when unread) and mono time (lavender when unread), subject,
+ * one-line snippet. The open one is a raised panel with a lavender bar. The
+ * actions take the timestamp's place on hover, so a resting list is only mail.
  */
 
 interface Props {
@@ -28,93 +26,99 @@ export function ThreadRow({ thread, view, selected, onOpen, onStar, onArchive, o
   return (
     <div
       className={cx(
-        "group relative flex cursor-pointer gap-3 border-b border-border/60 px-3 py-2.5 transition",
-        selected ? "bg-primary-soft/60" : "hover:bg-accent/60",
+        "group relative mx-2 my-0.5 flex gap-3 rounded-xl px-3 py-2.5 transition-colors",
+        selected ? "bg-surface shadow-[inset_0_0_0_1px_var(--border)]" : "hover:bg-surface",
       )}
     >
+      {selected ? (
+        <span
+          aria-hidden
+          className="absolute -left-2 top-3 bottom-3 w-0.75 rounded-r-[3px] bg-primary"
+        />
+      ) : null}
+
       <button
         type="button"
         onClick={onOpen}
-        className="absolute inset-0 z-0 cursor-pointer"
-        aria-label={`Open: ${threadSubject(thread)}`}
+        className="absolute inset-0 z-0 cursor-pointer rounded-xl focus-visible:-outline-offset-2"
+        aria-label={`Open: ${threadSubject(thread)}${unread ? " (unread)" : ""}`}
       />
 
-      <Avatar name={person.name} address={person.address} className="relative z-10" />
+      <Avatar name={person.name} address={person.address} className="relative z-10 mt-0.5" />
 
-      <div className="relative z-10 min-w-0 flex-1 pointer-events-none">
-        <div className="flex items-baseline gap-2">
+      <div className="pointer-events-none relative z-10 min-w-0 flex-1">
+        <div className="flex min-w-0 items-baseline gap-2">
           <span
             className={cx(
-              "min-w-0 flex-1 truncate text-[13px]",
-              unread ? "font-semibold text-foreground" : "text-foreground/90",
+              "min-w-0 flex-1 truncate text-[13.5px]",
+              unread ? "font-bold text-foreground" : "font-medium text-soft-foreground",
             )}
           >
             {displayName(person)}
             {thread.message_count > 1 ? (
-              <span className="ml-1.5 text-[11.5px] font-normal text-muted-foreground">
+              <span className="ml-1.5 font-mono text-[11px] font-normal text-muted-foreground">
                 {thread.message_count}
               </span>
             ) : null}
           </span>
 
-          <span className="flex shrink-0 items-center gap-1">
-            {thread.has_attachments ? <Paperclip className="size-3 text-muted-foreground" /> : null}
-            {thread.is_starred ? <Star className="size-3 fill-warn text-warn" /> : null}
-            <span className="text-[11.5px] tabular-nums text-muted-foreground group-hover:invisible">
-              {shortTime(thread.last_message_at)}
-            </span>
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          {unread ? <span className="size-1.5 shrink-0 rounded-full bg-primary" /> : null}
+          {thread.has_attachments ? (
+            <Icon name="attach_file" size={14} className="self-center text-muted-foreground" />
+          ) : null}
+          {thread.is_starred ? (
+            <Icon name="star" size={14} filled className="self-center text-accent" />
+          ) : null}
           <span
             className={cx(
-              "min-w-0 truncate text-[12.5px]",
-              unread ? "font-medium text-foreground" : "text-foreground/80",
+              "shrink-0 font-mono text-[11.5px] tabular-nums",
+              unread ? "font-medium text-accent" : "text-muted-foreground",
+              !selected && "group-focus-within:invisible group-hover:invisible",
             )}
           >
-            {threadSubject(thread)}
+            {shortTime(thread.last_message_at)}
           </span>
         </div>
 
-        <div className="truncate text-[12px] text-muted-foreground">
+        <div className={cx("truncate text-[13px] text-foreground", unread && "font-semibold")}>
+          {threadSubject(thread)}
+        </div>
+
+        <div className="truncate text-[12.5px] text-muted-foreground">
           {thread.snippet || "No preview"}
         </div>
 
         {thread.labels && thread.labels.length > 0 ? (
-          <div className="mt-1 flex flex-wrap gap-1">
+          <div className="mt-1.5 flex flex-wrap gap-1">
             {thread.labels.map((label) => (
-              <span
-                key={label.id}
-                className="rounded-full px-1.5 py-px text-[10.5px] font-medium leading-[15px]"
-                style={{ backgroundColor: `${label.color}1f`, color: label.color }}
-              >
-                {label.name}
-              </span>
+              <LabelChip key={label.id} name={label.name} color={label.color} />
             ))}
           </div>
         ) : null}
       </div>
 
-      {/* Sits over the timestamp, which hides itself to make room. */}
-      <div className="absolute right-2 top-2 z-20 hidden items-center gap-0.5 rounded-[9px] bg-card/95 p-0.5 shadow-raise group-hover:flex">
-        <IconButton
-          label={thread.is_starred ? "Remove star" : "Star"}
-          onClick={onStar}
-          className={thread.is_starred ? "text-warn" : undefined}
-        >
-          <Star className={thread.is_starred ? "fill-warn" : undefined} />
-        </IconButton>
-        {view !== "archive" && view !== "trash" ? (
-          <IconButton label="Archive" onClick={onArchive}>
-            <Archive />
-          </IconButton>
-        ) : null}
-        <IconButton label="Delete" tone="danger" onClick={onTrash}>
-          <Trash2 />
-        </IconButton>
-      </div>
+      {/* Sits over the timestamp, which hides itself to make room. The open
+          row has its actions in the reading pane instead. */}
+      {selected ? null : (
+        <div className="absolute right-2 top-1.5 z-20 hidden items-center gap-0.5 rounded-lg border border-border bg-surface-high p-0.5 group-hover:flex group-focus-within:flex">
+          <IconButton
+            icon="star"
+            filled={thread.is_starred}
+            label={thread.is_starred ? "Remove star" : "Star"}
+            onClick={onStar}
+            className={cx("size-7", thread.is_starred && "text-accent")}
+          />
+          {view !== "archive" && view !== "trash" ? (
+            <IconButton icon="archive" label="Archive" onClick={onArchive} className="size-7" />
+          ) : null}
+          <IconButton
+            icon={view === "trash" ? "delete_forever" : "delete"}
+            label={view === "trash" ? "Delete forever" : "Delete"}
+            tone="danger"
+            onClick={onTrash}
+            className="size-7"
+          />
+        </div>
+      )}
     </div>
   );
 }
