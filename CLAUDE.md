@@ -145,7 +145,7 @@ Use these for what is left:
 Dashboard: Vite, React 19, TypeScript, Tailwind 4, `@base-ui/react`,
 `motion`, `@tanstack/react-query`, `react-router`, `sonner`, `dompurify`,
 `class-variance-authority`, `tailwind-merge`, `clsx`, Material Symbols
-Rounded (self-hosted font), Google Sans Flex. Docs rendering:
+Rounded (self-hosted font), Sora + Inter + JetBrains Mono (self-hosted). Docs rendering:
 `react-markdown` + `remark-gfm`.
 
 ## Running
@@ -167,7 +167,7 @@ Done (all with Go tests against scratch Postgres; `go test ./...`,
 - Steps 1-8: domains, mailboxes, inbound, mail, send + outbox, delivery
   events, Cloudflare + forwarding, push, setup wizard, API keys, idempotency,
   rate limits, webhooks, every `/api/v1` route.
-- Step 9: dashboard in web/ (Vite, React 19, Base UI kit, soothing-dark
+- Step 9: dashboard in web/ (Vite, React 19, Base UI kit, dark + light
   tokens with a contrast test, mail screens, composer, every settings page,
   /docs viewer, push service worker). `cd web && pnpm test` (150 tests).
 - Step 10: worker/SDK/extension renamed to Mails; worker auth headers and
