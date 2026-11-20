@@ -103,6 +103,7 @@ type mailboxRow struct {
 // Ingest stores the message once per recipient mailbox and works out where
 // the worker should forward it.
 func (s *Service) Ingest(ctx context.Context, p *Payload, files []Attachment) (Result, error) {
+	stripNUL(p, files)
 	recipients := p.Recipients
 	if len(recipients) == 0 && p.To != "" {
 		recipients = []string{p.To}
@@ -186,6 +187,44 @@ func (s *Service) emitReceived(ctx context.Context, r Received, p *Payload, hasF
 		"spf": p.Auth.SPF, "dkim": p.Auth.DKIM, "dmarc": p.Auth.DMARC, "spam_score": p.SpamScore,
 		"mailed_by": p.MailedBy, "signed_by": p.SignedBy, "tls": p.TLS, "received_at": s.receivedAt(p.Date),
 	}}})
+}
+
+// stripNUL drops NUL bytes from every text the payload carries: Postgres
+// text cannot hold them, and any sender can put one in a header or body.
+func stripNUL(p *Payload, files []Attachment) {
+	str := func(v *string) {
+		if v != nil {
+			*v = strings.ReplaceAll(*v, "\x00", "")
+		}
+	}
+	list := func(vs []string) {
+		for i := range vs {
+			str(&vs[i])
+		}
+	}
+	people := func(as []addr.Address) {
+		for i := range as {
+			str(&as[i].Name)
+			str(&as[i].Address)
+		}
+	}
+	str(&p.To)
+	list(p.Recipients)
+	str(&p.From.Name)
+	str(&p.From.Address)
+	people(p.ToAddresses)
+	people(p.CcAddresses)
+	list(p.References)
+	for _, v := range []*string{&p.Subject, p.ReplyTo, p.Text, p.HTML, p.MessageID, p.InReplyTo, p.Date, p.RawKey,
+		p.Auth.SPF, p.Auth.DKIM, p.Auth.DMARC, p.MailedBy, p.SignedBy, p.TLS} {
+		str(v)
+	}
+	for i := range files {
+		f := &files[i]
+		for _, v := range []*string{&f.Filename, &f.ContentType, &f.R2Key, f.ContentID} {
+			str(v)
+		}
+	}
 }
 
 // removeOwn drops forward targets on our own domains: forwarding there

@@ -395,3 +395,30 @@ func TestMailToSelfReachesInbox(t *testing.T) {
 		t.Fatalf("inbox copies = %d, want 1", inbox)
 	}
 }
+
+// Postgres text cannot hold NUL, and any sender can put one in a header
+// or body: it is dropped, not a 500 that loses the mail.
+func TestNULBytesAreStripped(t *testing.T) {
+	s, pool, _ := setup(t)
+	ctx := context.Background()
+	p := msg("hi@a.test", "<n\x00ul@sender.test>", "hi\x00there")
+	p.From.Name = "A\x00da"
+	p.ToAddresses[0].Name = "H\x00i"
+	p.CcAddresses = []addr.Address{{Name: "C\x00c", Address: "cc@x.test"}}
+	p.ReplyTo = ptr("r\x00@sender.test")
+	p.Text, p.HTML = ptr("body\x00text"), ptr("<p>body\x00</p>")
+	p.InReplyTo, p.References = ptr("<x\x00@y>"), []string{"<x\x00@y>"}
+	p.Auth.SPF, p.MailedBy, p.SignedBy, p.TLS = ptr("pa\x00ss"), ptr("s\x00ender.test"), ptr("s\x00ender.test"), ptr("TLS\x001.3")
+	cid := "c\x00id"
+	res, err := s.Ingest(ctx, p, []inbound.Attachment{{Filename: "a\x00.pdf", ContentType: "application/p\x00df",
+		SizeBytes: 1, R2Key: "inbound/x/0-a\x00.pdf", ContentID: &cid}})
+	if err != nil || len(res.Stored) != 1 {
+		t.Fatalf("ingest: %+v %v", res, err)
+	}
+	var subject, text, name, file string
+	_ = pool.QueryRow(ctx, `SELECT m.subject, m.text_body, m.from_name, a.filename FROM message m
+		JOIN attachment a ON a.message_id = m.id WHERE m.id = $1`, res.Stored[0]).Scan(&subject, &text, &name, &file)
+	if subject != "hithere" || text != "bodytext" || name != "Ada" || file != "a.pdf" {
+		t.Fatalf("stored %q %q %q %q", subject, text, name, file)
+	}
+}
