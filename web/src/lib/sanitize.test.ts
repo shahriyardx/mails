@@ -292,7 +292,9 @@ describe("adversarial input stays fast (no catastrophic backtracking)", () => {
       expect(html.length).toBeGreaterThanOrEqual(90_000);
       const start = performance.now();
       prepareEmail(html, { showRemoteImages: false });
-      expect(performance.now() - start).toBeLessThan(100);
+      // Backtracking on ~100 KB takes seconds; linear work is tens of ms
+      // even on a slow CI runner.
+      expect(performance.now() - start).toBeLessThan(1000);
     });
   }
 });
