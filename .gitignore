@@ -1,0 +1,14 @@
+node_modules
+.env
+.env.local
+*.tsbuildinfo
+.DS_Store
+worker/.wrangler
+packages/*/dist
+packages/extension/.output
+packages/extension/.wxt
+# Built dashboard; embedded into the Go binary at build time.
+web/dist/*
+!web/dist/.keep
+/mails
+/bin

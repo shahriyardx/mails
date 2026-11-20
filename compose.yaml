@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: mails-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mails
+      POSTGRES_PASSWORD: mails
+      POSTGRES_DB: mails
+    ports:
+      - "127.0.0.1:5437:5432"
+    volumes:
+      - mails-pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mails -d mails"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mails-pgdata:
