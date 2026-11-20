@@ -191,9 +191,7 @@ export default function Composer({
     mail.draft_id = draftId.current;
     send.mutate(mail, {
       onSuccess: (res) => {
-        toast.success(
-          res.status === "queued" ? "Queued: SES is busy, it will keep trying" : "Sent",
-        );
+        toast.success(res.status === "queued" ? "Queued. It keeps trying until it sends." : "Sent");
         onClose();
       },
       onError: (error) => toast.error(errorMessage(error)),
@@ -393,15 +391,17 @@ export default function Composer({
       )}
 
       <footer className="flex h-16 shrink-0 items-center gap-1 px-4 pb-[env(safe-area-inset-bottom)]">
-        <Button
-          variant="primary"
-          icon="send"
-          loading={send.isPending}
-          disabled={uploading || !mailbox}
-          onClick={submit}
-        >
-          Send
-        </Button>
+        <Tooltip label="Ctrl + Enter" side="top">
+          <Button
+            variant="primary"
+            icon="send"
+            loading={send.isPending}
+            disabled={uploading || !mailbox}
+            onClick={submit}
+          >
+            Send
+          </Button>
+        </Tooltip>
         <input
           ref={fileInput}
           type="file"
@@ -416,12 +416,14 @@ export default function Composer({
             onClick={() => fileInput.current?.click()}
           />
         </Tooltip>
-        <span className="ml-auto hidden items-center gap-1 text-xs text-muted-foreground sm:flex">
-          <span className="kbd">Ctrl</span>
-          <span className="kbd">↵</span>
-        </span>
         <Tooltip label="Discard draft" side="top">
-          <IconButton icon="delete" label="Discard draft" variant="ghost" onClick={discard} />
+          <IconButton
+            icon="delete"
+            label="Discard draft"
+            variant="ghost"
+            className="ml-auto"
+            onClick={discard}
+          />
         </Tooltip>
       </footer>
     </motion.section>

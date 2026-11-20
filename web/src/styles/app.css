@@ -201,16 +201,3 @@
   opacity: 0;
   transform: scale(0.97) translateY(-2px);
 }
-
-.kbd {
-  display: inline-grid;
-  place-items: center;
-  min-width: 1.25rem;
-  height: 1.25rem;
-  padding: 0 0.25rem;
-  border-radius: 0.3125rem;
-  border: 1px solid var(--border);
-  background: var(--tonal);
-  font-family: var(--font-mono);
-  font-size: 11px;
-}
