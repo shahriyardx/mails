@@ -6,6 +6,21 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-11-21
+
+### Fixed
+
+- Settings -> Inbound: when Cloudflare refuses a routing step, the error
+  names the one permission that step needs.
+
+### Changed
+
+- Releases build every binary once and the image copies them in, so
+  publishing takes minutes. Build jobs run read-only; only the publish
+  jobs hold write tokens.
+- `make push-image` and `make publish-sdk` publish the image and the Node
+  SDK from a terminal.
+
 ## [0.1.3] - 2026-11-21
 
 ### Changed
@@ -61,7 +76,8 @@ First release of Mails, the Go rewrite.
   subdomains, live updates that stopped after an error, and more. Every fix
   has a test.
 
-[Unreleased]: https://github.com/shahriyardx/mails/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/shahriyardx/mails/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/shahriyardx/mails/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/shahriyardx/mails/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/shahriyardx/mails/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/shahriyardx/mails/compare/v0.1.0...v0.1.1
