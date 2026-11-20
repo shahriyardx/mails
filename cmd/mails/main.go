@@ -128,7 +128,7 @@ func run() error {
 	mailboxes := &mailbox.Service{DB: pool, Receiving: func(ctx context.Context, d string) any { return cf.EnsureSubdomainReceiving(ctx, d) }}
 	sender := &send.Service{
 		DB: pool, SES: sesClient, Store: store, Mailboxes: mailboxes, Mail: mailSvc, Hub: hub,
-		ConfigSet: reports.ConfigSet, Now: time.Now, Events: hooks,
+		ConfigSet: reports.ConfigSet, Region: cfg.AWSRegion, Now: time.Now, Events: hooks,
 	}
 	deps := &server.Deps{
 		DB:   pool,

@@ -365,7 +365,8 @@ func (s *Service) receivedAt(date *string) time.Time {
 
 // findThread threads on In-Reply-To/References first, then on subject
 // within 30 days. SES replaces our Message-ID with its own
-// (<id@email.amazonses.com>), so a reference also matches ses_message_id.
+// (<id@email.amazonses.com>, <id@<region>.amazonses.com> outside
+// us-east-1), so a reference also matches ses_message_id.
 //
 // Both signals are written by the sender, so neither alone may put a
 // message into a conversation: anyone can copy a subject, and a Message-ID
@@ -380,8 +381,8 @@ func findThread(ctx context.Context, tx pgx.Tx, mailboxID string, p *Payload, su
 	refs = append(refs, p.References...)
 	for _, ref := range refs {
 		bare := strings.Trim(ref, "<>")
-		if local, ok := strings.CutSuffix(bare, "@email.amazonses.com"); ok {
-			sesIDs = append(sesIDs, local)
+		if i := strings.LastIndexByte(bare, '@'); i > 0 && strings.HasSuffix(strings.ToLower(bare[i:]), ".amazonses.com") {
+			sesIDs = append(sesIDs, bare[:i])
 		}
 	}
 	type cand struct {

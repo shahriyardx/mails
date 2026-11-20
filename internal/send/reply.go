@@ -114,14 +114,11 @@ func ReplyRecipients(last *mail.Message, self string, all bool) (to, cc []addr.A
 	return to, cc
 }
 
-// ThreadingHeaders are In-Reply-To and References for answering m. SES
-// replaces the Message-ID we wrote on our own mail with its own, so a reply
-// to our message points at that one.
+// ThreadingHeaders are In-Reply-To and References for answering m. Our own
+// sent mail stores the Message-ID SES put on the wire, so this holds for
+// both directions.
 func ThreadingHeaders(m *mail.Message) (inReplyTo string, refs []string) {
-	switch {
-	case m.IsOutbound && m.SESMessageID != nil:
-		inReplyTo = "<" + *m.SESMessageID + "@email.amazonses.com>"
-	case m.RFCMessageID != nil:
+	if m.RFCMessageID != nil {
 		inReplyTo = *m.RFCMessageID
 	}
 	refs = append(refs, m.References...)

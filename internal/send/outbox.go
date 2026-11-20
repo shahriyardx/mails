@@ -115,8 +115,8 @@ func (s *Service) ProcessOne(ctx context.Context) (bool, error) {
 			if _, err := tx.Exec(ctx, `UPDATE send_job SET status = 'sent', raw_mime = '', locked_at = NULL, last_error = NULL, updated_at = $2 WHERE id = $1`, j.ID, s.Now()); err != nil {
 				return err
 			}
-			_, err := tx.Exec(ctx, `UPDATE message SET delivery_status = 'sent', ses_message_id = $2, delivery_error = NULL, sent_at = $3 WHERE id = $1`,
-				j.MessageID, sesID, s.Now())
+			_, err := tx.Exec(ctx, `UPDATE message SET delivery_status = 'sent', ses_message_id = $2, rfc_message_id = $4, delivery_error = NULL, sent_at = $3 WHERE id = $1`,
+				j.MessageID, sesID, s.Now(), s.wireID(sesID))
 			return err
 		})
 	case ses.Permanent(sendErr) || j.Attempts >= j.Max:

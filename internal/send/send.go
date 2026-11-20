@@ -49,7 +49,10 @@ type Service struct {
 	// ConfigSet returns the SES configuration set to send with ("" for
 	// none). It is read per send, so setting up reporting needs no restart.
 	ConfigSet func() string
-	Now       func() time.Time
+	// Region is the SES region; it names the host of the Message-ID SES
+	// puts on the mail it sends.
+	Region string
+	Now    func() time.Time
 
 	once sync.Once
 	wake chan struct{}
@@ -190,6 +193,12 @@ func (s *Service) Send(ctx context.Context, in Input) (*Result, error) {
 		s.emitEmail(recCtx, "email.sent", res.ID)
 	}
 	return res, nil
+}
+
+// wireID is the Message-ID recipients see: SES replaces the one we wrote
+// with its own, so replies point at this one.
+func (s *Service) wireID(sesID string) string {
+	return "<" + sesID + "@" + ses.MessageIDHost(s.Region) + ">"
 }
 
 func (s *Service) configSet() string {
@@ -455,8 +464,10 @@ func (s *Service) record(ctx context.Context, p *prepared, status, sesID, reason
 	}
 	threadID := p.thread
 	var sesPtr, reasonPtr *string
+	rfcID := "<" + p.rfcID + ">"
 	if sesID != "" {
 		sesPtr = &sesID
+		rfcID = s.wireID(sesID)
 	}
 	if reason != "" {
 		reasonPtr = &reason
@@ -474,7 +485,7 @@ func (s *Service) record(ctx context.Context, p *prepared, status, sesID, reason
 				return fmt.Errorf("insert thread: %w", err)
 			}
 		}
-		args := []any{msgID, threadID, p.box.ID, "<" + p.rfcID + ">", nilIfEmpty(p.in.InReplyTo), nonNil(p.in.References),
+		args := []any{msgID, threadID, p.box.ID, rfcID, nilIfEmpty(p.in.InReplyTo), nonNil(p.in.References),
 			p.from.Name, p.box.Address, addrs(p.in.To), addrs(p.in.Cc), addrs(p.in.Bcc), nilIfEmpty(p.in.ReplyTo), p.in.Subject,
 			addr.Snippet(p.text, p.html), nilIfEmpty(p.text), nilIfEmpty(p.html), sesPtr, status, reasonPtr,
 			nilIfEmpty(p.in.APIKeyID), len(p.raw), sentAt, now}
@@ -535,7 +546,7 @@ func (s *Service) record(ctx context.Context, p *prepared, status, sesID, reason
 	s.forgetFiles(dropped)
 	s.Hub.Publish(realtime.Event{Type: "thread.updated", Data: map[string]any{"thread_ids": []string{threadID}}})
 	return &Result{
-		ID: msgID, MessageID: "<" + p.rfcID + ">", SESMessageID: sesPtr, ThreadID: threadID, From: p.box.Address,
+		ID: msgID, MessageID: rfcID, SESMessageID: sesPtr, ThreadID: threadID, From: p.box.Address,
 		To: addr.Addresses(p.in.To), Subject: p.in.Subject, Status: status, Error: reasonPtr,
 	}, nil
 }

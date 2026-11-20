@@ -353,6 +353,52 @@ func TestReplyToReceivedMail(t *testing.T) {
 	}
 }
 
+// SES writes its own Message-ID, whose host depends on the region. The
+// stored id must be that one, so replies to our mail thread for recipients.
+func TestStoredMessageIDIsWhatSESSent(t *testing.T) {
+	for region, host := range map[string]string{"us-east-1": "email.amazonses.com", "eu-west-1": "eu-west-1.amazonses.com"} {
+		t.Run(region, func(t *testing.T) {
+			e := setup(t)
+			e.s.Region = region
+			ctx := context.Background()
+			// Sent at once.
+			res, err := e.s.Send(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Subject: "Now", Text: "x"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := "<" + *res.SESMessageID + "@" + host + ">"
+			var stored string
+			_ = e.pool.QueryRow(ctx, `SELECT rfc_message_id FROM message WHERE id = $1`, res.ID).Scan(&stored)
+			if res.MessageID != want || stored != want {
+				t.Fatalf("message id = %s, stored %s, want %s", res.MessageID, stored, want)
+			}
+			// A reply to our own message points at that id.
+			if _, err := e.s.Reply(ctx, res.ThreadID, send.ReplyInput{Text: "again"}); err != nil {
+				t.Fatal(err)
+			}
+			if raw := string(e.ses.Sent[1].Raw); !strings.Contains(raw, "In-Reply-To: "+want) {
+				t.Fatalf("reply does not point at %s", want)
+			}
+			// Sent later by the outbox.
+			e.ses.SendErr = errors.New("throttled")
+			queued, err := e.s.Send(ctx, send.Input{From: "me@a.test", To: to("a@b.test"), Subject: "Later", Text: "x"})
+			if err != nil || queued.Status != "queued" {
+				t.Fatalf("queue: %+v %v", queued, err)
+			}
+			e.ses.SendErr = nil
+			e.now = e.now.Add(time.Hour)
+			if worked, err := e.s.ProcessOne(ctx); !worked || err != nil {
+				t.Fatalf("outbox: %v %v", worked, err)
+			}
+			var sesID string
+			_ = e.pool.QueryRow(ctx, `SELECT rfc_message_id, ses_message_id FROM message WHERE id = $1`, queued.ID).Scan(&stored, &sesID)
+			if stored != "<"+sesID+"@"+host+">" {
+				t.Fatalf("outbox stored %s for ses id %s", stored, sesID)
+			}
+		})
+	}
+}
+
 func TestBackoff(t *testing.T) {
 	for attempt, want := range map[int]time.Duration{1: 30 * time.Second, 2: time.Minute, 6: 15 * time.Minute, 40: 15 * time.Minute} {
 		got := send.Backoff(attempt)
