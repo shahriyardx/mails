@@ -20,7 +20,6 @@ import {
   PageLoading,
   rowActions,
   Section,
-  StatusDot,
   SwitchRow,
 } from "./parts";
 
@@ -128,12 +127,7 @@ export default function Notifications() {
 
         <div className="rounded-[14px] border border-border bg-surface p-4">
           <SwitchRow
-            label={
-              <span className="flex items-center gap-2.5">
-                Notify me on this browser
-                <StatusDot tone={on ? "ok" : "off"}>{on ? "On" : "Off"}</StatusDot>
-              </span>
-            }
+            label="Notify me on this browser"
             description={
               on
                 ? "New mail is announced here. Other browsers and phones are set up on their own."
