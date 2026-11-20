@@ -1,5 +1,12 @@
 import { WebhookVerificationError } from "./errors.js";
-import type { DeliveryStatus, EmailAddress, Folder, Thread, WebhookEventName } from "./types.js";
+import type {
+  DeliveryStatus,
+  EmailAddress,
+  Folder,
+  Message,
+  Thread,
+  WebhookEventName,
+} from "./types.js";
 
 /**
  * Receiving events.
@@ -56,22 +63,11 @@ export interface ReceivedEmail {
   received_at: string;
 }
 
-/** The message summary sent when one is handed to SES. */
-export interface SentEmailSummary {
-  id: string;
-  thread_id: string;
-  mailbox_id: string;
-  mailbox: string;
-  ses_message_id: string | null;
-  message_id: string | null;
-  from: string;
-  to: EmailAddress[];
-  cc: EmailAddress[];
-  subject: string;
-  status: DeliveryStatus;
-  api_key_id: string | null;
-  sent_at: string;
-}
+/**
+ * The message sent with `email.sent`, `email.failed` and `email.canceled`:
+ * the full message, as `messages.get` returns it, without `text` and `html`.
+ */
+export type SentEmailSummary = Omit<Message, "text" | "html">;
 
 /** The message summary sent with a delivery, bounce, complaint or open. */
 export interface DeliveryEmailSummary {
