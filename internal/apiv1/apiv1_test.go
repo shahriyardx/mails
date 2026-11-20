@@ -180,6 +180,11 @@ func TestReach(t *testing.T) {
 	if r := e.call(t, sales, "POST", "/domains/dom_a/verify", nil); r.code != 403 {
 		t.Errorf("verify via a mailbox: %d", r.code)
 	}
+	newBlock := e.call(t, sales, "POST", "/suppressions", map[string]string{"address": "q@y.test"})
+	oldBlock := e.call(t, sales, "POST", "/suppressions", map[string]string{"address": "q@y.test"})
+	if newBlock.code != 200 || oldBlock.code != 200 || newBlock.raw != oldBlock.raw {
+		t.Errorf("restricted block replies differ: %d %s / %d %s", newBlock.code, newBlock.raw, oldBlock.code, oldBlock.raw)
+	}
 	r = e.call(t, sales, "GET", "/mailboxes", nil)
 	if len(r.body["data"].([]any)) != 1 {
 		t.Fatalf("mailboxes: %s", r.raw)

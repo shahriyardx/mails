@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -298,7 +299,9 @@ func (a *API) listSuppressions(_ http.ResponseWriter, r *http.Request, c *caller
 }
 
 // addSuppression is 201 when new and 200 when already blocked: blocking an
-// address that is blocked is the state asked for, not an error.
+// address that is blocked is the state asked for, not an error. A key that
+// may not read the blocked list gets the same 200 reply either way, so it
+// cannot use this call to learn whether an address was on it.
 func (a *API) addSuppression(_ http.ResponseWriter, r *http.Request, c *caller) (int, any, error) {
 	var in struct {
 		Address string `json:"address" validate:"required"`
@@ -309,10 +312,10 @@ func (a *API) addSuppression(_ http.ResponseWriter, r *http.Request, c *caller) 
 	}
 	x, err := a.Delivery.Suppress(r.Context(), in.Address, in.Reason)
 	var he *httpx.Error
+	if !c.key.Reach.Unrestricted() && (err == nil || errors.As(err, &he) && he.Status == 409) {
+		return 200, map[string]any{"object": "suppression", "address": strings.ToLower(strings.TrimSpace(in.Address)), "blocked": true}, nil
+	}
 	if errors.As(err, &he) && he.Status == 409 {
-		if !c.key.Reach.Unrestricted() {
-			return 200, map[string]any{"object": "suppression", "address": in.Address, "blocked": true}, nil
-		}
 		list, err := a.Delivery.ListSuppressions(r.Context(), in.Address, page.Params{Limit: 1})
 		if err != nil || len(list.Data) == 0 {
 			return 0, nil, err
