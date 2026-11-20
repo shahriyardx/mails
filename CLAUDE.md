@@ -69,7 +69,8 @@ media, templates, scheduled send, test-mode keys and send-rate limits.
 ## Layout
 
 ```
-cmd/mails/            main: wiring, workers, HTTP server; commands.go: migrate, reset-owner, vapid-keys
+cmd/mails/            main: wiring, workers, HTTP server; commands.go: migrate, reset-owner,
+                      vapid-keys, ses-setup-events, seed-demo, session
 internal/config       env vars (caarlos0/env)
 internal/db           pgx pool, Querier, goose migrations (migrations/*.sql, embedded)
 internal/db/dbtest    scratch database per test
@@ -100,6 +101,8 @@ internal/apikey       keys (sha256), scopes, presets, reach
 internal/idempotency  Idempotency-Key replay with advisory lock
 internal/webhook      signed delivery, retries, endpoint management
 internal/apiv1        /api/v1 handlers: auth, rate limit (httprate), scope + reach checks
+internal/reporting    SES delivery reporting setup (SNS topic, config set, subscription)
+internal/seed         demo mail for trying the dashboard
 web/                  React dashboard (Vite). web/embed.go embeds web/dist
 web/src/docs/         docs markdown + nav.json, rendered in the dashboard at /docs
 worker/               Cloudflare Email Worker; `pnpm build` writes dist/index.js,
@@ -180,9 +183,10 @@ Notes:
   every Cloudflare service in; dropping it would shrink the binary most.
 - WORKER_TRUST_AUTH_RESULTS (env) is off by default, so spf/dkim/dmarc are
   null until the owner confirms Cloudflare writes the topmost header.
-- Not built: the "Reporting" page (SES configuration-set setup from the
-  dashboard). Set the configuration set and SNS topic in AWS by hand; see
-  web/src/docs/guide/self-hosting.md.
+- Reporting is set up from Settings -> Reporting or `mails ses-setup-events`;
+  the configuration set and topic are saved in `settings` (env vars win).
+- Demo data: `mails seed-demo` / `--remove`. Screenshots: `COOKIE=$(mails
+  session) pnpm shots` in web/. Look and rules: DESIGN.md.
 
 Still to verify by hand on the real setup: send one mail through SES and
 receive one through the worker (needs real AWS, Cloudflare and R2 keys).
