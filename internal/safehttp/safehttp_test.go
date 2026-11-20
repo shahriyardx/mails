@@ -16,6 +16,8 @@ func TestAllowed(t *testing.T) {
 		"127.0.0.1": false, "10.1.2.3": false, "192.168.1.1": false, "172.16.0.1": false,
 		"169.254.169.254": false, "100.64.0.1": false, "::1": false, "fe80::1": false,
 		"0.0.0.0": false, "::ffff:127.0.0.1": false, "fd00::1": false,
+		"0.1.2.3": false, "64:ff9b::7f00:1": false, "2002:7f00:1::": false, "2001:0:7f00:1::": false,
+		"::7f00:1": false, "240.0.0.1": false, "255.255.255.255": false, "198.18.0.1": false, "fec0::1": false,
 	} {
 		if got := Allowed(netip.MustParseAddr(ip)); got != want {
 			t.Errorf("Allowed(%s) = %v", ip, got)
