@@ -17,14 +17,24 @@ import {
 } from "@tanstack/react-query";
 import { useEffect } from "react";
 import type {
+  ApiKey,
+  ApiKeyInput,
+  ApiKeyList,
   Attachment,
   AuthStatus,
   Contact,
   Counts,
+  DeliveryFilter,
+  DomainRef,
   Label,
   LiveEvent,
+  LogFilter,
+  LogRow,
   Mailbox,
+  MessageDetail,
+  Metrics,
   OutgoingMail,
+  Overview,
   Page,
   Preferences,
   SendResult,
@@ -32,6 +42,11 @@ import type {
   Thread,
   ThreadChange,
   ThreadFilter,
+  Webhook,
+  WebhookDelivery,
+  WebhookInput,
+  WebhookPatch,
+  WebhookResult,
 } from "./types";
 
 // ---- Client ---------------------------------------------------------------
@@ -426,6 +441,161 @@ export function useDeleteDraft() {
   return useMutation({
     mutationFn: (id: string) => api<void>(`/api/app/drafts/${id}`, { method: "DELETE" }),
     onSettled: () => refreshThreads(client, []),
+  });
+}
+
+// ---- API keys, webhooks, logs, metrics, overview -------------------------
+
+/** Domains for pickers (reach, webhook scope, metrics filter). */
+export function useDomainRefs() {
+  return useQuery({
+    queryKey: ["domains", "refs"],
+    queryFn: ({ signal }) => api<{ data: DomainRef[] | null }>("/api/app/domains", { signal }),
+    select: (res) => (res.data ?? []).map(({ id, name }) => ({ id, name })),
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useApiKeys() {
+  return useQuery({
+    queryKey: ["api-keys"],
+    queryFn: ({ signal }) => api<ApiKeyList>("/api/app/api-keys", { signal }),
+  });
+}
+
+/** Resolves to the key and its token, the only time the token is readable. */
+export function useCreateApiKey() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ApiKeyInput) =>
+      api<{ key: ApiKey; token: string }>("/api/app/api-keys", { method: "POST", body: input }),
+    onSettled: () => client.invalidateQueries({ queryKey: ["api-keys"] }),
+  });
+}
+
+export function useRenameApiKey() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      api<ApiKey>(`/api/app/api-keys/${id}`, { method: "PATCH", body: { name } }),
+    onSettled: () => client.invalidateQueries({ queryKey: ["api-keys"] }),
+  });
+}
+
+export function useRevokeApiKey() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api<void>(`/api/app/api-keys/${id}`, { method: "DELETE" }),
+    onSettled: () => client.invalidateQueries({ queryKey: ["api-keys"] }),
+  });
+}
+
+export function useWebhooks() {
+  return useQuery({
+    queryKey: ["webhooks"],
+    queryFn: ({ signal }) =>
+      api<{ data: Webhook[]; events: string[] }>("/api/app/webhooks", { signal }),
+  });
+}
+
+/** Resolves to the endpoint with its secret, shown once. */
+export function useCreateWebhook() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: WebhookInput) =>
+      api<Webhook>("/api/app/webhooks", { method: "POST", body: input }),
+    onSettled: () => client.invalidateQueries({ queryKey: ["webhooks"] }),
+  });
+}
+
+/** With rotate_secret the reply carries the new secret, once. */
+export function useUpdateWebhook() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: WebhookPatch }) =>
+      api<Webhook>(`/api/app/webhooks/${id}`, { method: "PATCH", body: patch }),
+    onSettled: () => client.invalidateQueries({ queryKey: ["webhooks"] }),
+  });
+}
+
+export function useDeleteWebhook() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/api/app/webhooks/${id}`, { method: "DELETE" }),
+    onSettled: () => client.invalidateQueries({ queryKey: ["webhooks"] }),
+  });
+}
+
+export function usePingWebhook() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api<WebhookResult>(`/api/app/webhooks/${id}/ping`, { method: "POST" }),
+    onSettled: () => {
+      void client.invalidateQueries({ queryKey: ["webhooks"] });
+      void client.invalidateQueries({ queryKey: ["webhook-deliveries"] });
+    },
+  });
+}
+
+export function useWebhookDeliveries(filter: DeliveryFilter) {
+  return useInfiniteQuery({
+    queryKey: ["webhook-deliveries", filter],
+    queryFn: ({ pageParam, signal }) =>
+      api<Page<WebhookDelivery>>("/api/app/webhooks/deliveries", {
+        query: { ...filter, cursor: pageParam },
+        signal,
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => (last.has_more ? (last.next_cursor ?? undefined) : undefined),
+  });
+}
+
+export function useReplayDelivery() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api<WebhookResult>(`/api/app/webhooks/deliveries/${id}/replay`, { method: "POST" }),
+    onSettled: () => {
+      void client.invalidateQueries({ queryKey: ["webhooks"] });
+      void client.invalidateQueries({ queryKey: ["webhook-deliveries"] });
+    },
+  });
+}
+
+export function useLogs(filter: LogFilter) {
+  return useInfiniteQuery({
+    queryKey: ["logs", filter],
+    queryFn: ({ pageParam, signal }) =>
+      api<Page<LogRow>>("/api/app/logs", { query: { ...filter, cursor: pageParam }, signal }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => (last.has_more ? (last.next_cursor ?? undefined) : undefined),
+    placeholderData: (previous) => previous,
+  });
+}
+
+/** One message with its delivery events. */
+export function useMessage(id: string | undefined) {
+  return useQuery({
+    queryKey: ["message", id],
+    queryFn: ({ signal }) => api<MessageDetail>(`/api/app/messages/${id}`, { signal }),
+    enabled: Boolean(id),
+  });
+}
+
+export function useMetrics(range: number, domainId?: string) {
+  return useQuery({
+    queryKey: ["metrics", range, domainId ?? ""],
+    queryFn: ({ signal }) =>
+      api<Metrics>("/api/app/metrics", { query: { range, domain_id: domainId }, signal }),
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useOverview() {
+  return useQuery({
+    queryKey: ["overview"],
+    queryFn: ({ signal }) => api<Overview>("/api/app/overview", { signal }),
   });
 }
 
