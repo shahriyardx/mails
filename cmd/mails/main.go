@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,8 +15,11 @@ import (
 	"github.com/shahriyardx/mails/internal/auth"
 	"github.com/shahriyardx/mails/internal/config"
 	"github.com/shahriyardx/mails/internal/db"
+	"github.com/shahriyardx/mails/internal/domain"
+	"github.com/shahriyardx/mails/internal/mailbox"
 	"github.com/shahriyardx/mails/internal/realtime"
 	"github.com/shahriyardx/mails/internal/server"
+	"github.com/shahriyardx/mails/internal/ses"
 	"github.com/shahriyardx/mails/web"
 )
 
@@ -46,7 +50,21 @@ func run() error {
 		slog.Info("migrations up to date")
 	}
 
-	deps := &server.Deps{DB: pool, Cfg: cfg, Auth: auth.New(pool, cfg), Hub: realtime.NewHub()}
+	sesClient, err := ses.New(ctx, cfg.AWSRegion, cfg.AWSAccessKeyID, cfg.AWSSecretAccessKey)
+	if err != nil {
+		return err
+	}
+	deps := &server.Deps{
+		DB:   pool,
+		Cfg:  cfg,
+		Auth: auth.New(pool, cfg),
+		Hub:  realtime.NewHub(),
+		Domains: &domain.Service{
+			DB: pool, SES: sesClient, DNS: net.DefaultResolver, Region: cfg.AWSRegion,
+			Selector: cfg.SESDKIMSelector, MailFromPrefix: cfg.SESMailFromPrefix, Now: time.Now,
+		},
+		Mailboxes: &mailbox.Service{DB: pool},
+	}
 	// Background workers (outbox, webhook retries) start here with ctx.
 
 	srv := &http.Server{

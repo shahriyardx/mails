@@ -23,17 +23,21 @@ import (
 
 	"github.com/shahriyardx/mails/internal/auth"
 	"github.com/shahriyardx/mails/internal/config"
+	"github.com/shahriyardx/mails/internal/domain"
 	"github.com/shahriyardx/mails/internal/httpx"
+	"github.com/shahriyardx/mails/internal/mailbox"
 	"github.com/shahriyardx/mails/internal/realtime"
 )
 
-// Deps is everything a feature package may need. Feature packages take what
-// they use from here in their own Routes/Register function.
+// Deps is every service the router mounts. main builds it; tests can build
+// one with fakes.
 type Deps struct {
-	DB   *pgxpool.Pool
-	Cfg  *config.Config
-	Auth *auth.Auth
-	Hub  *realtime.Hub
+	DB        *pgxpool.Pool
+	Cfg       *config.Config
+	Auth      *auth.Auth
+	Hub       *realtime.Hub
+	Domains   *domain.Service
+	Mailboxes *mailbox.Service
 }
 
 // New builds the router. web is the built React app (web/dist).
@@ -63,7 +67,8 @@ func New(d *Deps, web fs.FS) http.Handler {
 						httpx.JSON(w, 200, auth.FromContext(r.Context()))
 						return nil
 					}))
-					// Feature packages mount here, e.g. app.Mount("/threads", mail.Routes(d)).
+					app.Mount("/domains", domain.Routes(d.Domains))
+					app.Mount("/mailboxes", mailbox.Routes(d.Mailboxes))
 				})
 			})
 			// api.Mount("/v1", apiv1.Routes(d))  API key or owner session

@@ -12,3 +12,4 @@ web/dist/*
 !web/dist/.keep
 /mails
 /bin
+.claude/worktrees/

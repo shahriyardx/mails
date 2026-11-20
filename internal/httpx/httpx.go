@@ -81,3 +81,5 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Fail(w, r, err)
 	}
 }
+
+func jsonUnmarshal(b []byte, v any) error { return json.Unmarshal(b, v) }
