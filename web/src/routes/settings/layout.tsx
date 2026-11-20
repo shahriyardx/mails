@@ -2,7 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router";
 import { AccountMenu } from "@/components/app/account-menu";
 import { Icon, IconButton, Sheet, SheetContent, SheetTitle } from "@/components/kit";
-import { NavGroup, NavRow, SidebarAside, SidebarFrame } from "@/components/mail/sidebar";
+import {
+  FoldedThemeToggle,
+  NavGroup,
+  NavRow,
+  SidebarAside,
+  SidebarFrame,
+} from "@/components/mail/sidebar";
 import { SETTINGS_PAGES } from "./pages";
 import { PageActionSlot } from "./parts";
 
@@ -112,7 +118,8 @@ function Nav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => vo
           </NavGroup>
         ))}
       </nav>
-      <div className="-mx-1 flex shrink-0 items-center justify-end px-1 in-data-folded:justify-center">
+      <div className="-mx-1 flex shrink-0 items-center justify-end px-1 in-data-folded:flex-col in-data-folded:gap-2">
+        <FoldedThemeToggle />
         <AccountMenu docs={false} />
       </div>
     </SidebarFrame>

@@ -153,6 +153,7 @@ export function Sidebar({
       </nav>
 
       <div className="-mx-1 flex shrink-0 items-center gap-1 px-1 in-data-folded:flex-col in-data-folded:gap-2">
+        <FoldedThemeToggle />
         <NavRow
           to="/settings"
           active={false}
@@ -170,17 +171,32 @@ export function Sidebar({
 
 const Folded = createContext(false);
 
-/** The desktop column: full width, or icons only when folded. */
+/**
+ * The desktop column: full width, or icons only when folded. Folded, the
+ * expand button sits on the border and shows on hover or keyboard focus.
+ */
 export function SidebarAside({ children }: { children: ReactNode }) {
   const folded = useSidebarCollapsed();
   return (
     <aside
       className={cn(
-        "hidden shrink-0 border-r border-border transition-[width] duration-200 md:block",
+        "group/aside relative hidden shrink-0 border-r border-border transition-[width] duration-200 md:block",
         folded ? "w-17" : "w-58",
       )}
     >
       {children}
+      {folded && (
+        <Tooltip label="Expand sidebar" side="right">
+          <IconButton
+            icon="chevron_right"
+            label="Expand sidebar"
+            variant="outline"
+            size="xs"
+            className="absolute top-6 -right-3.5 z-20 size-7 rounded-full bg-background opacity-0 transition-opacity group-hover/aside:opacity-100 focus-visible:opacity-100"
+            onClick={() => setSidebarCollapsed(false)}
+          />
+        </Tooltip>
+      )}
     </aside>
   );
 }
@@ -210,17 +226,13 @@ export function SidebarFrame({
       )}
     >
       {folded ? (
-        <div className="flex shrink-0 flex-col items-center gap-2">
-          <Link
-            to="/mail/all/inbox"
-            aria-label="Mails"
-            className="grid size-8 place-items-center rounded-md outline-none focus-visible:outline-2 focus-visible:outline-ring"
-          >
-            <Logo className="size-5" />
-          </Link>
-          <FoldButton folded />
-          <ThemeToggle />
-        </div>
+        <Link
+          to="/mail/all/inbox"
+          aria-label="Mails"
+          className="grid size-8 shrink-0 place-items-center rounded-md outline-none focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          <Logo className="size-5" />
+        </Link>
       ) : (
         <div className="flex h-8 shrink-0 items-center justify-between gap-1 pl-2">
           <Link
@@ -230,7 +242,17 @@ export function SidebarFrame({
             <Wordmark />
           </Link>
           <ThemeToggle />
-          {collapsible && !drawer && <FoldButton folded={false} />}
+          {collapsible && !drawer && (
+            <Tooltip label="Collapse sidebar">
+              <IconButton
+                icon="chevron_left"
+                label="Collapse sidebar"
+                variant="outline"
+                size="xs"
+                onClick={() => setSidebarCollapsed(true)}
+              />
+            </Tooltip>
+          )}
         </div>
       )}
       <Folded.Provider value={folded}>{children}</Folded.Provider>
@@ -238,19 +260,9 @@ export function SidebarFrame({
   );
 }
 
-function FoldButton({ folded }: { folded: boolean }) {
-  const label = folded ? "Expand sidebar" : "Collapse sidebar";
-  return (
-    <Tooltip label={label} side={folded ? "right" : "bottom"}>
-      <IconButton
-        icon={folded ? "chevron_right" : "chevron_left"}
-        label={label}
-        variant="outline"
-        size="xs"
-        onClick={() => setSidebarCollapsed(!folded)}
-      />
-    </Tooltip>
-  );
+/** Folded, the theme switch moves down to the bottom row. */
+export function FoldedThemeToggle() {
+  return useContext(Folded) ? <ThemeToggle /> : null;
 }
 
 function WriteButton({ onClick }: { onClick: () => void }) {
