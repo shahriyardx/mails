@@ -48,6 +48,22 @@ export function mailHref(
 }
 
 /**
+ * The list URL with one filter changed. Narrowing (setting a value) closes
+ * the open conversation, which may not be in the new list; clearing a filter
+ * only widens the list, so the conversation stays open.
+ */
+export function withListParam(current: URLSearchParams, key: string, value: string | null) {
+  const next = new URLSearchParams(current);
+  if (value) {
+    next.set(key, value);
+    next.delete("t");
+  } else {
+    next.delete(key);
+  }
+  return next;
+}
+
+/**
  * Where a swiped row goes. Left archives, right deletes; both slide the row
  * away, except in Trash, where delete asks first, so the row springs back.
  */

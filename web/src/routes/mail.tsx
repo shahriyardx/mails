@@ -31,7 +31,7 @@ import {
   useThreads,
 } from "@/lib/api";
 import { cn } from "@/lib/cn";
-import { FOLDER_META, isFolder, mailHref, parseScope, type Scope } from "@/lib/mail";
+import { FOLDER_META, isFolder, mailHref, parseScope, type Scope, withListParam } from "@/lib/mail";
 import type { ThreadFilter, ViewFolder } from "@/lib/types";
 
 /** /mail/:scope/:folder?t=&reply=&q=&label=&unread= */
@@ -99,12 +99,7 @@ export function Component() {
   };
 
   function setParam(key: string, value: string | null) {
-    setSearch((current) => {
-      if (value) current.set(key, value);
-      else current.delete(key);
-      current.delete("t");
-      return current;
-    });
+    setSearch((current) => withListParam(current, key, value));
   }
 
   const stacked = prefs.data?.reading_layout === "stacked";
@@ -381,7 +376,8 @@ function SearchBox({
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             setText("");
-            onCommit("");
+            // Nothing searched, nothing to clear: leave the URL alone.
+            if (text || value) onCommit("");
             onClose();
           }
         }}

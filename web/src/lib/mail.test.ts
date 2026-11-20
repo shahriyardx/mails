@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayGroup, formatStamp, swipeOutcome } from "./mail";
+import { dayGroup, formatStamp, swipeOutcome, withListParam } from "./mail";
 
 // Thursday 20 Nov 2026, 15:00 local time.
 const now = new Date(2026, 10, 20, 15, 0);
@@ -31,6 +31,28 @@ describe("formatStamp", () => {
     [at(2024, 0, 5), "Jan 24"],
   ])("%s -> %s", (value, want) => {
     expect(formatStamp(value, now)).toBe(want);
+  });
+});
+
+describe("withListParam", () => {
+  const params = () => new URLSearchParams("q=invoice&t=thr_1&label=lbl_1");
+
+  it("keeps the open conversation when the search is cleared", () => {
+    const next = withListParam(params(), "q", null);
+    expect(next.get("t")).toBe("thr_1");
+    expect(next.has("q")).toBe(false);
+  });
+
+  it("closes the open conversation when a filter narrows the list", () => {
+    const next = withListParam(params(), "unread", "1");
+    expect(next.has("t")).toBe(false);
+    expect(next.get("unread")).toBe("1");
+  });
+
+  it("does not change the params it was given", () => {
+    const current = params();
+    withListParam(current, "q", null);
+    expect(current.get("q")).toBe("invoice");
   });
 });
 
