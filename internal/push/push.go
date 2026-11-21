@@ -168,6 +168,25 @@ func (s *Service) OnReceived(_ context.Context, r inbound.Received) {
 	if p.Body == "" {
 		p.Body = "(no subject)"
 	}
+	s.notifyLater(p)
+}
+
+// OnWake is the mail service's snooze hook: the thread is back in the
+// Inbox, so say so like new mail.
+func (s *Service) OnWake(_ context.Context, threadID, subject string) {
+	if s.Send == nil {
+		return
+	}
+	if subject == "" {
+		subject = "(no subject)"
+	}
+	s.notifyLater(Payload{Title: "Back from snooze", Body: subject,
+		URL: "/mail/all/inbox?t=" + url.QueryEscape(threadID), Tag: "thread:" + threadID})
+}
+
+// notifyLater sends in the background so a slow push service never holds
+// up the caller.
+func (s *Service) notifyLater(p Payload) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()

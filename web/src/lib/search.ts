@@ -16,7 +16,17 @@ export interface ParsedSearch {
   text: string;
 }
 
-const VIEWS = new Set(["inbox", "sent", "drafts", "archive", "spam", "trash", "starred", "all"]);
+const VIEWS = new Set([
+  "inbox",
+  "sent",
+  "drafts",
+  "archive",
+  "spam",
+  "trash",
+  "starred",
+  "snoozed",
+  "all",
+]);
 
 /** Every filter, for the "Filters" hint. */
 export const SEARCH_FILTERS: { example: string; meaning: string }[] = [

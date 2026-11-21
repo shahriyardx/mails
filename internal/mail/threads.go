@@ -16,7 +16,7 @@ type ThreadFilter struct {
 	Allowed        []string // nil = every mailbox
 	MailboxID      string   // id or address
 	Domain         string
-	Folder         string // a folder, "starred", "all" or ""
+	Folder         string // a folder, "starred", "snoozed", "all" or ""
 	Label          string // id or name
 	Query          string // search box text: filters and free text (ParseSearch)
 	Unread         *bool
@@ -43,10 +43,15 @@ func (s *Service) ListThreads(ctx context.Context, f ThreadFilter) (page.List[*T
 	case f.Folder == "" || f.Folder == "all":
 	case f.Folder == "starred":
 		w.add("t.is_starred AND t.folders <> '{trash}'")
+	case f.Folder == "snoozed":
+		w.add("t.snoozed_until IS NOT NULL")
 	case folders[f.Folder]:
 		w.add("t.folders @> ARRAY[?]::folder[]", f.Folder)
+		if f.Folder == "inbox" {
+			w.add("t.snoozed_until IS NULL") // back when the snooze ends
+		}
 	default:
-		return page.List[*Thread]{}, httpx.Invalid("folder", "folder: One of inbox, sent, drafts, archive, spam, trash, starred, all")
+		return page.List[*Thread]{}, httpx.Invalid("folder", "folder: One of inbox, sent, drafts, archive, spam, trash, starred, snoozed, all")
 	}
 	if f.Label != "" {
 		w.add(labelCond("t.id"), f.Label, f.Label)
@@ -200,7 +205,9 @@ func (s *Service) Counts(ctx context.Context, allowed []string, mailbox, domain 
 		return w
 	}
 	w := scoped()
-	rows, _ := s.DB.Query(ctx, `SELECT f::text, count(*) FILTER (WHERE t.unread_count > 0 OR f = 'drafts')
+	// A snoozed thread is out of the Inbox, so out of its count.
+	rows, _ := s.DB.Query(ctx, `SELECT f::text, count(*) FILTER (WHERE (t.unread_count > 0 OR f = 'drafts')
+			AND NOT (f = 'inbox' AND t.snoozed_until IS NOT NULL))
 		FROM thread t, unnest(t.folders) f `+w.sql()+` GROUP BY f`, w.args...)
 	var name string
 	var n int
@@ -220,7 +227,7 @@ func (s *Service) Counts(ctx context.Context, allowed []string, mailbox, domain 
 	c.Folders["starred"] = n
 	var all where
 	all.scope("mailbox_id", allowed, "", "")
-	all.add("folders @> '{inbox}' AND unread_count > 0")
+	all.add("folders @> '{inbox}' AND unread_count > 0 AND snoozed_until IS NULL")
 	rows, _ = s.DB.Query(ctx, `SELECT mailbox_id, count(*) FROM thread `+all.sql()+` GROUP BY mailbox_id`, all.args...)
 	if _, err := pgx.ForEachRow(rows, []any{&name, &n}, func() error {
 		c.Mailboxes[name] = n

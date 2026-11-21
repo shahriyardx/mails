@@ -376,6 +376,10 @@ func (s *Service) store(ctx context.Context, box *mailboxRow, deliveredTo string
 		if err := mail.TouchContact(ctx, tx, p.From); err != nil {
 			return err
 		}
+		// New mail in a snoozed conversation brings it back now.
+		if err := mail.Unsnooze(ctx, tx, r.ThreadID); err != nil {
+			return err
+		}
 		return mail.Recompute(ctx, tx, r.ThreadID)
 	})
 	if dup && err == nil && r.MessageID == "" {

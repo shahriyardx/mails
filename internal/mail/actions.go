@@ -22,6 +22,9 @@ type ThreadChange struct {
 	IsStarred    *bool    `json:"is_starred"`
 	AddLabels    []string `json:"add_labels"`
 	RemoveLabels []string `json:"remove_labels"`
+	// SnoozedUntil hides a thread from the Inbox until then (a future
+	// time); null wakes it now, without marking it unread.
+	SnoozedUntil httpx.Opt[time.Time] `json:"snoozed_until,omitzero"`
 }
 
 // ownedThreads returns which of ids exist within allowed.
@@ -43,6 +46,9 @@ func ownedThreads(ctx context.Context, q db.Querier, allowed, ids []string) ([]s
 func (s *Service) ChangeThreads(ctx context.Context, allowed, ids []string, c ThreadChange) ([]string, error) {
 	if c.Folder != nil && !movable[*c.Folder] {
 		return nil, httpx.Invalid("folder", "folder: One of inbox, archive, spam, trash")
+	}
+	if c.SnoozedUntil.Set && !c.SnoozedUntil.Null && !c.SnoozedUntil.Value.After(time.Now()) {
+		return nil, httpx.Invalid("snoozed_until", "snoozed_until: A time in the future, or null")
 	}
 	var changed []string
 	err := pgx.BeginFunc(ctx, s.DB, func(tx pgx.Tx) error {
@@ -73,6 +79,11 @@ func (s *Service) ChangeThreads(ctx context.Context, allowed, ids []string, c Th
 		if c.IsStarred != nil {
 			if err := star(ctx, tx, changed, *c.IsStarred); err != nil {
 				return err
+			}
+		}
+		if c.SnoozedUntil.Set {
+			if _, err := tx.Exec(ctx, `UPDATE thread SET snoozed_until = $2 WHERE id = ANY($1)`, changed, c.SnoozedUntil.Ptr()); err != nil {
+				return fmt.Errorf("snooze: %w", err)
 			}
 		}
 		if len(add) > 0 {

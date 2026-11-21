@@ -1,6 +1,7 @@
 package mail
 
 import (
+	"context"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +19,9 @@ type Service struct {
 	DB    *pgxpool.Pool
 	Store storage.Store
 	Hub   *realtime.Hub
+	// OnWake hears of each thread back from snooze (push notices). It must
+	// not block.
+	OnWake func(ctx context.Context, threadID, subject string)
 }
 
 // Folders a thread or message can be moved to by a person or a key.
@@ -48,6 +52,7 @@ type Thread struct {
 	UnreadCount    int            `json:"unread_count" db:"unread_count"`
 	IsStarred      bool           `json:"is_starred" db:"is_starred"`
 	HasAttachments bool           `json:"has_attachments" db:"has_attachments"`
+	SnoozedUntil   *time.Time     `json:"snoozed_until" db:"snoozed_until"`
 	LastMessageAt  time.Time      `json:"last_message_at" db:"last_message_at"`
 	CreatedAt      time.Time      `json:"created_at" db:"created_at"`
 	Labels         []Label        `json:"labels" db:"-"`
@@ -56,7 +61,7 @@ type Thread struct {
 
 const threadColumns = `t.id, t.mailbox_id, mb.address AS mailbox, mb.color AS mailbox_color, mb.domain,
 	t.subject, t.snippet, t.folders::text[] AS folders, t.participants, t.message_count, t.unread_count,
-	t.is_starred, t.has_attachments, t.last_message_at, t.created_at`
+	t.is_starred, t.has_attachments, t.snoozed_until, t.last_message_at, t.created_at`
 
 // Attachment is a file on a message (or a staged upload with no message).
 type Attachment struct {

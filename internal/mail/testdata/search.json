@@ -12,6 +12,7 @@
   { "q": "is:important", "terms": [], "text": "is:important" },
   { "q": "label:work label:\"side project\"", "terms": [{ "op": "label", "value": "work" }, { "op": "label", "value": "side project" }], "text": "" },
   { "q": "in:archive", "terms": [{ "op": "in", "value": "archive" }], "text": "" },
+  { "q": "in:snoozed", "terms": [{ "op": "in", "value": "snoozed" }], "text": "" },
   { "q": "in:nowhere", "terms": [], "text": "in:nowhere" },
   { "q": "before:2026-11-20 after:2026/01/02", "terms": [{ "op": "before", "value": "2026-11-20" }, { "op": "after", "value": "2026-01-02" }], "text": "" },
   { "q": "before:yesterday", "terms": [], "text": "before:yesterday" },

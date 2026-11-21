@@ -61,7 +61,7 @@ func term(op, v string) (Term, bool) {
 
 // views are the lists in:<view> may name.
 var views = map[string]bool{"inbox": true, "sent": true, "drafts": true, "archive": true, "spam": true,
-	"trash": true, "starred": true, "all": true}
+	"trash": true, "starred": true, "snoozed": true, "all": true}
 
 // tokens splits q on spaces, keeping "quoted text" (alone or as an
 // operator's value) in one piece. An unclosed quote runs to the end.
@@ -175,6 +175,8 @@ func (s Search) listConds(w *where) {
 			w.add("m.is_read")
 		case "is:starred", "in:starred":
 			w.add("m.is_starred")
+		case "in:snoozed":
+			w.add("m.thread_id IN (SELECT id FROM thread WHERE snoozed_until IS NOT NULL)")
 		}
 		if t.Op == "label" {
 			w.add(labelCond("m.thread_id"), t.Value, t.Value)

@@ -1,6 +1,7 @@
 package httpx
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"reflect"
@@ -80,6 +81,18 @@ func (o *Opt[T]) UnmarshalJSON(b []byte) error {
 	}
 	return jsonUnmarshal(b, &o.Value)
 }
+
+// MarshalJSON writes it back as sent (null or the value), so a change can
+// be echoed in a webhook. Tag the field omitzero to leave it out when unset.
+func (o Opt[T]) MarshalJSON() ([]byte, error) {
+	if o.Null {
+		return []byte("null"), nil
+	}
+	return json.Marshal(o.Value)
+}
+
+// IsZero reports "not sent", for omitzero.
+func (o Opt[T]) IsZero() bool { return !o.Set }
 
 // Ptr is the value as a pointer: nil when null. Only meaningful when Set.
 func (o Opt[T]) Ptr() *T {

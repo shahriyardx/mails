@@ -116,7 +116,7 @@ func run() error {
 	}
 	hooks := &webhook.Service{DB: pool, HTTP: safehttp.Client(10*time.Second, !cfg.Secure()), Now: time.Now, AllowLocal: !cfg.Secure()}
 	hub := realtime.NewHub()
-	mailSvc := &mail.Service{DB: pool, Store: store, Hub: hub}
+	mailSvc := &mail.Service{DB: pool, Store: store, Hub: hub, OnWake: pusher.OnWake}
 	box, err := secret.New(cfg.Secret)
 	if err != nil {
 		return err
@@ -166,6 +166,7 @@ func run() error {
 	var workers sync.WaitGroup
 	workers.Go(func() { every(ctx, time.Hour, "sweep staged uploads", mailSvc.SweepStaged) })
 	workers.Go(func() { every(ctx, time.Hour, "sweep idempotency keys", idem.Sweep) })
+	workers.Go(func() { every(ctx, 30*time.Second, "wake snoozed threads", mailSvc.WakeSnoozed) })
 	workers.Go(func() { hooks.Run(ctx) })
 	if cfg.OutboxWorker {
 		workers.Go(func() { sender.RunOutbox(ctx) })
