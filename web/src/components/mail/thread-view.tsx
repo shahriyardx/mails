@@ -208,6 +208,14 @@ function Conversation({
 
   const root = useRef<HTMLElement>(null);
   const nav = useConversationNav({ threadId: thread.id, filter, hrefFor, backHref });
+  // Opened from a list that is now hidden (one at a time, phones): focus
+  // moves into the conversation, so the reading keys reach it.
+  useEffect(() => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active !== document.body && !active.checkVisibility()) {
+      root.current?.focus({ preventScroll: true });
+    }
+  }, []);
 
   // Shared by the buttons, the menu and the keys. What takes the thread out
   // of its folder moves on to the next one (or the list): nav.leave().
@@ -251,7 +259,7 @@ function Conversation({
   });
 
   return (
-    <section ref={root} className="flex h-full min-w-0 flex-col">
+    <section ref={root} tabIndex={-1} className="flex h-full min-w-0 flex-col outline-none">
       <ConfirmDialog
         open={purging}
         onOpenChange={setPurging}
