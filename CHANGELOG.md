@@ -21,6 +21,9 @@ All notable changes are listed here. The format follows
   conversation, the next one in the list opens (the one below, else the
   one above). Settings -> Preferences -> "After archiving or deleting"
   switches to going back to the list instead (saved in this browser).
+- The browser tab shows the unread Inbox count and the open view, like
+  "(3) Inbox · Mails", with a dot on the tab icon while anything is
+  unread. Settings and docs pages show their page title.
 
 ## [0.1.8] - 2026-11-21
 

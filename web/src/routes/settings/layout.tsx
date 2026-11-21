@@ -9,6 +9,7 @@ import {
   SidebarAside,
   SidebarFrame,
 } from "@/components/mail/sidebar";
+import { useDocumentTitle } from "@/lib/title";
 import { SETTINGS_PAGES } from "./pages";
 import { PageActionSlot } from "./parts";
 
@@ -24,6 +25,7 @@ export function Component() {
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
   const { pathname } = useLocation();
   const current = SETTINGS_PAGES.find((p) => pathname.startsWith(`/settings/${p.path}`));
+  useDocumentTitle(current?.title ?? "Settings");
 
   return (
     <div className="flex h-dvh overflow-hidden">

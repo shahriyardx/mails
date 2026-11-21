@@ -23,6 +23,7 @@ import { Sidebar, SidebarAside } from "@/components/mail/sidebar";
 import { ThreadList } from "@/components/mail/thread-list";
 import { ThreadView } from "@/components/mail/thread-view";
 import {
+  useCounts,
   useEmptyTrash,
   useLabels,
   useMailboxes,
@@ -33,6 +34,7 @@ import {
 import { cn } from "@/lib/cn";
 import { shortcutBlocked } from "@/lib/hooks";
 import { FOLDER_META, isFolder, mailHref, parseScope, type Scope, withListParam } from "@/lib/mail";
+import { useDocumentTitle } from "@/lib/title";
 import type { ThreadFilter, ViewFolder } from "@/lib/types";
 
 /** /mail/:scope/:folder?t=&reply=&q=&label=&unread= */
@@ -237,6 +239,9 @@ function ListHeader({
     : label
       ? (labels.data?.find((l) => l.id === label)?.name ?? "Label")
       : FOLDER_META[folder].label;
+  // The sidebar's counts query (same scope, so the same cache).
+  const counts = useCounts({ mailbox: filter.mailbox, domain: filter.domain });
+  useDocumentTitle(title, counts.data?.folders.inbox);
   // Nothing in Sent or Drafts is unread, so there is nothing to filter by.
   const canUnread = Boolean(label) || (folder !== "sent" && folder !== "drafts");
 

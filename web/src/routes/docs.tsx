@@ -39,6 +39,7 @@ import {
   type NavSection,
   neighbours,
 } from "@/lib/docs";
+import { useDocumentTitle } from "@/lib/title";
 
 const NAV = navData as NavSection[];
 
@@ -65,9 +66,7 @@ export function Component() {
     staleTime: Number.POSITIVE_INFINITY,
   });
 
-  useEffect(() => {
-    document.title = `${title ?? "Docs"} · Mails`;
-  }, [title]);
+  useDocumentTitle(title ?? "Docs");
 
   // New page: back to the top. A #hash: scroll to that heading once it exists.
   useEffect(() => {
