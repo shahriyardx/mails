@@ -2,9 +2,11 @@ package send
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/shahriyardx/mails/internal/auth"
 	"github.com/shahriyardx/mails/internal/httpx"
 )
 
@@ -16,6 +18,11 @@ func Routes(s *Service) http.Handler {
 		if err := httpx.Decode(r, &in); err != nil {
 			return err
 		}
+		prefs, err := s.Mail.GetPreferences(r.Context(), auth.FromContext(r.Context()).ID)
+		if err != nil {
+			return err
+		}
+		in.UndoWindow = time.Duration(*prefs.UndoSendSeconds) * time.Second
 		res, err := s.Send(r.Context(), in)
 		if err != nil {
 			return err
@@ -58,7 +65,12 @@ func Routes(s *Service) http.Handler {
 		if err := s.Cancel(r.Context(), nil, chi.URLParam(r, "id")); err != nil {
 			return err
 		}
-		w.WriteHeader(http.StatusNoContent)
+		// An undone send is a draft again: the composer reopens it from this.
+		m, err := s.Mail.GetMessage(r.Context(), nil, chi.URLParam(r, "id"))
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, m)
 		return nil
 	}))
 	return r

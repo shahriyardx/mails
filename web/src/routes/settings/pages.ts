@@ -146,7 +146,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
   {
     path: "appearance",
     title: "Preferences",
-    description: "Theme and layout.",
+    description: "Theme, layout and undo send.",
     icon: "palette",
     group: "You",
     load: () => import("./appearance"),

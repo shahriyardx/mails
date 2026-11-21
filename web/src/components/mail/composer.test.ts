@@ -7,12 +7,21 @@ import type { OutgoingMail } from "@/lib/types";
 const api = vi.hoisted(() => ({
   mutateAsync: vi.fn(),
   saveDraft: vi.fn(),
+  undoSend: vi.fn(),
+  uploadFile: vi.fn(),
+}));
+const toast = vi.hoisted(() => Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }));
+
+vi.mock("sonner", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("sonner")>()),
+  toast,
 }));
 
 vi.mock("@/lib/api", () => ({
   errorMessage: (error: unknown) => String(error),
   saveDraft: api.saveDraft,
-  uploadFile: vi.fn(),
+  undoSend: api.undoSend,
+  uploadFile: api.uploadFile,
   useContacts: () => ({ data: [] }),
   useDeleteDraft: () => ({ mutate: vi.fn() }),
   useMailboxes: () => ({
@@ -75,6 +84,11 @@ const sent = () => api.mutateAsync.mock.calls.at(-1)?.[0] as OutgoingMail | unde
 beforeEach(() => {
   api.mutateAsync.mockReset().mockResolvedValue({ status: "sent" });
   api.saveDraft.mockReset().mockResolvedValue({ id: "drf_1" });
+  api.undoSend.mockReset();
+  api.uploadFile.mockReset();
+  toast.mockReset();
+  toast.success.mockReset();
+  toast.error.mockReset();
   onClose.mockReset();
 });
 
@@ -84,6 +98,50 @@ afterEach(async () => {
 });
 
 describe("Composer", () => {
+  it("a held send closes, offers Undo for the window, and Undo reopens the draft", async () => {
+    api.mutateAsync.mockResolvedValue({
+      id: "msg_9",
+      thread_id: "thr_1",
+      status: "queued",
+      undo_until: new Date(Date.now() + 10_000).toISOString(),
+    });
+    const files = [{ id: "att_1", filename: "a.txt", size_bytes: 3 }];
+    api.undoSend.mockResolvedValue({ id: "msg_9", attachments: files });
+    const onReopen = vi.fn();
+    await render({
+      onReopen,
+      draft: { to: [{ name: "", address: "bob@example.test" }], subject: "Hi", threadId: "thr_1" },
+    });
+    await click("Send");
+
+    expect(onClose).toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+    const [text, options] = toast.mock.calls.at(-1)!;
+    expect(text).toBe("Sending…");
+    expect(options.duration).toBeGreaterThan(9_000);
+    expect(options.action.label).toBe("Undo");
+
+    await act(async () => options.action.onClick());
+    expect(api.undoSend).toHaveBeenCalledWith("msg_9");
+    expect(onReopen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        draftId: "msg_9",
+        subject: "Hi",
+        threadId: "thr_1",
+        to: [{ name: "", address: "bob@example.test" }],
+        attachments: files,
+        dirty: true,
+      }),
+    );
+  });
+
+  it("with the undo window off a send just says Sent", async () => {
+    await render({ draft: { to: [{ name: "", address: "bob@example.test" }] } });
+    await click("Send");
+    expect(toast.success).toHaveBeenCalledWith("Sent");
+    expect(toast).not.toHaveBeenCalled();
+  });
+
   it("Ctrl+Enter sends an address that was typed but not yet a chip", async () => {
     await render({
       draft: {

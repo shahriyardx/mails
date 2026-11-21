@@ -144,6 +144,11 @@ Scope: `emails:send`
 Works on a message still waiting in the queue because SES was busy. Returns
 the message with `status: "canceled"`, and fires `email.canceled`.
 
+A message sent from the dashboard and still inside its
+[undo window](/docs/guide/mail#undo-send) turns back into a draft instead
+(`folder: "drafts"`, `is_draft: true`), and no event fires: nothing was
+announced for it yet. After the window it is a `409`.
+
 Answers `409` for anything else: a message that went out, failed, or that a
 worker picked up a moment ago. At that point it is on its way to SES and there
 is nothing left to stop, and saying otherwise would be a lie you would go on

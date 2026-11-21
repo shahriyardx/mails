@@ -170,7 +170,12 @@ export interface Preferences {
   nav_collapsed: boolean | null;
   /** Missing on servers that do not keep it yet; localStorage covers that. */
   theme?: ThemeChoice;
+  /** Seconds a send can be called back (0 = off). */
+  undo_send_seconds?: UndoSeconds;
 }
+
+export const UNDO_SECONDS = [0, 5, 10, 20, 30] as const;
+export type UndoSeconds = (typeof UNDO_SECONDS)[number];
 
 export interface SetupStep {
   key: string;
@@ -610,6 +615,8 @@ export interface SendResult {
   thread_id: string;
   status: string;
   error?: string;
+  /** Held for the undo window until then (dashboard sends only). */
+  undo_until?: string;
 }
 
 /** One event from /api/events. */

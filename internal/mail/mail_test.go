@@ -361,6 +361,17 @@ func TestLabelsFiltersContactsPrefs(t *testing.T) {
 	if _, err := e.s.SavePreferences(ctx, uid, mail.Preferences{Density: "huge"}); code(err) != 422 {
 		t.Fatalf("bad density: %v", err)
 	}
+	if *p.UndoSendSeconds != 10 {
+		t.Fatalf("undo window default = %d", *p.UndoSendSeconds)
+	}
+	for _, sec := range []int{0, 30} {
+		if p, err = e.s.SavePreferences(ctx, uid, mail.Preferences{UndoSendSeconds: ptr(sec)}); err != nil || *p.UndoSendSeconds != sec || p.Theme != "light" {
+			t.Fatalf("undo window %d: %+v %v", sec, p, err)
+		}
+	}
+	if _, err := e.s.SavePreferences(ctx, uid, mail.Preferences{UndoSendSeconds: ptr(7)}); code(err) != 422 {
+		t.Fatalf("undo window 7 accepted: %v", err)
+	}
 
 	if err := e.s.TrustImages(ctx, "News@x.test", true); err != nil {
 		t.Fatal(err)

@@ -106,19 +106,23 @@ type Input struct {
 
 	APIKeyID string   `json:"-"`
 	Allowed  []string `json:"-"` // mailboxes the caller reaches; nil = all
+	// UndoWindow holds the mail in the queue this long before SES sees it,
+	// so Cancel can turn it back into a draft. Dashboard sends only.
+	UndoWindow time.Duration `json:"-"`
 }
 
 // Result is what a send returns, in the public API shape.
 type Result struct {
-	ID           string   `json:"id"`
-	MessageID    string   `json:"message_id"`
-	SESMessageID *string  `json:"ses_message_id"`
-	ThreadID     string   `json:"thread_id"`
-	From         string   `json:"from"`
-	To           []string `json:"to"`
-	Subject      string   `json:"subject"`
-	Status       string   `json:"status"`
-	Error        *string  `json:"error,omitempty"`
+	ID           string     `json:"id"`
+	MessageID    string     `json:"message_id"`
+	SESMessageID *string    `json:"ses_message_id"`
+	ThreadID     string     `json:"thread_id"`
+	From         string     `json:"from"`
+	To           []string   `json:"to"`
+	Subject      string     `json:"subject"`
+	Status       string     `json:"status"`
+	Error        *string    `json:"error,omitempty"`
+	UndoUntil    *time.Time `json:"undo_until,omitempty"` // until when Cancel turns it back into a draft
 }
 
 // prepared is a validated message, ready to go out or be saved.
@@ -162,20 +166,23 @@ func (s *Service) Send(ctx context.Context, in Input) (*Result, error) {
 		s.dropCopies(p.copies)
 		return nil, err
 	}
-	status, sesID, reason := "sent", "", ""
-	// A client hanging up must not abort the call: SES may have the mail
-	// already, and queueing it would send it twice.
-	sendCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), sesTimeout)
-	sesID, err = s.SES.SendRaw(sendCtx, ses.RawEmail{From: p.box.Address, To: p.envelop, Raw: p.raw, ConfigurationSet: s.configSet()})
-	cancel()
-	if err != nil {
-		if ses.Permanent(err) {
-			s.dropCopies(p.copies)
-			_ = s.claimDraft(context.WithoutCancel(ctx), p.in.DraftID, false)
-			return nil, &httpx.Error{Status: 422, Code: "invalid_request", Message: "SES refused this message: " + err.Error()}
+	status, sesID, reason := "queued", "", ""
+	if in.UndoWindow <= 0 {
+		status = "sent"
+		// A client hanging up must not abort the call: SES may have the mail
+		// already, and queueing it would send it twice.
+		sendCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), sesTimeout)
+		sesID, err = s.SES.SendRaw(sendCtx, ses.RawEmail{From: p.box.Address, To: p.envelop, Raw: p.raw, ConfigurationSet: s.configSet()})
+		cancel()
+		if err != nil {
+			if ses.Permanent(err) {
+				s.dropCopies(p.copies)
+				_ = s.claimDraft(context.WithoutCancel(ctx), p.in.DraftID, false)
+				return nil, &httpx.Error{Status: 422, Code: "invalid_request", Message: "SES refused this message: " + err.Error()}
+			}
+			status, reason = "queued", err.Error()
+			slog.Warn("send queued after SES error", "err", err)
 		}
-		status, reason = "queued", err.Error()
-		slog.Warn("send queued after SES error", "err", err)
 	}
 	// SES has decided; the caller going away must not stop the record.
 	recCtx, cancelRec := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
@@ -498,6 +505,7 @@ func (s *Service) record(ctx context.Context, p *prepared, status, sesID, reason
 		sentAt = &now
 	}
 	var dropped []string
+	var undoUntil *time.Time
 	err := pgx.BeginFunc(ctx, s.DB, func(tx pgx.Tx) error {
 		newThread := func() error {
 			threadID = id.New("thr")
@@ -567,9 +575,16 @@ func (s *Service) record(ctx context.Context, p *prepared, status, sesID, reason
 			}
 		}
 		if status == "queued" {
-			if _, err := tx.Exec(ctx, `INSERT INTO send_job (id, message_id, mailbox_id, from_address, recipients, raw_mime, attempts, next_attempt_at, last_error)
-				VALUES ($1, $2, $3, $4, $5, $6, 1, $7, $8)`, id.New("job"), msgID, p.box.ID, p.box.Address, p.envelop, p.raw,
-				now.Add(Backoff(1)), reasonPtr); err != nil {
+			// A failed first try waits out its backoff; an undoable send has
+			// not been tried and waits out the undo window.
+			attempts, due := 1, now.Add(Backoff(1))
+			if p.in.UndoWindow > 0 {
+				attempts, due = 0, now.Add(p.in.UndoWindow)
+				undoUntil = &due
+			}
+			if _, err := tx.Exec(ctx, `INSERT INTO send_job (id, message_id, mailbox_id, from_address, recipients, raw_mime, attempts, next_attempt_at, last_error, undo_until)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`, id.New("job"), msgID, p.box.ID, p.box.Address, p.envelop, p.raw,
+				attempts, due, reasonPtr, undoUntil); err != nil {
 				return fmt.Errorf("enqueue: %w", err)
 			}
 		}
@@ -591,7 +606,7 @@ func (s *Service) record(ctx context.Context, p *prepared, status, sesID, reason
 	s.Hub.Publish(realtime.Event{Type: "thread.updated", Data: map[string]any{"thread_ids": []string{threadID}}})
 	return &Result{
 		ID: msgID, MessageID: rfcID, SESMessageID: sesPtr, ThreadID: threadID, From: p.box.Address,
-		To: addr.Addresses(p.in.To), Subject: p.in.Subject, Status: status, Error: reasonPtr,
+		To: addr.Addresses(p.in.To), Subject: p.in.Subject, Status: status, Error: reasonPtr, UndoUntil: undoUntil,
 	}, nil
 }
 

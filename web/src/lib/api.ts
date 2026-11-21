@@ -41,6 +41,7 @@ import type {
   Mailbox,
   MailboxInput,
   MailboxPatch,
+  Message,
   MessageDetail,
   Metrics,
   OutgoingMail,
@@ -886,6 +887,13 @@ export function useSend() {
       api<SendResult>("/api/app/send", { method: "POST", body: mail }),
     onSettled: (result) => refreshThreads(client, result ? [result.thread_id] : []),
   });
+}
+
+/** Calls back a send still inside its undo window: the mail is a draft again. */
+export async function undoSend(id: string) {
+  const draft = await api<Message>(`/api/app/emails/${id}/cancel`, { method: "POST" });
+  refreshThreads(queryClient, [draft.thread_id]);
+  return draft;
 }
 
 /** Creates (no draft_id) or replaces a draft. Quiet: no list refresh needed. */

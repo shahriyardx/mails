@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/shahriyardx/mails/internal/httpx"
+	"github.com/shahriyardx/mails/internal/mail"
 	"github.com/shahriyardx/mails/internal/realtime"
 	"github.com/shahriyardx/mails/internal/ses"
 )
@@ -47,10 +48,12 @@ func (s *Service) Wake() {
 }
 
 // RunOutbox processes due jobs until ctx ends. Jobs are claimed with
-// FOR UPDATE SKIP LOCKED, so several processes can run it safely.
+// FOR UPDATE SKIP LOCKED, so several processes can run it safely. Between
+// rounds it sleeps until the next job is due (an undo window ending, a
+// retry), at most idlePoll, or until Wake.
 func (s *Service) RunOutbox(ctx context.Context) {
 	wake := s.wakeCh()
-	t := time.NewTicker(idlePoll)
+	t := time.NewTimer(idlePoll)
 	defer t.Stop()
 	for {
 		for ctx.Err() == nil {
@@ -63,6 +66,7 @@ func (s *Service) RunOutbox(ctx context.Context) {
 				break
 			}
 		}
+		t.Reset(s.untilNextDue(ctx))
 		select {
 		case <-ctx.Done():
 			return
@@ -70,6 +74,18 @@ func (s *Service) RunOutbox(ctx context.Context) {
 		case <-t.C:
 		}
 	}
+}
+
+// untilNextDue is how long until the earliest pending job is due, within
+// [minWait, idlePoll]. The floor keeps a job another process holds from
+// spinning this loop.
+func (s *Service) untilNextDue(ctx context.Context) time.Duration {
+	const minWait = 200 * time.Millisecond
+	var next *time.Time
+	if err := s.DB.QueryRow(ctx, `SELECT min(next_attempt_at) FROM send_job WHERE status = 'pending'`).Scan(&next); err != nil || next == nil {
+		return idlePoll
+	}
+	return min(max(next.Sub(s.Now()), minWait), idlePoll)
 }
 
 type job struct {
@@ -157,12 +173,17 @@ func (s *Service) publishMessage(ctx context.Context, messageID string) {
 	}
 }
 
-// Cancel calls off a message still waiting in the queue. Once a worker has
-// claimed it, it is on its way and cancel is a 409.
+// Cancel calls off a message still waiting in the queue. Within its undo
+// window a dashboard send turns back into a draft; any other waiting job is
+// marked canceled. Once a worker has claimed it, or an undo window has
+// passed, it is on its way and cancel is a 409.
 func (s *Service) Cancel(ctx context.Context, allowed []string, messageID string) error {
-	var mailboxID, status string
-	err := s.DB.QueryRow(ctx, `SELECT m.mailbox_id, coalesce(j.status::text, '') FROM message m
-		LEFT JOIN send_job j ON j.message_id = m.id WHERE m.id = $1 OR m.ses_message_id = $1`, messageID).Scan(&mailboxID, &status)
+	var id, mailboxID, status string
+	var undoUntil *time.Time
+	var attempts int
+	err := s.DB.QueryRow(ctx, `SELECT m.id, m.mailbox_id, coalesce(j.status::text, ''), j.undo_until, coalesce(j.attempts, 0) FROM message m
+		LEFT JOIN send_job j ON j.message_id = m.id WHERE m.id = $1 OR m.ses_message_id = $1 LIMIT 1`, messageID).
+		Scan(&id, &mailboxID, &status, &undoUntil, &attempts)
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && allowed != nil && !contains(allowed, mailboxID)) {
 		return httpx.NotFound("No such email")
 	}
@@ -172,19 +193,47 @@ func (s *Service) Cancel(ctx context.Context, allowed []string, messageID string
 	if status != "pending" {
 		return httpx.Conflict("This email is not waiting in the queue, so it cannot be called off")
 	}
+	if undoUntil != nil && attempts == 0 {
+		return s.undo(ctx, id)
+	}
 	tag, err := s.DB.Exec(ctx, `WITH j AS (UPDATE send_job SET status = 'canceled', raw_mime = '', updated_at = now()
-			WHERE message_id = (SELECT id FROM message WHERE id = $1 OR ses_message_id = $1) AND status = 'pending' RETURNING message_id)
-		UPDATE message SET delivery_status = 'canceled' FROM j WHERE message.id = j.message_id`, messageID)
+			WHERE message_id = $1 AND status = 'pending' RETURNING message_id)
+		UPDATE message SET delivery_status = 'canceled' FROM j WHERE message.id = j.message_id`, id)
 	if err != nil {
 		return fmt.Errorf("cancel: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
 		return httpx.Conflict("A worker picked this email up a moment ago")
 	}
-	var id string
-	_ = s.DB.QueryRow(ctx, `SELECT id FROM message WHERE id = $1 OR ses_message_id = $1`, messageID).Scan(&id)
 	s.emitEmail(ctx, "email.canceled", id)
 	s.publishMessage(ctx, id)
+	return nil
+}
+
+// undo turns a send still inside its undo window back into the draft it
+// was: same id, thread and files. Nothing was announced for it, so no
+// event goes out either.
+func (s *Service) undo(ctx context.Context, id string) error {
+	var threadID string
+	err := pgx.BeginFunc(ctx, s.DB, func(tx pgx.Tx) error {
+		// The same row lock as the outbox claim: whichever comes first wins.
+		tag, err := tx.Exec(ctx, `DELETE FROM send_job WHERE message_id = $1 AND status = 'pending' AND attempts = 0 AND undo_until > $2`, id, s.Now())
+		if err != nil {
+			return fmt.Errorf("undo: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return httpx.Conflict("Too late to undo: this email is on its way")
+		}
+		if err := tx.QueryRow(ctx, `UPDATE message SET folder = 'drafts', is_draft = true, delivery_status = NULL, delivery_error = NULL,
+				rfc_message_id = NULL, sent_at = NULL, size_bytes = 0 WHERE id = $1 RETURNING thread_id`, id).Scan(&threadID); err != nil {
+			return fmt.Errorf("undo: back to draft: %w", err)
+		}
+		return mail.Recompute(ctx, tx, threadID)
+	})
+	if err != nil {
+		return err
+	}
+	s.Hub.Publish(realtime.Event{Type: "thread.updated", Data: map[string]any{"thread_ids": []string{threadID}}})
 	return nil
 }
 

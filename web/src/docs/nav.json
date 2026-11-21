@@ -9,6 +9,7 @@
       { "path": "guide/domains", "title": "Sending domains" },
       { "path": "guide/receiving", "title": "Receiving mail" },
       { "path": "guide/mailboxes", "title": "Mailboxes" },
+      { "path": "guide/mail", "title": "Reading and writing mail" },
       { "path": "guide/forwarding", "title": "Forwarding" },
       { "path": "guide/queue", "title": "The send queue" },
       { "path": "guide/metrics", "title": "Metrics" },

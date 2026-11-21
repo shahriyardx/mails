@@ -214,8 +214,8 @@ func TestIdempotencyAndBatch(t *testing.T) {
 	if first.code != 202 || again.code != 202 || again.header.Get("Idempotency-Replayed") != "true" || first.body["id"] != again.body["id"] {
 		t.Fatalf("replay: %d %d %v %v", first.code, again.code, first.body["id"], again.body["id"])
 	}
-	if e.ses.SentCount() != 1 {
-		t.Fatalf("sent %d times", e.ses.SentCount())
+	if e.ses.SentCount() != 1 || first.body["status"] != "sent" {
+		t.Fatalf("sent %d times, status %v (API sends never wait for undo)", e.ses.SentCount(), first.body["status"])
 	}
 	msg["subject"] = "Changed"
 	if r := e.call(t, k, "POST", "/emails", msg, "Idempotency-Key", "receipt-1"); r.code != 409 {
@@ -253,8 +253,8 @@ func TestReplyIsIdempotent(t *testing.T) {
 	if first.code != 202 || again.code != 202 || again.header.Get("Idempotency-Replayed") != "true" || first.body["id"] != again.body["id"] {
 		t.Fatalf("replay: %d %d %s %s", first.code, again.code, first.raw, again.raw)
 	}
-	if e.ses.SentCount() != 1 {
-		t.Fatalf("sent %d times", e.ses.SentCount())
+	if e.ses.SentCount() != 1 || first.body["status"] != "sent" {
+		t.Fatalf("sent %d times, status %v (API sends never wait for undo)", e.ses.SentCount(), first.body["status"])
 	}
 	if r := e.call(t, k, "POST", "/threads/"+thread+"/reply", map[string]any{"text": "Other"}, "Idempotency-Key", "reply-1"); r.code != 409 {
 		t.Fatalf("changed body: %d", r.code)

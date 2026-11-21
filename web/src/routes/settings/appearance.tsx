@@ -1,12 +1,16 @@
-import { Icon, toast } from "@/components/kit";
+import { Icon, Select, SelectContent, SelectItem, SelectTrigger, toast } from "@/components/kit";
 import { setAfterMove, useAfterMove } from "@/lib/after-move";
 import { errorMessage, usePreferences, useSavePreferences } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { useTheme } from "@/lib/theme";
-import type { Preferences } from "@/lib/types";
+import { type Preferences, UNDO_SECONDS, type UndoSeconds } from "@/lib/types";
 import { LoadError, PageLoading, Section } from "./parts";
 
-/** Theme, density, reading layout and what follows an archive or delete. */
+const undoLabels = Object.fromEntries(
+  UNDO_SECONDS.map((s) => [String(s), s === 0 ? "Off" : `${s} seconds`]),
+);
+
+/** Theme, density, reading layout, what follows an archive or delete, and the undo-send window. */
 export default function Appearance() {
   const prefs = usePreferences();
   const save = useSavePreferences();
@@ -104,6 +108,30 @@ export default function Appearance() {
             },
           ]}
         />
+      </Section>
+      <Section
+        title={<span id="undo-send">Undo send</span>}
+        description="How long a sent message waits, so you can call it back."
+        action={
+          <Select
+            value={String(prefs.data.undo_send_seconds ?? 10)}
+            onValueChange={(value) =>
+              value !== null && change({ undo_send_seconds: Number(value) as UndoSeconds })
+            }
+            items={undoLabels}
+          >
+            <SelectTrigger aria-labelledby="undo-send" className="w-36" />
+            <SelectContent>
+              {UNDO_SECONDS.map((s) => (
+                <SelectItem key={s} value={String(s)}>
+                  {undoLabels[String(s)]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        }
+      >
+        {null}
       </Section>
     </div>
   );

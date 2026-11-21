@@ -301,12 +301,15 @@ type Preferences struct {
 	Density       string `json:"density" validate:"omitempty,oneof=comfortable compact"`
 	ReadingLayout string `json:"reading_layout" validate:"omitempty,oneof=split stacked"`
 	NavCollapsed  *bool  `json:"nav_collapsed"`
+	// UndoSendSeconds is how long a dashboard send waits so it can be
+	// called back. 0 sends at once.
+	UndoSendSeconds *int `json:"undo_send_seconds" validate:"omitnil,oneof=0 5 10 20 30"`
 }
 
 func (s *Service) GetPreferences(ctx context.Context, userID string) (*Preferences, error) {
-	p := &Preferences{Theme: "dark", Density: "comfortable", ReadingLayout: "split", NavCollapsed: new(bool)}
-	err := s.DB.QueryRow(ctx, `SELECT theme, density, reading_layout, nav_collapsed FROM preference WHERE user_id = $1`, userID).
-		Scan(&p.Theme, &p.Density, &p.ReadingLayout, p.NavCollapsed)
+	p := &Preferences{Theme: "dark", Density: "comfortable", ReadingLayout: "split", NavCollapsed: new(bool), UndoSendSeconds: new(10)}
+	err := s.DB.QueryRow(ctx, `SELECT theme, density, reading_layout, nav_collapsed, undo_send_seconds FROM preference WHERE user_id = $1`, userID).
+		Scan(&p.Theme, &p.Density, &p.ReadingLayout, p.NavCollapsed, p.UndoSendSeconds)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("get preferences: %w", err)
 	}
@@ -318,13 +321,14 @@ func (s *Service) SavePreferences(ctx context.Context, userID string, p Preferen
 	if err := httpx.Validate(p); err != nil {
 		return nil, err
 	}
-	_, err := s.DB.Exec(ctx, `INSERT INTO preference (user_id, density, reading_layout, nav_collapsed, theme)
-		VALUES ($1, coalesce(nullif($2, ''), 'comfortable'), coalesce(nullif($3, ''), 'split'), coalesce($4, false), coalesce(nullif($5, ''), 'dark'))
+	_, err := s.DB.Exec(ctx, `INSERT INTO preference (user_id, density, reading_layout, nav_collapsed, theme, undo_send_seconds)
+		VALUES ($1, coalesce(nullif($2, ''), 'comfortable'), coalesce(nullif($3, ''), 'split'), coalesce($4, false), coalesce(nullif($5, ''), 'dark'), coalesce($6, 10))
 		ON CONFLICT (user_id) DO UPDATE SET density = coalesce(nullif($2, ''), preference.density),
 			reading_layout = coalesce(nullif($3, ''), preference.reading_layout),
 			nav_collapsed = coalesce($4, preference.nav_collapsed),
-			theme = coalesce(nullif($5, ''), preference.theme), updated_at = now()`,
-		userID, p.Density, p.ReadingLayout, p.NavCollapsed, p.Theme)
+			theme = coalesce(nullif($5, ''), preference.theme),
+			undo_send_seconds = coalesce($6, preference.undo_send_seconds), updated_at = now()`,
+		userID, p.Density, p.ReadingLayout, p.NavCollapsed, p.Theme, p.UndoSendSeconds)
 	if err != nil {
 		return nil, fmt.Errorf("save preferences: %w", err)
 	}

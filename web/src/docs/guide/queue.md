@@ -30,6 +30,10 @@ Anything else is a *not right now*, and goes into the queue:
 
 The reply says `"status": "queued"` and the message is already in Sent.
 
+A send from the dashboard is the one exception: it waits out your
+[undo window](/docs/guide/mail#undo-send) in the queue first (no attempt
+yet), and only then goes to SES, through the same worker.
+
 ## What happens then
 
 The gap between attempts widens each time: about 30 seconds, then a minute,

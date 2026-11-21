@@ -17,6 +17,7 @@ import { spatial } from "@/components/kit/motion";
 import {
   errorMessage,
   saveDraft,
+  undoSend,
   uploadFile,
   useDeleteDraft,
   useMailboxes,
@@ -26,7 +27,7 @@ import { cn } from "@/lib/cn";
 import { useIsPhone } from "@/lib/hooks";
 import { formatAddress, formatBytes } from "@/lib/mail";
 import { restoreBlockedImages, sanitizeForEditor } from "@/lib/sanitize";
-import type { Address, Mailbox, OutgoingMail } from "@/lib/types";
+import type { Address, Mailbox, OutgoingMail, SendResult } from "@/lib/types";
 import type { ComposerDraft } from "./composer-provider";
 import { RecipientInput } from "./recipient-input";
 import { RichEditor } from "./rich-editor";
@@ -61,11 +62,14 @@ function pickMailbox(mailboxes: Mailbox[], wanted?: string) {
 export default function Composer({
   draft,
   onClose,
+  onReopen,
   onSaved,
   flushRef,
 }: {
   draft: ComposerDraft;
   onClose: () => void;
+  /** Opens a composer again: Undo after Send brings the draft back with it. */
+  onReopen?: (draft: ComposerDraft) => void;
   /** Told the draft's id after each save. */
   onSaved?: (draftId: string) => void;
   /** Set to this composer's flush, so a new composer can save this one first. */
@@ -96,7 +100,7 @@ export default function Composer({
   // before a re-render could hand submit() the new state.
   const recipients = useRef({ to, cc, bcc });
   const draftId = useRef(draft.draftId);
-  const dirty = useRef(false);
+  const dirty = useRef(Boolean(draft.dirty));
   const saving = useRef<Promise<unknown> | null>(null);
   const sending = useRef(false);
 
@@ -227,7 +231,11 @@ export default function Composer({
     mail.draft_id = draftId.current;
     await send.mutateAsync(mail).then(
       (res) => {
-        toast.success(res.status === "queued" ? "Queued. It keeps trying until it sends." : "Sent");
+        if (res.undo_until) offerUndo(res);
+        else
+          toast.success(
+            res.status === "queued" ? "Queued. It keeps trying until it sends." : "Sent",
+          );
         onClose();
       },
       (error) => {
@@ -236,6 +244,30 @@ export default function Composer({
         toast.error(errorMessage(error));
       },
     );
+  }
+
+  /** "Sending… Undo" for the undo window; Undo reopens this message as a draft. */
+  function offerUndo(res: SendResult) {
+    const { to, cc, bcc } = recipients.current;
+    // The editor's text, not the sent body: that one has the signature in it.
+    const reopen: ComposerDraft = { ...draft, mailboxId: mailbox?.id, to, cc, bcc, subject, html };
+    toast("Sending…", {
+      duration: Math.max(0, Date.parse(res.undo_until ?? "") - Date.now()),
+      action: {
+        label: "Undo",
+        onClick: () =>
+          undoSend(res.id).then(
+            (back) =>
+              onReopen?.({
+                ...reopen,
+                draftId: back.id,
+                attachments: back.attachments,
+                dirty: true,
+              }),
+            (error) => toast.error(errorMessage(error)),
+          ),
+      },
+    });
   }
 
   async function attach(list: FileList | null) {

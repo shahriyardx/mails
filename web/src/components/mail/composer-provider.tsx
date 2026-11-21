@@ -30,6 +30,8 @@ export interface ComposerDraft {
   attachments?: { id: string; filename: string; size_bytes: number }[];
   /** Heading: "New message", "Reply", "Forward". */
   title?: string;
+  /** Unsaved from the start: autosave (or Close) writes it back. */
+  dirty?: boolean;
 }
 
 interface ComposerApi {
@@ -89,6 +91,7 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
               key={draft.key}
               draft={draft}
               onClose={close}
+              onReopen={open}
               onSaved={saved}
               flushRef={flush}
             />

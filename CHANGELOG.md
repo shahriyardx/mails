@@ -29,6 +29,11 @@ All notable changes are listed here. The format follows
   message, switch the theme, fold the sidebar, or search mail. Arrow keys
   and Enter pick; letters typed in order match ("strd" finds Starred).
 - Docs: Guide -> Keyboard shortcuts lists every key.
+- Undo send: a message sent from the dashboard waits a few seconds
+  (Settings -> Preferences -> Undo send: off, 5, 10, 20 or 30; 10 by
+  default) with a "Sending… Undo" note. Undo brings it back as a draft,
+  files and all. API sends still go at once. `POST /emails/:id/cancel`
+  inside the window turns the message back into a draft.
 
 ## [0.1.8] - 2026-11-21
 
