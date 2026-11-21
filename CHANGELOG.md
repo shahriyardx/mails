@@ -11,7 +11,8 @@ All notable changes are listed here. The format follows
 - Keyboard in the mail list: one Tab stop for the whole list; Up/Down
   (or j/k) move between emails and, side by side, open them; Home/End
   jump; Enter opens; x selects, e archives, s stars, u toggles read, and
-  Backspace / Delete / # move to Trash.
+  Backspace / Delete / # move to Trash. With emails selected, these keys
+  act on all of them.
 
 ## [0.1.8] - 2026-11-21
 

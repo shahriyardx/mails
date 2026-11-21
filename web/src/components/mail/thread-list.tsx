@@ -27,7 +27,7 @@ import { useIsTouch } from "@/lib/hooks";
 import { dayGroup, displayName, formatStamp, swipeOutcome } from "@/lib/mail";
 import type { Thread, ThreadFilter, ViewFolder } from "@/lib/types";
 import { LabelMenu } from "./label-menu";
-import { listKeyAction } from "./list-keys";
+import { focusAfterRemoval, keyTargets, listKeyAction } from "./list-keys";
 import { movableFolder, useThreadActions } from "./use-thread-actions";
 
 const EMPTY: Record<ViewFolder, { icon: string; title: string }> = {
@@ -164,19 +164,41 @@ export function ThreadList({
         return focusRow(threads.length - 1);
       case "select":
         return toggle(thread.id);
+    }
+    // The rest act on every selected row, or the focused one when none is.
+    const targets = keyTargets(ids, thread.id);
+    const picked = threads.filter((t) => targets.includes(t.id));
+    const leave = () => {
+      const nextId = focusAfterRemoval(
+        threads.map((t) => t.id),
+        thread.id,
+        targets,
+      );
+      const to = threads.findIndex((t) => t.id === nextId);
+      if (to >= 0) focusRow(to);
+    };
+    switch (action) {
       case "archive":
-        if (folder !== "trash" && folder !== "archive") {
-          focusRow(index + 1 < threads.length ? index + 1 : index - 1);
-          actions.move([thread.id], "archive", from);
-        }
-        return;
+        if (folder === "trash" || folder === "archive") return;
+        leave();
+        actions.move(targets, "archive", from);
+        return done();
       case "star":
-        return actions.setStarred([thread.id], !thread.is_starred);
-      case "delete":
-        focusRow(index + 1 < threads.length ? index + 1 : index - 1);
-        return remove([thread.id]);
+        // Star them all, unless all are starred already: then unstar.
+        actions.setStarred(targets, !picked.every((t) => t.is_starred));
+        return done();
       case "read":
-        return actions.setRead([thread.id], thread.unread_count > 0);
+        // Mark them all read if any is unread, else all unread.
+        actions.setRead(
+          targets,
+          picked.some((t) => t.unread_count > 0),
+        );
+        return done();
+      case "delete":
+        if (folder === "trash") return remove(targets); // asks first; the dialog clears the selection
+        leave();
+        remove(targets);
+        return done();
     }
   }
 

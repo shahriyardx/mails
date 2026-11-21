@@ -50,3 +50,28 @@ export function listKeyAction(event: {
       return null;
   }
 }
+
+/** The rows a key acts on: every selected row when any are selected, else the focused one. */
+export function keyTargets(selected: readonly string[], focused: string): string[] {
+  return selected.length > 0 ? [...selected] : [focused];
+}
+
+/**
+ * Where focus goes after `removed` leave the list: the first row below the
+ * focused one that stays, else the nearest one above, else nothing.
+ */
+export function focusAfterRemoval(
+  rows: readonly string[],
+  focused: string,
+  removed: readonly string[],
+): string | undefined {
+  const gone = new Set(removed);
+  const at = rows.indexOf(focused);
+  return (
+    rows.slice(at + 1).find((id) => !gone.has(id)) ??
+    rows
+      .slice(0, Math.max(at, 0))
+      .reverse()
+      .find((id) => !gone.has(id))
+  );
+}
