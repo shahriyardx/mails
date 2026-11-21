@@ -213,7 +213,7 @@ sent.
 | `from` | Exact sender address |
 | `to` | Exact recipient address, in `to`, `cc` or `bcc` |
 | `subject` | Substring |
-| `q` | Full text over subject and body |
+| `q` | Full text over subject, sender and body, plus the [search filters](/docs/api/threads#search-filters) |
 | `opened` | `true` or `false` |
 | `api_key_id` | Only mail sent by one key |
 | `thread_id` | Only mail in one thread |

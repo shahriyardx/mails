@@ -18,7 +18,7 @@ type ThreadFilter struct {
 	Domain         string
 	Folder         string // a folder, "starred", "all" or ""
 	Label          string // id or name
-	Query          string // full text
+	Query          string // search box text: filters and free text (ParseSearch)
 	Unread         *bool
 	Starred        *bool
 	HasAttachments *bool
@@ -35,6 +35,10 @@ var folders = map[string]bool{"inbox": true, "sent": true, "drafts": true, "arch
 func (s *Service) ListThreads(ctx context.Context, f ThreadFilter) (page.List[*Thread], error) {
 	var w where
 	w.scope("t.mailbox_id", f.Allowed, f.MailboxID, f.Domain)
+	search := ParseSearch(f.Query)
+	if v := search.view(); v != "" {
+		f.Folder = v // in: in the search box picks the list
+	}
 	switch {
 	case f.Folder == "" || f.Folder == "all":
 	case f.Folder == "starred":
@@ -45,13 +49,9 @@ func (s *Service) ListThreads(ctx context.Context, f ThreadFilter) (page.List[*T
 		return page.List[*Thread]{}, httpx.Invalid("folder", "folder: One of inbox, sent, drafts, archive, spam, trash, starred, all")
 	}
 	if f.Label != "" {
-		w.add("EXISTS (SELECT 1 FROM thread_label tl JOIN label l ON l.id = tl.label_id WHERE tl.thread_id = t.id AND (l.id = ? OR lower(l.name) = lower(?)))", f.Label, f.Label)
+		w.add(labelCond("t.id"), f.Label, f.Label)
 	}
-	if f.Query != "" {
-		like := "%" + likeEscape(f.Query) + "%"
-		w.add(`EXISTS (SELECT 1 FROM message m WHERE m.thread_id = t.id AND (m.search_vector @@ websearch_to_tsquery('english', ?)
-			OR m.from_address ILIKE ? OR m.subject ILIKE ?))`, f.Query, like, like)
-	}
+	search.threadConds(&w)
 	if f.Unread != nil {
 		w.add("(t.unread_count > 0) = ?", *f.Unread)
 	}

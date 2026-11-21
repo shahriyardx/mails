@@ -177,6 +177,15 @@ func (w *where) add(cond string, args ...any) {
 	w.parts = append(w.parts, cond)
 }
 
+// nested runs build on a clause that shares w's arguments and returns its
+// conditions, for w to wrap (in an EXISTS, say).
+func (w *where) nested(build func(*where)) []string {
+	inner := &where{args: w.args}
+	build(inner)
+	w.args = inner.args
+	return inner.parts
+}
+
 // arg adds an argument and returns its placeholder.
 func (w *where) arg(a any) string {
 	w.args = append(w.args, a)

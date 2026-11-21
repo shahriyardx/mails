@@ -1,0 +1,22 @@
+[
+  { "q": "", "terms": [], "text": "" },
+  { "q": "invoice march", "terms": [], "text": "invoice march" },
+  { "q": "from:ada", "terms": [{ "op": "from", "value": "ada" }], "text": "" },
+  { "q": "From:Ada@x.test", "terms": [{ "op": "from", "value": "Ada@x.test" }], "text": "" },
+  { "q": "from:\"Ada L\" report", "terms": [{ "op": "from", "value": "Ada L" }], "text": "report" },
+  { "q": "to:bob subject:\"q3 plan\"", "terms": [{ "op": "to", "value": "bob" }, { "op": "subject", "value": "q3 plan" }], "text": "" },
+  { "q": "has:attachment", "terms": [{ "op": "has", "value": "attachment" }], "text": "" },
+  { "q": "has:attachments", "terms": [{ "op": "has", "value": "attachment" }], "text": "" },
+  { "q": "has:pdf", "terms": [], "text": "has:pdf" },
+  { "q": "is:unread is:READ is:starred", "terms": [{ "op": "is", "value": "unread" }, { "op": "is", "value": "read" }, { "op": "is", "value": "starred" }], "text": "" },
+  { "q": "is:important", "terms": [], "text": "is:important" },
+  { "q": "label:work label:\"side project\"", "terms": [{ "op": "label", "value": "work" }, { "op": "label", "value": "side project" }], "text": "" },
+  { "q": "in:archive", "terms": [{ "op": "in", "value": "archive" }], "text": "" },
+  { "q": "in:nowhere", "terms": [], "text": "in:nowhere" },
+  { "q": "before:2026-11-20 after:2026/01/02", "terms": [{ "op": "before", "value": "2026-11-20" }, { "op": "after", "value": "2026-01-02" }], "text": "" },
+  { "q": "before:yesterday", "terms": [], "text": "before:yesterday" },
+  { "q": "foo:bar http://x.test", "terms": [], "text": "foo:bar http://x.test" },
+  { "q": "\"exact phrase\" from:", "terms": [], "text": "\"exact phrase\" from:" },
+  { "q": "  subject:\"a:b\"   x  ", "terms": [{ "op": "subject", "value": "a:b" }], "text": "x" },
+  { "q": "from:\"unclosed name", "terms": [{ "op": "from", "value": "unclosed name" }], "text": "" }
+]

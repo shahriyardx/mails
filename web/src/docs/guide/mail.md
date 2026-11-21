@@ -16,3 +16,16 @@ extension goes to SES straight away.
 
 While it waits, the message sits in Sent marked `queued`. When the time is
 up the [send queue](/docs/guide/queue) sends it like any other queued mail.
+
+## Search filters
+
+The search box (press `/`) takes plain words and filters, like Gmail:
+
+- `from:ada`, `to:bob`, `subject:"q3 plan"`: part of a name, address or subject
+- `has:attachment`, `is:unread`, `is:read`, `is:starred`
+- `label:work`, `in:archive` (or any folder, or `in:all`)
+- `after:2026-01-31`, `before:2026-02-01`: days, in UTC
+
+Quotes keep spaces in a value. Each filter shows as a chip under the box;
+its cross takes it out. **Filters** in the box lists them all.
+`in:` searches that folder whatever folder is open.

@@ -15,7 +15,7 @@ Scope: `mail:read`
 | --- | --- |
 | `folder` | `inbox`, `sent`, `drafts`, `archive`, `spam`, `trash`, `starred`, or `all` (the default) |
 | `label_id` / `label` | By id or by name |
-| `q` | Full text across every message in the thread, plus sender and subject |
+| `q` | Search box text: [filters](#search-filters) and full text across every message in the thread, plus sender and subject |
 | `unread` | `true` for threads with anything unread, `false` for none |
 | `starred`, `has_attachments` | `true` or `false` |
 | `participant` | Anybody on the conversation, by address |
@@ -50,6 +50,33 @@ Scope: `mail:read`
 conversation you replied to sits in both `inbox` and `sent`.
 
 `starred` as a folder means starred threads outside the trash.
+
+### Search filters
+
+`q` takes the same filters as the dashboard's search box, mixed with plain
+words:
+
+| Filter | Matches |
+| --- | --- |
+| `from:ada` | Sender name or address contains `ada` |
+| `to:bob` | A `to`, `cc` or `bcc` name or address contains `bob` |
+| `subject:invoice` | The subject contains `invoice` |
+| `has:attachment` | Threads with files |
+| `is:unread`, `is:read`, `is:starred` | By state |
+| `label:work` | Threads with that label, by name or id |
+| `in:archive` | Any `folder` value; it replaces the `folder` parameter |
+| `after:2026-01-31` | A message on or after that day (UTC) |
+| `before:2026-02-01` | A message before that day (UTC) |
+
+Put a value with spaces in quotes: `from:"Ada Lovelace"`. Filters and words
+all have to match, and the message-level ones (`from`, `to`, `subject`,
+dates, words) have to match **the same message**. A filter that is not on
+this list, or has a value that does not fit (`before:soon`), is searched as
+plain text.
+
+```
+GET /api/v1/threads?q=from:ada%20has:attachment%20invoice
+```
 
 ## Read one
 

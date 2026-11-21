@@ -22,7 +22,7 @@ Scope: `mail:read`
 | `from` | Exact sender address |
 | `to` | Exact recipient address, in `to`, `cc` or `bcc` |
 | `subject` | Substring |
-| `q` | Full text over subject and body |
+| `q` | Full text over subject, sender and body, plus the [search filters](/docs/api/threads#search-filters) |
 | `status` | Delivery statuses, comma-separated. Sent mail only |
 | `opened` | `true` or `false` |
 | `api_key_id` | Only mail sent by one key |

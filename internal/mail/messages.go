@@ -26,7 +26,7 @@ type MessageFilter struct {
 	Starred      *bool
 	From, To     string
 	Subject      string
-	Query        string
+	Query        string // search box text: filters and free text (ParseSearch)
 	Since, Until *time.Time
 	Statuses     []string // delivery statuses, for sent mail
 	Opened       *bool
@@ -39,6 +39,10 @@ type MessageFilter struct {
 func (s *Service) ListMessages(ctx context.Context, f MessageFilter) (page.List[*Message], error) {
 	var w where
 	w.scope("m.mailbox_id", f.Allowed, f.MailboxID, f.Domain)
+	search := ParseSearch(f.Query)
+	if v := search.view(); folders[v] || v == "all" {
+		f.Folder = v // in: in the search box picks the folder; in:starred is a filter
+	}
 	switch f.Direction {
 	case "":
 	case "inbound", "outbound":
@@ -74,9 +78,7 @@ func (s *Service) ListMessages(ctx context.Context, f MessageFilter) (page.List[
 	if f.Subject != "" {
 		w.add("m.subject ILIKE ?", "%"+likeEscape(f.Subject)+"%")
 	}
-	if f.Query != "" {
-		w.add("m.search_vector @@ websearch_to_tsquery('english', ?)", f.Query)
-	}
+	search.listConds(&w)
 	if len(f.Statuses) > 0 {
 		w.add("m.delivery_status::text = ANY(?)", f.Statuses)
 	}

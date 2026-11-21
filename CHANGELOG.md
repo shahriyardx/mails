@@ -34,6 +34,13 @@ All notable changes are listed here. The format follows
   default) with a "Sending… Undo" note. Undo brings it back as a draft,
   files and all. API sends still go at once. `POST /emails/:id/cancel`
   inside the window turns the message back into a draft.
+- Search filters: `from:`, `to:`, `subject:`, `has:attachment`,
+  `is:unread` / `is:read` / `is:starred`, `label:`, `in:<folder>`,
+  `before:` / `after:` (YYYY-MM-DD), with "quoted values". They work in the
+  dashboard search box (shown as removable chips, with a Filters list) and
+  in `q` on `/api/v1/threads`, `/messages` and `/emails`. Free text now
+  also matches part of the sender or subject on messages. New indexes
+  (migration 0014, enables `pg_trgm`) keep each filter on an index.
 
 ## [0.1.8] - 2026-11-21
 

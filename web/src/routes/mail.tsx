@@ -19,6 +19,7 @@ import {
 } from "@/components/kit";
 import { spatial } from "@/components/kit/motion";
 import { useComposer } from "@/components/mail/composer-provider";
+import { FiltersHint, SearchChips } from "@/components/mail/search-filters";
 import { Sidebar, SidebarAside } from "@/components/mail/sidebar";
 import { ThreadList } from "@/components/mail/thread-list";
 import { ThreadView } from "@/components/mail/thread-view";
@@ -285,6 +286,7 @@ function ListHeader({
       {searching && (
         <SearchBox key={q} value={q} onCommit={onSearch} onClose={() => onSearching(false)} />
       )}
+      {searching && <SearchChips text={q} onChange={onSearch} />}
 
       {/* Which mailbox is picked in the sidebar; here only All or Unread. */}
       {canUnread && (
@@ -380,6 +382,12 @@ function SearchBox({
         }}
         placeholder="Search mail"
         className="h-full min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
+      />
+      <FiltersHint
+        onPick={(filter) => {
+          setText((current) => (current.trim() ? `${current.trim()} ` : "") + filter);
+          input.current?.focus();
+        }}
       />
       {text && (
         <IconButton
