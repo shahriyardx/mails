@@ -6,6 +6,11 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Sidebar: mailboxes under a domain show just their name ("billing"),
+  without a trailing "@"; the full address is in the tooltip.
+
 ## [0.1.7] - 2026-11-21
 
 ### Fixed

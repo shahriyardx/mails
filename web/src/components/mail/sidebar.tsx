@@ -149,7 +149,7 @@ export function Sidebar({
                             count={unread[box.id] ?? 0}
                             tip={box.address}
                           >
-                            {grouped ? `${box.address.split("@")[0]}@` : box.address}
+                            {grouped ? box.address.split("@")[0] : box.address}
                           </NavRow>
                         </li>
                       ))}
