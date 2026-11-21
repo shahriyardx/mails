@@ -16,6 +16,8 @@ export interface DialogProps {
   open?: boolean;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** After the open or close animation has finished. */
+  onOpenChangeComplete?: (open: boolean) => void;
   children: ReactNode;
 }
 

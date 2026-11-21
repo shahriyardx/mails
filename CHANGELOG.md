@@ -24,6 +24,10 @@ All notable changes are listed here. The format follows
 - The browser tab shows the unread Inbox count and the open view, like
   "(3) Inbox · Mails", with a dot on the tab icon while anything is
   unread. Settings and docs pages show their page title.
+- Command menu: Ctrl+K (Cmd+K on a Mac) opens a search box to jump to a
+  folder, mailbox, domain, label, settings page or the docs, write a
+  message, switch the theme, fold the sidebar, or search mail. Arrow keys
+  and Enter pick; letters typed in order match ("strd" finds Starred).
 
 ## [0.1.8] - 2026-11-21
 

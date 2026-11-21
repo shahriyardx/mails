@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
+import { CommandMenu } from "@/components/app/command-menu";
 import { Button, EmptyState, Logo } from "@/components/kit";
 import { ComposerProvider } from "@/components/mail/composer-provider";
 import { errorMessage, useAuthStatus, useLiveUpdates } from "@/lib/api";
@@ -25,7 +26,8 @@ export function Splash() {
 
 /**
  * Lets the app through only with an owner session (GET /api/auth/status),
- * and turns on live updates and the composer for everything inside.
+ * and turns on live updates, the composer and the command menu (Ctrl+K)
+ * for everything inside.
  */
 export function AuthGate() {
   const status = useAuthStatus();
@@ -61,6 +63,7 @@ export function AuthGate() {
     <OwnerContext.Provider value={owner}>
       <ComposerProvider>
         <Outlet />
+        <CommandMenu />
       </ComposerProvider>
     </OwnerContext.Provider>
   );

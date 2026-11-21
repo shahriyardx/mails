@@ -53,6 +53,10 @@ export function Component() {
   const q = search.get("q") ?? "";
   const unread = search.get("unread") === "1" || search.get("unread") === "true";
   const [searching, setSearching] = useState(Boolean(q));
+  // A search started elsewhere (the command menu) shows the search box too.
+  useEffect(() => {
+    if (q) setSearching(true);
+  }, [q]);
 
   // c: compose, /: search (outside text fields).
   useEffect(() => {
