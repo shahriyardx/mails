@@ -166,7 +166,13 @@ export function Component() {
         )}
       >
         {threadId ? (
-          <ThreadView threadId={threadId} backHref={backHref} folder={folder} />
+          <ThreadView
+            threadId={threadId}
+            backHref={backHref}
+            folder={folder}
+            filter={filter}
+            hrefFor={hrefFor}
+          />
         ) : (
           <div className="grid flex-1 place-items-center px-6 text-center">
             <p className="text-[13px] text-muted-foreground">No conversation open</p>

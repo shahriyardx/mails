@@ -126,6 +126,20 @@ export function ThreadList({
     return () => document.removeEventListener("keydown", listener);
   }, []);
 
+  // Follow the open conversation when it changes from the reading pane (j / k,
+  // auto-advance): its row becomes the tab stop and scrolls into view. When
+  // it closes and took focus with it (Escape), focus goes back to its row.
+  const lastActive = useRef(activeId);
+  useEffect(() => {
+    const id = activeId ?? lastActive.current;
+    lastActive.current = activeId;
+    const link = id && scroller.current?.querySelector<HTMLElement>(`[data-row-link="${id}"]`);
+    if (!link) return;
+    setFocusId(id);
+    if (activeId) link.scrollIntoView({ block: "nearest" });
+    else if (document.activeElement === document.body) link.focus();
+  }, [activeId]);
+
   let lastGroup = "";
 
   const visible = (id: string | null | undefined) =>

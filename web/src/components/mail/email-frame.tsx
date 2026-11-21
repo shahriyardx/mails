@@ -155,9 +155,26 @@ function Frame({
     if (!frame) return;
     let inner: ResizeObserver | undefined;
     const timers: number[] = [];
+    // Keys pressed in the body (after a click into it) stay in the frame's
+    // own document: hand them to the page as if pressed on the frame, so the
+    // reading shortcuts work there too.
+    const forwardKey = (event: KeyboardEvent) => {
+      const copy = new KeyboardEvent("keydown", {
+        key: event.key,
+        code: event.code,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+        shiftKey: event.shiftKey,
+        bubbles: true,
+        cancelable: true,
+      });
+      if (!frame.dispatchEvent(copy)) event.preventDefault();
+    };
     const onLoad = () => {
       measure();
       const doc = frame.contentDocument;
+      doc?.addEventListener("keydown", forwardKey);
       if (doc?.body) {
         inner = new ResizeObserver(measure);
         inner.observe(doc.body);
@@ -175,6 +192,7 @@ function Frame({
     outer.observe(frame);
     return () => {
       frame.removeEventListener("load", onLoad);
+      frame.contentDocument?.removeEventListener("keydown", forwardKey);
       inner?.disconnect();
       outer.disconnect();
       for (const timer of timers) clearTimeout(timer);

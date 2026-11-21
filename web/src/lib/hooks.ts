@@ -20,17 +20,22 @@ export const useIsPhone = () => useMediaQuery("(max-width: 767px)");
 export const useIsTouch = () => useMediaQuery("(pointer: coarse)");
 
 /**
+ * Whether a key landing on `target` belongs to what is there: a text
+ * field, or a dialog or menu (the composer, the command menu, a dropdown).
+ */
+export function inTextOrDialog(target: EventTarget | null) {
+  return Boolean(
+    (target as Element | null)?.closest?.(
+      'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role=dialog], [role=menu]',
+    ),
+  );
+}
+
+/**
  * Whether a one-key shortcut ("c", "/") should stay quiet: a modifier is
- * held, or the key lands in a text field or a dialog such as the composer.
+ * held, or the key lands in a text field, a dialog such as the composer,
+ * or a menu.
  */
 export function shortcutBlocked(event: KeyboardEvent) {
-  const target = event.target as Element | null;
-  return Boolean(
-    event.metaKey ||
-      event.ctrlKey ||
-      event.altKey ||
-      target?.closest?.(
-        'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role=dialog]',
-      ),
-  );
+  return event.metaKey || event.ctrlKey || event.altKey || inTextOrDialog(event.target);
 }

@@ -13,6 +13,10 @@ All notable changes are listed here. The format follows
   jump; Enter opens; x selects, e archives, s stars, u toggles read, and
   Backspace / Delete / # move to Trash. With emails selected, these keys
   act on all of them.
+- Keyboard in an open conversation: r reply, a reply all, f forward,
+  j / k the next / previous conversation in the list, Escape back to the
+  list, e archive, # / Backspace / Delete move to Trash, s star, u mark
+  unread and go back. Works with focus in the mail body too.
 
 ## [0.1.8] - 2026-11-21
 

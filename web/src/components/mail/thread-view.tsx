@@ -33,10 +33,11 @@ import {
   quoteMessage,
   replySubject,
 } from "@/lib/mail";
-import type { Message, Thread } from "@/lib/types";
+import type { Message, Thread, ThreadFilter } from "@/lib/types";
 import { type ComposerDraft, useComposer } from "./composer-provider";
 import { EmailFrame } from "./email-frame";
 import { LabelMenu } from "./label-menu";
+import { useConversationNav, useReadingKeys } from "./use-conversation-nav";
 import { movableFolder, useThreadActions } from "./use-thread-actions";
 
 type ReplyMode = "reply" | "replyAll" | "forward";
@@ -88,15 +89,22 @@ function draftOf(thread: Thread, message: Message): ComposerDraft {
   };
 }
 
+/** The list the conversation was opened from: j / k and auto-advance follow its order. */
+interface ListContext {
+  filter: ThreadFilter;
+  hrefFor: (threadId: string) => string;
+}
+
 export function ThreadView({
   threadId,
   backHref,
   folder,
+  ...list
 }: {
   threadId: string;
   backHref: string;
   folder: string;
-}) {
+} & ListContext) {
   const query = useThread(threadId);
   const thread = query.data;
 
@@ -122,18 +130,22 @@ export function ThreadView({
       />
     );
   }
-  return <Conversation key={thread.id} thread={thread} backHref={backHref} folder={folder} />;
+  return (
+    <Conversation key={thread.id} thread={thread} backHref={backHref} folder={folder} {...list} />
+  );
 }
 
 function Conversation({
   thread,
   backHref,
   folder,
+  filter,
+  hrefFor,
 }: {
   thread: Thread;
   backHref: string;
   folder: string;
-}) {
+} & ListContext) {
   const actions = useThreadActions();
   const composer = useComposer();
   const discardDraft = useDeleteDraft();
@@ -195,8 +207,43 @@ function Conversation({
 
   const archived = thread.folders.includes("archive");
 
+  // Shared by the buttons, the menu and the keys.
+  const archive = () => actions.move([thread.id], "archive", from);
+  const trash = () => (inTrash ? setPurging(true) : actions.trash([thread.id]));
+  const star = () => actions.setStarred([thread.id], !thread.is_starred);
+
+  const root = useRef<HTMLElement>(null);
+  const nav = useConversationNav({ threadId: thread.id, filter, hrefFor, backHref });
+  useReadingKeys(root, (action) => {
+    switch (action) {
+      case "reply":
+      case "replyAll":
+      case "forward":
+        // Like "c": never replaces a composer being written.
+        if (last && !last.is_draft && !composer.isOpen)
+          composer.open(replyDraft(thread, last, action));
+        return;
+      case "next":
+        return nav.step(1);
+      case "prev":
+        return nav.step(-1);
+      case "close":
+        return nav.close();
+      case "archive":
+        if (!inTrash && !archived) archive();
+        return;
+      case "trash":
+        return trash();
+      case "star":
+        return star();
+      case "unread":
+        actions.setRead([thread.id], false);
+        return nav.close();
+    }
+  });
+
   return (
-    <section className="flex h-full min-w-0 flex-col">
+    <section ref={root} className="flex h-full min-w-0 flex-col">
       <ConfirmDialog
         open={purging}
         onOpenChange={setPurging}
@@ -274,12 +321,7 @@ function Conversation({
               </Tooltip>
             ) : (
               <Tooltip label="Archive">
-                <IconButton
-                  icon="archive"
-                  label="Archive"
-                  size="sm"
-                  onClick={() => actions.move([thread.id], "archive", from)}
-                />
+                <IconButton icon="archive" label="Archive" size="sm" onClick={archive} />
               </Tooltip>
             )}
             <LabelMenu
@@ -294,7 +336,7 @@ function Conversation({
                 filled={thread.is_starred}
                 className={cn(thread.is_starred && "text-accent")}
                 label={thread.is_starred ? "Unstar" : "Star"}
-                onClick={() => actions.setStarred([thread.id], !thread.is_starred)}
+                onClick={star}
               />
             </Tooltip>
             <DropdownMenu>
@@ -323,7 +365,7 @@ function Conversation({
                 <DropdownMenuItem
                   icon={inTrash ? "delete_forever" : "delete"}
                   destructive
-                  onClick={() => (inTrash ? setPurging(true) : actions.trash([thread.id]))}
+                  onClick={trash}
                 >
                   {inTrash ? "Delete forever" : "Delete"}
                 </DropdownMenuItem>
