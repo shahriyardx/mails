@@ -48,6 +48,9 @@ All notable changes are listed here. The format follows
   unread when the time comes (with a push notice), or at once when new
   mail arrives in it. `PATCH /threads/:id` takes `snoozed_until`
   (RFC 3339 or null), threads carry it, and `folder=snoozed` lists them.
+- Composer: drag files onto it to attach them ("Drop to attach"), or paste
+  files and screenshots from the clipboard. Same upload, limits and errors
+  as the paperclip.
 
 ## [0.1.8] - 2026-11-21
 

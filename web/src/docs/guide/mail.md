@@ -2,6 +2,13 @@
 
 A few things the dashboard does that are easy to miss.
 
+## Attaching files
+
+Besides the paperclip, you can drag files onto the composer ("Drop to
+attach" shows while you hold them over it) or paste them: a screenshot
+copied to the clipboard goes in as a file. Either way the same limits
+apply, and a file that is refused says why.
+
 ## Undo send
 
 After **Send** the composer closes and a "Sending… Undo" note shows at the

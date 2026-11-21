@@ -1,6 +1,15 @@
 import DOMPurify from "dompurify";
 import { motion } from "motion/react";
-import { type KeyboardEvent, type RefObject, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ClipboardEvent,
+  type DragEvent,
+  type KeyboardEvent,
+  type RefObject,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Button,
   Icon,
@@ -43,6 +52,11 @@ interface FileChip {
 }
 
 const AUTOSAVE_MS = 2500;
+
+/** Whether a drag or paste carries files (not text or a link). */
+export function carriesFiles(data: DataTransfer | null): boolean {
+  return Boolean(data && Array.from(data.types).includes("Files"));
+}
 
 /** A signature as HTML: kept when it is HTML, line breaks kept when it is text. */
 function signatureHtml(signature: string | null | undefined) {
@@ -93,6 +107,8 @@ export default function Composer({
     () => draft.attachments?.map((a) => ({ ...a, forwarded: !draft.draftId })) ?? [],
   );
   const [expanded, setExpanded] = useState(false);
+  // Files dragged over the composer: the drop zone shows.
+  const [dropping, setDropping] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   // The latest recipients, set as they change. Ctrl+Enter in a recipient
@@ -270,7 +286,7 @@ export default function Composer({
     });
   }
 
-  async function attach(list: FileList | null) {
+  async function attach(list: FileList | File[] | null) {
     if (!list?.length) return;
     const picked = Array.from(list);
     if (fileInput.current) fileInput.current.value = "";
@@ -293,6 +309,30 @@ export default function Composer({
     );
   }
 
+  // Dropped or pasted files go through the same upload as the attach button.
+  function onDrag(event: DragEvent) {
+    if (!carriesFiles(event.dataTransfer)) return;
+    event.preventDefault(); // allow the drop
+    setDropping(true);
+  }
+  function onDragLeave(event: DragEvent) {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropping(false);
+  }
+  function onDrop(event: DragEvent) {
+    if (!carriesFiles(event.dataTransfer)) return;
+    event.preventDefault();
+    setDropping(false);
+    void attach(Array.from(event.dataTransfer.files));
+  }
+  // Capture phase: a pasted image is a file here, before the editor takes
+  // the clipboard's HTML.
+  function onPasteCapture(event: ClipboardEvent) {
+    if (!event.clipboardData?.files.length) return;
+    event.preventDefault();
+    event.stopPropagation();
+    void attach(Array.from(event.clipboardData.files));
+  }
+
   function onKeyDown(event: KeyboardEvent) {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
       event.preventDefault();
@@ -313,6 +353,11 @@ export default function Composer({
       exit={{ opacity: 0, y: 48 }}
       transition={spatial}
       onKeyDown={onKeyDown}
+      onDragEnter={onDrag}
+      onDragOver={onDrag}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onPasteCapture={onPasteCapture}
       className={cn(
         "fixed z-40 flex flex-col overflow-hidden border border-border bg-surface-high shadow-[0_24px_64px_var(--shadow)]",
         full
@@ -322,6 +367,13 @@ export default function Composer({
           : "right-6 bottom-0 h-[min(36rem,calc(100dvh-3rem))] w-[min(40rem,calc(100vw-3rem))] rounded-t-2xl border-b-0",
       )}
     >
+      {dropping && (
+        <div className="pointer-events-none absolute inset-2 z-20 grid place-items-center rounded-xl border-2 border-dashed border-primary bg-[color-mix(in_srgb,var(--surface-2)_88%,transparent)]">
+          <span className="flex items-center gap-2 text-sm font-semibold text-accent">
+            <Icon name="attach_file" /> Drop to attach
+          </span>
+        </div>
+      )}
       <header className="flex h-14 shrink-0 items-center gap-1 pr-2 pl-5">
         <h2 className="flex-1 truncate text-[15px] font-semibold">
           {draft.title ?? "New message"}

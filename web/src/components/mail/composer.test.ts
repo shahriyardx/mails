@@ -222,4 +222,66 @@ describe("Composer", () => {
     });
     expect(ok).toBe(false);
   });
+
+  describe("files dropped or pasted", () => {
+    const pdf = new File(["%PDF"], "plan.pdf", { type: "application/pdf" });
+    // jsdom has no DataTransfer: a stand-in with what the composer reads.
+    const transfer = (files: File[], types = files.length ? ["Files"] : ["text/plain"]) => ({
+      types,
+      files: Object.assign([...files], { item: (i: number) => files[i] }),
+    });
+    async function fire(type: string, data: object, key: "dataTransfer" | "clipboardData") {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(event, key, { value: data });
+      await act(async () => {
+        host.querySelector("section")!.dispatchEvent(event);
+      });
+      return event;
+    }
+    const dropZone = () => host.textContent?.includes("Drop to attach");
+
+    it("dragging files shows the drop zone; dropping uploads them", async () => {
+      api.uploadFile.mockResolvedValue({ id: "att_1", filename: "plan.pdf", size_bytes: 4 });
+      await render();
+      const over = await fire("dragover", transfer([pdf]), "dataTransfer");
+      expect(over.defaultPrevented).toBe(true);
+      expect(dropZone()).toBe(true);
+
+      await fire("drop", transfer([pdf]), "dataTransfer");
+      expect(dropZone()).toBe(false);
+      expect(api.uploadFile).toHaveBeenCalledWith(pdf);
+      expect(host.textContent).toContain("plan.pdf");
+    });
+
+    it("dragging text is left alone", async () => {
+      await render();
+      const over = await fire("dragover", transfer([]), "dataTransfer");
+      expect(over.defaultPrevented).toBe(false);
+      expect(dropZone()).toBe(false);
+    });
+
+    it("a failed upload is dropped with its reason", async () => {
+      api.uploadFile.mockRejectedValue(new Error("Too large"));
+      await render();
+      await fire("drop", transfer([pdf]), "dataTransfer");
+      expect(toast.error).toHaveBeenCalledWith("plan.pdf: Error: Too large");
+      expect(host.textContent).not.toContain("plan.pdf");
+    });
+
+    it("pasting a file attaches it instead of pasting into the text", async () => {
+      api.uploadFile.mockResolvedValue({ id: "att_2", filename: "shot.png", size_bytes: 9 });
+      const png = new File(["x"], "shot.png", { type: "image/png" });
+      await render();
+      const paste = await fire("paste", transfer([png]), "clipboardData");
+      expect(paste.defaultPrevented).toBe(true);
+      expect(api.uploadFile).toHaveBeenCalledWith(png);
+    });
+
+    it("pasting text is left to the editor", async () => {
+      await render();
+      const paste = await fire("paste", { ...transfer([]), getData: () => "" }, "clipboardData");
+      expect(paste.defaultPrevented).toBe(false);
+      expect(api.uploadFile).not.toHaveBeenCalled();
+    });
+  });
 });
