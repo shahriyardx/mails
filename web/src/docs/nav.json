@@ -13,6 +13,7 @@
       { "path": "guide/queue", "title": "The send queue" },
       { "path": "guide/metrics", "title": "Metrics" },
       { "path": "guide/notifications", "title": "Desktop notifications" },
+      { "path": "guide/shortcuts", "title": "Keyboard shortcuts" },
       { "path": "guide/api-keys", "title": "API keys" },
       { "path": "guide/extension", "title": "Browser extension" }
     ]

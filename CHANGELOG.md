@@ -28,6 +28,7 @@ All notable changes are listed here. The format follows
   folder, mailbox, domain, label, settings page or the docs, write a
   message, switch the theme, fold the sidebar, or search mail. Arrow keys
   and Enter pick; letters typed in order match ("strd" finds Starred).
+- Docs: Guide -> Keyboard shortcuts lists every key.
 
 ## [0.1.8] - 2026-11-21
 
