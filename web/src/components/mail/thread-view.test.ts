@@ -45,6 +45,7 @@ vi.mock("./use-thread-actions", () => ({
 }));
 
 const { ThreadView } = await import("./thread-view");
+const { setAfterMove } = await import("@/lib/after-move");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -104,6 +105,22 @@ describe("ThreadView", () => {
     expect(purge).toHaveBeenCalledWith(["thr_1"]);
     expect(where()).toBe("/trash");
     expect(host.textContent).toContain("The list");
+  });
+
+  it("opens the next conversation after deleting forever", async () => {
+    list.rows = ["thr_0", "thr_1", "thr_2"];
+    const { where } = await mount();
+    await act(async () => dialogs.confirm.at(-1)!());
+    expect(where()).toBe("/trash/thr_2");
+  });
+
+  it("goes back to the list instead when the owner chose so", async () => {
+    list.rows = ["thr_0", "thr_1", "thr_2"];
+    setAfterMove("list");
+    const { where } = await mount();
+    await act(async () => dialogs.confirm.at(-1)!());
+    setAfterMove("next");
+    expect(where()).toBe("/trash");
   });
 
   it("j opens the next conversation in list order", async () => {

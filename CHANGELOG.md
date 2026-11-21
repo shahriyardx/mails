@@ -17,6 +17,10 @@ All notable changes are listed here. The format follows
   j / k the next / previous conversation in the list, Escape back to the
   list, e archive, # / Backspace / Delete move to Trash, s star, u mark
   unread and go back. Works with focus in the mail body too.
+- After archiving, deleting, moving or reporting spam from an open
+  conversation, the next one in the list opens (the one below, else the
+  one above). Settings -> Preferences -> "After archiving or deleting"
+  switches to going back to the list instead (saved in this browser).
 
 ## [0.1.8] - 2026-11-21
 

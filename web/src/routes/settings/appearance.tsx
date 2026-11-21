@@ -1,15 +1,17 @@
 import { Icon, toast } from "@/components/kit";
+import { setAfterMove, useAfterMove } from "@/lib/after-move";
 import { errorMessage, usePreferences, useSavePreferences } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { useTheme } from "@/lib/theme";
 import type { Preferences } from "@/lib/types";
 import { LoadError, PageLoading, Section } from "./parts";
 
-/** Theme, density and reading layout. */
+/** Theme, density, reading layout and what follows an archive or delete. */
 export default function Appearance() {
   const prefs = usePreferences();
   const save = useSavePreferences();
   const theme = useTheme();
+  const afterMove = useAfterMove();
   if (prefs.isPending) return <PageLoading />;
   if (prefs.isError) return <LoadError error={prefs.error} retry={prefs.refetch} />;
 
@@ -75,6 +77,30 @@ export default function Appearance() {
               icon: "view_agenda",
               title: "One at a time",
               body: "The conversation takes the full width.",
+            },
+          ]}
+        />
+      </Section>
+      <Section
+        title={<span id="after-move">After archiving or deleting</span>}
+        description="Saved in this browser."
+      >
+        <Choices
+          name="after_move"
+          labelledBy="after-move"
+          value={afterMove}
+          onChange={setAfterMove}
+          options={[
+            {
+              value: "next",
+              icon: "arrow_forward",
+              title: "Open the next conversation",
+              body: "The one below, or above at the end of the list.",
+            },
+            {
+              value: "list",
+              icon: "list_alt",
+              title: "Go back to the list",
             },
           ]}
         />

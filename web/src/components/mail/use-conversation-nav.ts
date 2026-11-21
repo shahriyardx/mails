@@ -1,9 +1,10 @@
 import { type RefObject, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
+import { useAfterMove } from "@/lib/after-move";
 import { useThreads } from "@/lib/api";
 import { inTextOrDialog } from "@/lib/hooks";
 import type { ThreadFilter } from "@/lib/types";
-import { type ReadingKeyAction, readingKeyAction, threadBeside } from "./reading-keys";
+import { type ReadingKeyAction, readingKeyAction, threadAfter, threadBeside } from "./reading-keys";
 
 /**
  * Moving on from the open conversation, in the order the list shows it:
@@ -21,6 +22,7 @@ export function useConversationNav({
   backHref: string;
 }) {
   const navigate = useNavigate();
+  const afterMove = useAfterMove();
   const list = useThreads(filter);
   const rows = list.data?.pages.flatMap((page) => page.data.map((t) => t.id)) ?? [];
   return {
@@ -32,6 +34,15 @@ export function useConversationNav({
     /** Back to the list (side by side, the empty pane). */
     close() {
       navigate(backHref);
+    },
+    /**
+     * After the conversation was archived, deleted or moved: the one below
+     * it (else above) opens, or the list comes back, as the owner chose.
+     */
+    leave() {
+      const id = afterMove === "next" ? threadAfter(rows, threadId) : undefined;
+      if (id) navigate(hrefFor(id), { replace: true });
+      else navigate(backHref);
     },
   };
 }

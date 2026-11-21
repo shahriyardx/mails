@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import {
   Avatar,
   Badge,
@@ -33,7 +33,7 @@ import {
   quoteMessage,
   replySubject,
 } from "@/lib/mail";
-import type { Message, Thread, ThreadFilter } from "@/lib/types";
+import type { Folder, Message, Thread, ThreadFilter } from "@/lib/types";
 import { type ComposerDraft, useComposer } from "./composer-provider";
 import { EmailFrame } from "./email-frame";
 import { LabelMenu } from "./label-menu";
@@ -150,7 +150,6 @@ function Conversation({
   const composer = useComposer();
   const discardDraft = useDeleteDraft();
   const [params, setParams] = useSearchParams();
-  const navigate = useNavigate();
   const [purging, setPurging] = useState(false);
   const messages = thread.messages ?? [];
   const last = messages.findLast((m) => !m.is_draft) ?? messages.at(-1);
@@ -207,13 +206,22 @@ function Conversation({
 
   const archived = thread.folders.includes("archive");
 
-  // Shared by the buttons, the menu and the keys.
-  const archive = () => actions.move([thread.id], "archive", from);
-  const trash = () => (inTrash ? setPurging(true) : actions.trash([thread.id]));
-  const star = () => actions.setStarred([thread.id], !thread.is_starred);
-
   const root = useRef<HTMLElement>(null);
   const nav = useConversationNav({ threadId: thread.id, filter, hrefFor, backHref });
+
+  // Shared by the buttons, the menu and the keys. What takes the thread out
+  // of its folder moves on to the next one (or the list): nav.leave().
+  const move = (to: Folder) => {
+    actions.move([thread.id], to, from);
+    nav.leave();
+  };
+  const archive = () => move("archive");
+  const trash = () => {
+    if (inTrash) return setPurging(true);
+    actions.trash([thread.id]);
+    nav.leave();
+  };
+  const star = () => actions.setStarred([thread.id], !thread.is_starred);
   useReadingKeys(root, (action) => {
     switch (action) {
       case "reply":
@@ -252,9 +260,11 @@ function Conversation({
         consequences="It is already in Trash. This removes its messages and attachments for good."
         confirmLabel="Delete forever"
         onConfirm={async () => {
+          // Where to go is decided now, from the list as it is before the delete.
+          const leave = nav.leave;
           await actions.purge([thread.id]);
           // It is gone: staying would refetch it and show an error.
-          navigate(backHref);
+          leave();
         }}
       />
 
@@ -307,7 +317,10 @@ function Conversation({
                   icon="restore_from_trash"
                   label="Put back"
                   size="sm"
-                  onClick={() => actions.restore([thread.id])}
+                  onClick={() => {
+                    actions.restore([thread.id]);
+                    nav.leave();
+                  }}
                 />
               </Tooltip>
             ) : archived ? (
@@ -316,7 +329,10 @@ function Conversation({
                   icon="unarchive"
                   label="Move to Inbox"
                   size="sm"
-                  onClick={() => actions.move([thread.id], "inbox", "archive")}
+                  onClick={() => {
+                    actions.move([thread.id], "inbox", "archive");
+                    nav.leave();
+                  }}
                 />
               </Tooltip>
             ) : (
@@ -353,11 +369,7 @@ function Conversation({
                 {(["inbox", "archive", "spam"] as const)
                   .filter((f) => !thread.folders.includes(f))
                   .map((f) => (
-                    <DropdownMenuItem
-                      key={f}
-                      icon={FOLDER_ICON[f]}
-                      onClick={() => actions.move([thread.id], f, from)}
-                    >
+                    <DropdownMenuItem key={f} icon={FOLDER_ICON[f]} onClick={() => move(f)}>
                       {f === "spam" ? "Report spam" : `Move to ${f}`}
                     </DropdownMenuItem>
                   ))}
