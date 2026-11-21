@@ -1,13 +1,5 @@
 import { animate, motion, type PanInfo, useMotionValue, useTransform } from "motion/react";
-import {
-  Fragment,
-  type KeyboardEvent,
-  type ReactNode,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import {
   Avatar,
@@ -127,15 +119,32 @@ export function ThreadList({
     else actions.trash(target);
   }
 
+  const onListKeyRef = useRef<(event: globalThis.KeyboardEvent) => void>(() => {});
+  useEffect(() => {
+    const listener = (event: globalThis.KeyboardEvent) => onListKeyRef.current(event);
+    document.addEventListener("keydown", listener);
+    return () => document.removeEventListener("keydown", listener);
+  }, []);
+
   let lastGroup = "";
 
   const visible = (id: string | null | undefined) =>
     Boolean(id && threads.some((t) => t.id === id));
   const tabId = visible(focusId) ? focusId : visible(activeId) ? activeId : threads[0]?.id;
 
-  function onListKey(event: KeyboardEvent<HTMLUListElement>) {
-    const id = (event.target as HTMLElement).closest<HTMLElement>("[data-row-link]")?.dataset
-      .rowLink;
+  // Keys work wherever focus is in the list (a row, its checkbox, a hover
+  // button) and when nothing has focus (after a click on empty space): the
+  // row is the one focus is in, else the last focused, open or first row.
+  function onListKey(event: globalThis.KeyboardEvent) {
+    if (event.defaultPrevented) return;
+    const target = event.target as HTMLElement;
+    const inList = Boolean(scroller.current?.contains(target));
+    const idle = target === document.body || target === document.documentElement;
+    if (!inList && !idle) return;
+    // With nothing focused, only act on an explicit selection: a stray
+    // Backspace must not trash whatever row happens to be first.
+    if (idle && !some) return;
+    const id = target.closest<HTMLElement>("[data-thread-id]")?.dataset.threadId ?? tabId;
     if (!id) return;
     const action = listKeyAction(event);
     if (!action) return;
@@ -201,6 +210,7 @@ export function ThreadList({
         return done();
     }
   }
+  onListKeyRef.current = onListKey;
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
@@ -234,7 +244,6 @@ export function ThreadList({
       <ul
         ref={scroller}
         onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 2)}
-        onKeyDown={onListKey}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-1 pb-24 md:pb-6"
       >
         {query.isPending &&
