@@ -37,6 +37,7 @@ import type { Folder, Message, Thread, ThreadFilter } from "@/lib/types";
 import { type ComposerDraft, useComposer } from "./composer-provider";
 import { EmailFrame } from "./email-frame";
 import { LabelMenu } from "./label-menu";
+import { SnoozeDialog, SnoozeMenu } from "./snooze-menu";
 import { useConversationNav, useReadingKeys } from "./use-conversation-nav";
 import { movableFolder, useThreadActions } from "./use-thread-actions";
 
@@ -230,6 +231,12 @@ function Conversation({
     nav.leave();
   };
   const star = () => actions.setStarred([thread.id], !thread.is_starred);
+  // Snoozing takes it out of the Inbox, like Archive: move on.
+  const [snoozing, setSnoozing] = useState(false);
+  const snooze = (until: string | null) => {
+    actions.snooze([thread.id], until);
+    nav.leave();
+  };
   useReadingKeys(root, (action) => {
     switch (action) {
       case "reply":
@@ -255,11 +262,15 @@ function Conversation({
       case "unread":
         actions.setRead([thread.id], false);
         return nav.close();
+      case "snooze":
+        if (!inTrash) setSnoozing(true);
+        return;
     }
   });
 
   return (
     <section ref={root} tabIndex={-1} className="flex h-full min-w-0 flex-col outline-none">
+      <SnoozeDialog open={snoozing} onOpenChange={setSnoozing} onSnooze={snooze} />
       <ConfirmDialog
         open={purging}
         onOpenChange={setPurging}
@@ -347,6 +358,13 @@ function Conversation({
               <Tooltip label="Archive">
                 <IconButton icon="archive" label="Archive" size="sm" onClick={archive} />
               </Tooltip>
+            )}
+            {!inTrash && (
+              <SnoozeMenu
+                snoozed={Boolean(thread.snoozed_until)}
+                onSnooze={snooze}
+                trigger={<IconButton icon="snooze" label="Snooze" size="sm" />}
+              />
             )}
             <LabelMenu
               threadIds={[thread.id]}

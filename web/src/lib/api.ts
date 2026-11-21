@@ -296,6 +296,11 @@ export function changeLists(client: QueryClient, ids: string[], change: ThreadCh
   const set = new Set(ids);
   return editLists(client, (t, filter) => {
     if (!set.has(t.id)) return t;
+    if (change.snoozed_until !== undefined) {
+      // Snoozing leaves the Inbox; waking leaves Snoozed.
+      const leaves = change.snoozed_until ? filter.folder === "inbox" : filter.folder === "snoozed";
+      return leaves ? null : { ...t, snoozed_until: change.snoozed_until };
+    }
     if (change.folder) {
       const leaves = MOVED_OUT.has(filter.folder ?? "") && filter.folder !== change.folder;
       return leaves ? null : t;

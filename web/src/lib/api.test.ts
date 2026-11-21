@@ -142,4 +142,27 @@ describe("optimistic moves", () => {
     rollback();
     expect(ids({ folder: "inbox" })).toEqual(["thr_1", "thr_2"]);
   });
+
+  it("snoozing leaves the Inbox; waking leaves Snoozed", () => {
+    const client = new QueryClient();
+    for (const folder of ["inbox", "snoozed", "starred"] as const) {
+      client.setQueryData(keys.threads({ folder }), {
+        pages: [{ data: [{ id: "thr_1" }, { id: "thr_2" }] }],
+        pageParams: [undefined],
+      });
+    }
+    const ids = (folder: ThreadFilter["folder"]) =>
+      client
+        .getQueryData<{ pages: { data: { id: string }[] }[] }>(keys.threads({ folder }))!
+        .pages[0]!.data.map((t) => t.id);
+
+    changeLists(client, ["thr_1"], { snoozed_until: "2026-11-22T08:00:00Z" });
+    expect(ids("inbox")).toEqual(["thr_2"]);
+    expect(ids("snoozed")).toEqual(["thr_1", "thr_2"]);
+    expect(ids("starred")).toEqual(["thr_1", "thr_2"]);
+
+    changeLists(client, ["thr_2"], { snoozed_until: null });
+    expect(ids("snoozed")).toEqual(["thr_1"]);
+    expect(ids("starred")).toEqual(["thr_1", "thr_2"]);
+  });
 });

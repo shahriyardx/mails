@@ -15,6 +15,7 @@ describe("readingKeyAction", () => {
     ["Backspace", "trash"],
     ["s", "star"],
     ["u", "unread"],
+    ["b", "snooze"],
     ["Enter", null],
     ["x", null],
     ["ArrowDown", null],

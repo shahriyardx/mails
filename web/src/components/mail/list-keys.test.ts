@@ -16,6 +16,7 @@ describe("listKeyAction", () => {
     ["Delete", "delete"],
     ["Backspace", "delete"],
     ["u", "read"],
+    ["b", "snooze"],
     ["Enter", null],
     ["a", null],
   ])("%s -> %s", (key, want) => {

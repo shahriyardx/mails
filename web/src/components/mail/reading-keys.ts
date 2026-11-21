@@ -11,13 +11,14 @@ export type ReadingKeyAction =
   | "archive"
   | "trash"
   | "star"
-  | "unread";
+  | "unread"
+  | "snooze";
 
 /**
  * Maps a key to a reading action, Gmail style: r reply, a reply all,
  * f forward, j / k the next / previous conversation in the list, Escape
  * back to the list, e archive, # / Delete / Backspace trash, s star,
- * u mark unread and go back. Keys with Ctrl, Meta or Alt are never taken.
+ * u mark unread and go back, b snooze. Keys with Ctrl, Meta or Alt are never taken.
  */
 export function readingKeyAction(event: {
   key: string;
@@ -49,6 +50,8 @@ export function readingKeyAction(event: {
       return "star";
     case "u":
       return "unread";
+    case "b":
+      return "snooze";
     default:
       return null;
   }

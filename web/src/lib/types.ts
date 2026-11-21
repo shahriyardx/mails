@@ -48,7 +48,7 @@ export interface Attachment {
 }
 
 export type Folder = "inbox" | "sent" | "drafts" | "archive" | "spam" | "trash";
-export type ViewFolder = Folder | "starred";
+export type ViewFolder = Folder | "starred" | "snoozed";
 
 export interface Message {
   object: "message";
@@ -108,6 +108,8 @@ export interface Thread {
   unread_count: number;
   is_starred: boolean;
   has_attachments: boolean;
+  /** Out of the Inbox until then. */
+  snoozed_until?: string | null;
   last_message_at: string;
   created_at: string;
   labels: Label[] | null;
@@ -127,6 +129,8 @@ export interface ThreadChange {
   folder?: Folder;
   is_read?: boolean;
   is_starred?: boolean;
+  /** An ISO time to snooze until, or null to wake it now. */
+  snoozed_until?: string | null;
   add_labels?: string[];
   remove_labels?: string[];
 }

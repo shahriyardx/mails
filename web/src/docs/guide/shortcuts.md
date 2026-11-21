@@ -41,9 +41,10 @@ inside it.
 | `e` | Archive |
 | `s` | Star or unstar |
 | `u` | Mark read or unread |
+| `b` | Snooze (pick when it comes back) |
 | `#`, `Delete` or `Backspace` | Move to Trash (in Trash: delete for good, after asking) |
 
-With emails selected, `e`, `s`, `u` and Delete act on all of them.
+With emails selected, `e`, `s`, `u`, `b` and Delete act on all of them.
 
 ## In an open conversation
 
@@ -61,6 +62,7 @@ included, or nowhere in particular.
 | `#`, `Delete` or `Backspace` | Move to Trash (in Trash: delete for good, after asking) |
 | `s` | Star or unstar |
 | `u` | Mark unread and go back to the list |
+| `b` | Snooze (pick when it comes back) |
 
 Reply, reply all and forward answer the last message, like the buttons at
 the end of the conversation. They do nothing while another message is

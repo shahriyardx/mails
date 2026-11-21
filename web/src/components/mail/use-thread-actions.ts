@@ -1,6 +1,7 @@
 import { toast } from "@/components/kit";
 import { errorMessage, useChangeThreads, useDeleteThreads, useRestoreThreads } from "@/lib/api";
 import { FOLDER_META } from "@/lib/mail";
+import { snoozeLabel } from "@/lib/snooze";
 import type { Folder } from "@/lib/types";
 
 const count = (ids: string[]) =>
@@ -61,6 +62,27 @@ export function useThreadActions() {
 
     setStarred(ids: string[], is_starred: boolean) {
       change.mutateAsync({ ids, change: { is_starred } }).catch(fail);
+    },
+
+    /** Snoozes until an ISO time (undoable), or wakes now with null. */
+    snooze(ids: string[], until: string | null) {
+      change.mutateAsync({ ids, change: { snoozed_until: until } }).then(
+        () =>
+          toast(
+            until
+              ? `${count(ids)} snoozed until ${snoozeLabel(new Date(until))}`
+              : `${count(ids)} back in the Inbox`,
+            {
+              action: until
+                ? {
+                    label: "Undo",
+                    onClick: () => change.mutate({ ids, change: { snoozed_until: null } }),
+                  }
+                : undefined,
+            },
+          ),
+        fail,
+      );
     },
   };
 }

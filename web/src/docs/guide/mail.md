@@ -29,3 +29,16 @@ The search box (press `/`) takes plain words and filters, like Gmail:
 Quotes keep spaces in a value. Each filter shows as a chip under the box;
 its cross takes it out. **Filters** in the box lists them all.
 `in:` searches that folder whatever folder is open.
+
+## Snooze
+
+Snooze puts a conversation away until a time you pick: **Later today**
+(18:00, or three hours from now in the evening), **Tomorrow** 08:00, **Next
+week** (Monday 08:00), or any date and time. Times are your browser's.
+Use the snooze button next to Archive, the one on a row when you point at
+it, or `b`.
+
+Until then it is out of the Inbox and its count, and listed under
+**Snoozed**. When the time comes it is back in the Inbox, unread, with a
+notification if they are on. A reply arriving earlier brings it back at
+once. **Unsnooze** in the same menu brings it back now.

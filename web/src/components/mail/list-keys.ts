@@ -8,12 +8,13 @@ export type ListKeyAction =
   | "archive"
   | "star"
   | "delete"
-  | "read";
+  | "read"
+  | "snooze";
 
 /**
  * Maps a key to a list action, Gmail style: arrows or j/k move, Home/End
  * jump, x selects, e archives, s stars, # / Delete / Backspace deletes, u toggles
- * read. Enter is left to the row's link (it opens the conversation).
+ * read, b snoozes. Enter is left to the row's link (it opens the conversation).
  * Keys with Ctrl, Meta or Alt are never taken.
  */
 export function listKeyAction(event: {
@@ -46,6 +47,8 @@ export function listKeyAction(event: {
       return "delete";
     case "u":
       return "read";
+    case "b":
+      return "snooze";
     default:
       return null;
   }

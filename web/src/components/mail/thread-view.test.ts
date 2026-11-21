@@ -6,9 +6,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const purge = vi.hoisted(() => vi.fn(async () => {}));
 const dialogs = vi.hoisted(() => ({ confirm: [] as (() => Promise<unknown>)[] }));
-const actions = vi.hoisted(() => ({ trash: vi.fn(), setStarred: vi.fn(), setRead: vi.fn() }));
-// The list the conversation was opened from, in order.
-const list = vi.hoisted(() => ({ rows: [] as string[] }));
+const actions = vi.hoisted(() => ({
+  trash: vi.fn(),
+  setStarred: vi.fn(),
+  setRead: vi.fn(),
+  snooze: vi.fn(),
+}));
+// The list the conversation was opened from, in order, and the open thread's folders.
+const list = vi.hoisted(() => ({ rows: [] as string[], folders: ["trash"] }));
+// The snooze dialog's onSnooze while it is open.
+const snoozeDialog = vi.hoisted(() => ({ onSnooze: null as ((until: string) => void) | null }));
 
 vi.mock("@/components/kit", async (original) => ({
   ...(await original<object>()),
@@ -29,7 +36,7 @@ vi.mock("@/lib/api", () => ({
     data: {
       id: "thr_1",
       subject: "Old",
-      folders: ["trash"],
+      folders: list.folders,
       messages: [],
       labels: [],
       unread_count: 0,
@@ -39,6 +46,13 @@ vi.mock("@/lib/api", () => ({
 }));
 vi.mock("./composer-provider", () => ({ useComposer: () => ({ open: vi.fn() }) }));
 vi.mock("./label-menu", () => ({ LabelMenu: () => null }));
+vi.mock("./snooze-menu", () => ({
+  SnoozeMenu: () => null,
+  SnoozeDialog: ({ open, onSnooze }: { open: boolean; onSnooze: (until: string) => void }) => {
+    snoozeDialog.onSnooze = open ? onSnooze : null;
+    return null;
+  },
+}));
 vi.mock("./use-thread-actions", () => ({
   useThreadActions: () => ({ purge, ...actions }),
   movableFolder: () => undefined,
@@ -152,6 +166,19 @@ describe("ThreadView", () => {
     await m.press("u");
     expect(actions.setRead).toHaveBeenCalledWith(["thr_1"], false);
     expect(m.where()).toBe("/trash");
+  });
+
+  it("b opens the snooze dialog; snoozing moves on like Archive", async () => {
+    list.rows = ["thr_1", "thr_2"];
+    list.folders = ["inbox"];
+    const m = await mount();
+    expect(snoozeDialog.onSnooze).toBeNull();
+    await m.press("b");
+    expect(snoozeDialog.onSnooze).not.toBeNull();
+    await act(async () => snoozeDialog.onSnooze!("2026-11-22T08:00:00.000Z"));
+    expect(actions.snooze).toHaveBeenCalledWith(["thr_1"], "2026-11-22T08:00:00.000Z");
+    expect(m.where()).toBe("/trash/thr_2");
+    list.folders = ["trash"];
   });
 
   it("ignores keys typed into a field", async () => {

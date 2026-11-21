@@ -41,6 +41,13 @@ All notable changes are listed here. The format follows
   in `q` on `/api/v1/threads`, `/messages` and `/emails`. Free text now
   also matches part of the sender or subject on messages. New indexes
   (migration 0014, enables `pg_trgm`) keep each filter on an index.
+- Snooze: put a conversation away until later today, tomorrow, next week
+  or a date and time (button next to Archive, on a row's hover actions, or
+  `b` in the list and in a conversation). It leaves the Inbox and its
+  count, shows under the new Snoozed folder, and comes back to the Inbox
+  unread when the time comes (with a push notice), or at once when new
+  mail arrives in it. `PATCH /threads/:id` takes `snoozed_until`
+  (RFC 3339 or null), threads carry it, and `folder=snoozed` lists them.
 
 ## [0.1.8] - 2026-11-21
 

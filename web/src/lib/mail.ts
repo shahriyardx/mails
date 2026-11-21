@@ -6,11 +6,21 @@ import type { Address, Message, ViewFolder } from "./types";
 // scope: "all", a domain (example.com) or a mailbox id (mbx_...). This
 // format is shared with the browser extension and web push links.
 
-export const FOLDERS = ["inbox", "starred", "sent", "drafts", "archive", "spam", "trash"] as const;
+export const FOLDERS = [
+  "inbox",
+  "starred",
+  "snoozed",
+  "sent",
+  "drafts",
+  "archive",
+  "spam",
+  "trash",
+] as const;
 
 export const FOLDER_META: Record<ViewFolder, { label: string; icon: string }> = {
   inbox: { label: "Inbox", icon: "inbox" },
   starred: { label: "Starred", icon: "star" },
+  snoozed: { label: "Snoozed", icon: "snooze" },
   sent: { label: "Sent", icon: "send" },
   drafts: { label: "Drafts", icon: "draft" },
   archive: { label: "Archive", icon: "archive" },

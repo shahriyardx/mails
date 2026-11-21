@@ -13,7 +13,7 @@ Scope: `mail:read`
 
 | Filter | |
 | --- | --- |
-| `folder` | `inbox`, `sent`, `drafts`, `archive`, `spam`, `trash`, `starred`, or `all` (the default) |
+| `folder` | `inbox`, `sent`, `drafts`, `archive`, `spam`, `trash`, `starred`, `snoozed`, or `all` (the default) |
 | `label_id` / `label` | By id or by name |
 | `q` | Search box text: [filters](#search-filters) and full text across every message in the thread, plus sender and subject |
 | `unread` | `true` for threads with anything unread, `false` for none |
@@ -40,6 +40,7 @@ Scope: `mail:read`
   "unread_count": 1,
   "is_starred": false,
   "has_attachments": true,
+  "snoozed_until": null,
   "last_message_at": "2026-09-20T14:03:11Z",
   "created_at": "2026-09-19T08:40:02Z",
   "labels": [{ "object": "label", "id": "lbl_…", "name": "Refunds", "color": "#8a8a8a", "created_at": "…" }]
@@ -49,7 +50,8 @@ Scope: `mail:read`
 `folders` is a list because a thread can have messages in more than one — a
 conversation you replied to sits in both `inbox` and `sent`.
 
-`starred` as a folder means starred threads outside the trash.
+`starred` as a folder means starred threads outside the trash. `snoozed`
+means threads with a `snoozed_until`; `inbox` leaves those out until then.
 
 ### Search filters
 
@@ -104,7 +106,8 @@ Scope: `mail:write`
   "is_read": true,
   "is_starred": false,
   "add_labels": ["Refunds"],
-  "remove_labels": ["Needs reply"]
+  "remove_labels": ["Needs reply"],
+  "snoozed_until": "2026-09-22T08:00:00Z"
 }
 ```
 
@@ -119,6 +122,12 @@ in `sent` when a thread is archived or marked as spam, and goes back to
 Labels may be given **by name or by id**. An unknown one is a `422` and
 **nothing is changed** — the labels are resolved before anything is written,
 so you never get an error alongside a move that already happened.
+
+`snoozed_until` (RFC 3339, in the future) takes the thread out of the Inbox
+until then. When the time comes it is back in the Inbox, unread, as if new
+mail had arrived (archived mail moves back; a thread in Trash or Spam stays
+there). New mail in it brings it back early. `null` wakes it now, without
+marking it unread.
 
 Drafts stay where they are when `folder` is set. Moving one into the archive
 would lose the only place the composer looks for it.

@@ -92,6 +92,7 @@ const ICONS = [
   "send",
   "settings",
   "shield",
+  "snooze",
   "star",
   "sync",
   "tune",

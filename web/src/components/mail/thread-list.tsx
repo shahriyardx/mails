@@ -17,14 +17,17 @@ import { errorMessage, useThreads } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { useIsTouch } from "@/lib/hooks";
 import { dayGroup, displayName, formatStamp, swipeOutcome } from "@/lib/mail";
+import { snoozeLabel } from "@/lib/snooze";
 import type { Thread, ThreadFilter, ViewFolder } from "@/lib/types";
 import { LabelMenu } from "./label-menu";
 import { focusAfterRemoval, keyTargets, listKeyAction } from "./list-keys";
+import { SnoozeDialog, SnoozeMenu } from "./snooze-menu";
 import { movableFolder, useThreadActions } from "./use-thread-actions";
 
 const EMPTY: Record<ViewFolder, { icon: string; title: string }> = {
   inbox: { icon: "inbox", title: "Nothing here" },
   starred: { icon: "star", title: "Nothing starred" },
+  snoozed: { icon: "snooze", title: "Nothing snoozed" },
   sent: { icon: "send", title: "Nothing sent yet" },
   drafts: { icon: "draft", title: "No drafts" },
   archive: { icon: "archive", title: "Nothing archived" },
@@ -64,6 +67,8 @@ export function ThreadList({
   const touch = useIsTouch();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [purging, setPurging] = useState<string[] | null>(null);
+  // "b": the rows to snooze while the snooze dialog is up.
+  const [snoozing, setSnoozing] = useState<string[] | null>(null);
   const sentinel = useRef<HTMLLIElement>(null);
   const scroller = useRef<HTMLUListElement>(null);
   // Scrolled away from the top: the header gets a line and a soft shadow.
@@ -222,12 +227,23 @@ export function ThreadList({
         leave();
         remove(targets);
         return done();
+      case "snooze":
+        return setSnoozing(targets); // the dialog snoozes them and clears the selection
     }
   }
   onListKeyRef.current = onListKey;
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
+      <SnoozeDialog
+        open={snoozing !== null}
+        onOpenChange={(open) => !open && setSnoozing(null)}
+        count={snoozing?.length}
+        onSnooze={(until) => {
+          actions.snooze(snoozing ?? [], until);
+          done();
+        }}
+      />
       <ConfirmDialog
         open={purging !== null}
         onOpenChange={(open) => !open && setPurging(null)}
@@ -325,6 +341,7 @@ export function ThreadList({
                 onDelete={() => remove([thread.id])}
                 onStar={() => actions.setStarred([thread.id], !thread.is_starred)}
                 onRead={() => actions.setRead([thread.id], thread.unread_count > 0)}
+                onSnooze={(until) => actions.snooze([thread.id], until)}
               />
             </Fragment>
           );
@@ -434,6 +451,7 @@ function Row({
   onDelete,
   onStar,
   onRead,
+  onSnooze,
 }: {
   thread: Thread;
   folder: ViewFolder;
@@ -452,6 +470,7 @@ function Row({
   onDelete: () => void;
   onStar: () => void;
   onRead: () => void;
+  onSnooze: (until: string | null) => void;
 }) {
   // Nothing in Sent is unread: you wrote it.
   const unread = folder !== "sent" && thread.unread_count > 0;
@@ -600,7 +619,9 @@ function Row({
                   !active && "md:group-hover:invisible",
                 )}
               >
-                {formatStamp(thread.last_message_at)}
+                {folder === "snoozed" && thread.snoozed_until
+                  ? snoozeLabel(new Date(thread.snoozed_until))
+                  : formatStamp(thread.last_message_at)}
               </span>
             </span>
             <span
@@ -665,7 +686,7 @@ function Row({
 
         {/* Hover actions take the timestamp's place (pointer screens). */}
         {!active && (
-          <span className="absolute top-2 right-2 z-10 hidden items-center gap-0.5 rounded-lg border border-border bg-surface-high p-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 md:flex">
+          <span className="absolute top-2 right-2 z-10 hidden items-center gap-0.5 rounded-lg border border-border bg-surface-high p-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 has-[[data-popup-open]]:opacity-100 md:flex">
             <IconButton
               tabIndex={-1}
               size="xs"
@@ -681,6 +702,13 @@ function Row({
                 icon="archive"
                 label="Archive"
                 onClick={onArchive}
+              />
+            )}
+            {folder !== "trash" && (
+              <SnoozeMenu
+                snoozed={Boolean(thread.snoozed_until)}
+                onSnooze={onSnooze}
+                trigger={<IconButton tabIndex={-1} size="xs" icon="snooze" label="Snooze" />}
               />
             )}
             <IconButton
