@@ -72,6 +72,15 @@ export function Sidebar({
                 active={folder === item && !label}
                 onClick={onNavigate}
                 icon={FOLDER_META[item].icon}
+                lead={
+                  <Icon
+                    name={FOLDER_META[item].icon}
+                    size={18}
+                    className={cn(
+                      folder === item && !label ? "text-foreground" : "text-muted-foreground",
+                    )}
+                  />
+                }
                 count={
                   item === "inbox" || item === "drafts" || item === "spam"
                     ? (counts.data?.folders[item] ?? 0)

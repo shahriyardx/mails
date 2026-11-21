@@ -8,6 +8,9 @@ All notable changes are listed here. The format follows
 
 ### Changed
 
+- Sidebar: folders (Inbox, Starred, Sent, ...) show their icon next to
+  the name.
+
 - Sidebar: mailboxes under a domain show just their name ("billing"),
   without a trailing "@"; the full address is in the tooltip.
 
