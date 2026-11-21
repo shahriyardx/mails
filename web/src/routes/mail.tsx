@@ -154,6 +154,7 @@ export function Component() {
           hrefFor={hrefFor}
           compact={compact}
           showMailbox={scope.kind !== "mailbox" && (mailboxes.data?.length ?? 0) > 1}
+          openOnMove={!stacked}
         />
       </section>
 

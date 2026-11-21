@@ -1,6 +1,14 @@
 import { animate, motion, type PanInfo, useMotionValue, useTransform } from "motion/react";
-import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router";
+import {
+  Fragment,
+  type KeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { Link, useNavigate } from "react-router";
 import {
   Avatar,
   Button,
@@ -19,6 +27,7 @@ import { useIsTouch } from "@/lib/hooks";
 import { dayGroup, displayName, formatStamp, swipeOutcome } from "@/lib/mail";
 import type { Thread, ThreadFilter, ViewFolder } from "@/lib/types";
 import { LabelMenu } from "./label-menu";
+import { listKeyAction } from "./list-keys";
 import { movableFolder, useThreadActions } from "./use-thread-actions";
 
 const EMPTY: Record<ViewFolder, { icon: string; title: string }> = {
@@ -44,6 +53,7 @@ export function ThreadList({
   hrefFor,
   compact,
   showMailbox,
+  openOnMove = false,
 }: {
   header?: ReactNode;
   filter: ThreadFilter;
@@ -53,7 +63,10 @@ export function ThreadList({
   compact: boolean;
   /** All mail: say which mailbox each thread is in. */
   showMailbox: boolean;
+  /** Side-by-side layout: arrow keys open the row they move to. */
+  openOnMove?: boolean;
 }) {
+  const navigate = useNavigate();
   const query = useThreads(filter);
   const actions = useThreadActions();
   const touch = useIsTouch();
@@ -63,6 +76,9 @@ export function ThreadList({
   const scroller = useRef<HTMLUListElement>(null);
   // Scrolled away from the top: the header gets a line and a soft shadow.
   const [scrolled, setScrolled] = useState(false);
+  // One tab stop for the whole list (roving tabindex): the last focused row,
+  // else the open one, else the first. Arrow keys move between rows.
+  const [focusId, setFocusId] = useState<string | null>(null);
 
   const threads = useMemo(() => query.data?.pages.flatMap((page) => page.data) ?? [], [query.data]);
   const filterKey = JSON.stringify(filter);
@@ -113,6 +129,57 @@ export function ThreadList({
 
   let lastGroup = "";
 
+  const visible = (id: string | null | undefined) =>
+    Boolean(id && threads.some((t) => t.id === id));
+  const tabId = visible(focusId) ? focusId : visible(activeId) ? activeId : threads[0]?.id;
+
+  function onListKey(event: KeyboardEvent<HTMLUListElement>) {
+    const id = (event.target as HTMLElement).closest<HTMLElement>("[data-row-link]")?.dataset
+      .rowLink;
+    if (!id) return;
+    const action = listKeyAction(event);
+    if (!action) return;
+    event.preventDefault();
+    const index = threads.findIndex((t) => t.id === id);
+    const thread = threads[index];
+    if (!thread) return;
+    const focusRow = (to: number) => {
+      const target = threads[Math.max(0, Math.min(threads.length - 1, to))];
+      if (!target) return;
+      setFocusId(target.id);
+      const link = scroller.current?.querySelector<HTMLElement>(`[data-row-link="${target.id}"]`);
+      link?.focus();
+      link?.scrollIntoView({ block: "nearest" });
+      // Side by side, moving also opens it; one at a time, Enter opens.
+      if (openOnMove && !some) navigate(hrefFor(target.id), { replace: true });
+    };
+    switch (action) {
+      case "next":
+        return focusRow(index + 1);
+      case "prev":
+        return focusRow(index - 1);
+      case "first":
+        return focusRow(0);
+      case "last":
+        return focusRow(threads.length - 1);
+      case "select":
+        return toggle(thread.id);
+      case "archive":
+        if (folder !== "trash" && folder !== "archive") {
+          focusRow(index + 1 < threads.length ? index + 1 : index - 1);
+          actions.move([thread.id], "archive", from);
+        }
+        return;
+      case "star":
+        return actions.setStarred([thread.id], !thread.is_starred);
+      case "delete":
+        focusRow(index + 1 < threads.length ? index + 1 : index - 1);
+        return remove([thread.id]);
+      case "read":
+        return actions.setRead([thread.id], thread.unread_count > 0);
+    }
+  }
+
   return (
     <div className="relative flex h-full min-h-0 flex-col">
       <ConfirmDialog
@@ -145,6 +212,7 @@ export function ThreadList({
       <ul
         ref={scroller}
         onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 2)}
+        onKeyDown={onListKey}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-1 pb-24 md:pb-6"
       >
         {query.isPending &&
@@ -200,6 +268,8 @@ export function ThreadList({
                 href={hrefFor(thread.id)}
                 replyHref={hrefFor(thread.id, "reply")}
                 active={thread.id === activeId}
+                tabbable={thread.id === tabId}
+                onFocusRow={() => setFocusId(thread.id)}
                 checked={selected.has(thread.id)}
                 selecting={some}
                 compact={compact}
@@ -307,6 +377,8 @@ function Row({
   href,
   replyHref,
   active,
+  tabbable,
+  onFocusRow,
   checked,
   selecting,
   compact,
@@ -323,6 +395,8 @@ function Row({
   href: string;
   replyHref: string;
   active: boolean;
+  tabbable: boolean;
+  onFocusRow: () => void;
   checked: boolean;
   selecting: boolean;
   compact: boolean;
@@ -422,6 +496,7 @@ function Row({
             <Checkbox
               checked={checked}
               onCheckedChange={onToggle}
+              tabIndex={-1}
               aria-label={`Select ${thread.subject || "conversation"}`}
             />
           </span>
@@ -431,6 +506,9 @@ function Row({
           <Link
             to={href}
             draggable={false}
+            data-row-link={thread.id}
+            tabIndex={tabbable ? 0 : -1}
+            onFocus={onFocusRow}
             onClick={(event) => {
               if (selecting) {
                 event.preventDefault();
@@ -519,6 +597,7 @@ function Row({
             <span className="relative z-10 mt-2 flex flex-wrap gap-1.5">
               {folder !== "drafts" && (
                 <Button
+                  tabIndex={-1}
                   size="xs"
                   icon="reply"
                   render={<Link to={replyHref} />}
@@ -528,11 +607,11 @@ function Row({
                 </Button>
               )}
               {folder !== "trash" && folder !== "archive" && (
-                <Button size="xs" icon="archive" onClick={onArchive}>
+                <Button tabIndex={-1} size="xs" icon="archive" onClick={onArchive}>
                   Archive
                 </Button>
               )}
-              <Button size="xs" icon="star" onClick={onStar}>
+              <Button tabIndex={-1} size="xs" icon="star" onClick={onStar}>
                 {thread.is_starred ? "Unstar" : "Star"}
               </Button>
             </span>
@@ -543,6 +622,7 @@ function Row({
         {!active && (
           <span className="absolute top-2 right-2 z-10 hidden items-center gap-0.5 rounded-lg border border-border bg-surface-high p-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 md:flex">
             <IconButton
+              tabIndex={-1}
               size="xs"
               icon="star"
               filled={thread.is_starred}
@@ -550,15 +630,23 @@ function Row({
               onClick={onStar}
             />
             {folder !== "trash" && folder !== "archive" && (
-              <IconButton size="xs" icon="archive" label="Archive" onClick={onArchive} />
+              <IconButton
+                tabIndex={-1}
+                size="xs"
+                icon="archive"
+                label="Archive"
+                onClick={onArchive}
+              />
             )}
             <IconButton
+              tabIndex={-1}
               size="xs"
               icon={thread.unread_count > 0 ? "mark_email_read" : "mark_email_unread"}
               label={thread.unread_count > 0 ? "Mark read" : "Mark unread"}
               onClick={onRead}
             />
             <IconButton
+              tabIndex={-1}
               size="xs"
               icon={folder === "trash" ? "delete_forever" : "delete"}
               label={folder === "trash" ? "Delete forever" : "Delete"}
