@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/kit";
 import { useSignOut } from "@/lib/api";
+import { SETTINGS_PAGES } from "@/routes/settings/pages";
 
 /**
  * The owner's avatar, opening sign out and the links the screen around it
@@ -44,7 +45,10 @@ export function AccountMenu({
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         {settings && (
-          <DropdownMenuLinkItem icon="settings" render={<Link to="/settings" />}>
+          <DropdownMenuLinkItem
+            icon="settings"
+            render={<Link to={`/settings/${SETTINGS_PAGES[0]!.path}`} />}
+          >
             Settings
           </DropdownMenuLinkItem>
         )}

@@ -13,6 +13,7 @@ import {
   useSidebarCollapsed,
 } from "@/lib/sidebar";
 import type { Mailbox, ViewFolder } from "@/lib/types";
+import { SETTINGS_PAGES } from "@/routes/settings/pages";
 import { useComposer } from "./composer-provider";
 
 /**
@@ -203,7 +204,7 @@ export function Sidebar({
       <div className="-mx-1 flex shrink-0 items-center gap-1 px-1 in-data-folded:flex-col in-data-folded:gap-2">
         <FoldedThemeToggle />
         <NavRow
-          to="/settings"
+          to={`/settings/${SETTINGS_PAGES[0]!.path}`}
           active={false}
           onClick={onNavigate}
           lead={<Icon name="settings" size={18} className="text-muted-foreground" />}

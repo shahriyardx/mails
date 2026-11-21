@@ -6,11 +6,15 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-11-21
+
 ### Changed
 
+- Conversation header: where you are on the left (back, folder, mailbox,
+  labels) and the actions as icons on the right, under one line.
+- Settings in the sidebar and account menu opens Domains directly.
 - Sidebar: folders (Inbox, Starred, Sent, ...) show their icon next to
   the name.
-
 - Sidebar: mailboxes under a domain show just their name ("billing"),
   without a trailing "@"; the full address is in the tooltip.
 
@@ -120,7 +124,8 @@ First release of Mails, the Go rewrite.
   subdomains, live updates that stopped after an error, and more. Every fix
   has a test.
 
-[Unreleased]: https://github.com/shahriyardx/mails/compare/v0.1.7...HEAD
+[Unreleased]: https://github.com/shahriyardx/mails/compare/v0.1.8...HEAD
+[0.1.8]: https://github.com/shahriyardx/mails/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/shahriyardx/mails/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/shahriyardx/mails/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/shahriyardx/mails/compare/v0.1.4...v0.1.5

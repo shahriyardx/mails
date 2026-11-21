@@ -24,6 +24,7 @@ import { cn } from "@/lib/cn";
 import {
   attachmentUrl,
   displayName,
+  FOLDER_META,
   formatAddress,
   formatBytes,
   formatDateTime,
@@ -91,13 +92,10 @@ export function ThreadView({
   threadId,
   backHref,
   folder,
-  stacked = false,
 }: {
   threadId: string;
   backHref: string;
   folder: string;
-  /** One-at-a-time layout: the list is hidden at every width, so Back always shows. */
-  stacked?: boolean;
 }) {
   const query = useThread(threadId);
   const thread = query.data;
@@ -124,27 +122,17 @@ export function ThreadView({
       />
     );
   }
-  return (
-    <Conversation
-      key={thread.id}
-      thread={thread}
-      backHref={backHref}
-      folder={folder}
-      stacked={stacked}
-    />
-  );
+  return <Conversation key={thread.id} thread={thread} backHref={backHref} folder={folder} />;
 }
 
 function Conversation({
   thread,
   backHref,
   folder,
-  stacked,
 }: {
   thread: Thread;
   backHref: string;
   folder: string;
-  stacked: boolean;
 }) {
   const actions = useThreadActions();
   const composer = useComposer();
@@ -225,18 +213,41 @@ function Conversation({
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-3 pb-24 sm:px-8 md:pb-10 lg:pt-9.5">
         <div className="mx-auto w-full max-w-165">
-          {/* Labels on the left, the thread's actions on the right. */}
-          <div className="flex min-h-8 flex-wrap items-center gap-2">
+          {/* Where you are on the left (folder, mailbox, labels), actions on the right. */}
+          <div className="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-2 border-b border-border pb-3">
             <Tooltip label="Back to the list">
               <IconButton
                 icon="arrow_back"
                 label="Back to the list"
                 size="sm"
-                className={cn("-ml-2", !stacked && "lg:hidden")}
+                className="-ml-2"
                 render={<Link to={backHref} />}
                 nativeButton={false}
               />
             </Tooltip>
+            <nav
+              aria-label="Location"
+              className="flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground"
+            >
+              <Link
+                to={backHref}
+                className="rounded font-medium text-soft-foreground outline-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                {FOLDER_META[folder as keyof typeof FOLDER_META]?.label ?? folder}
+              </Link>
+              <Icon name="chevron_right" size={16} />
+              <span
+                className="inline-flex min-w-0 items-center gap-1.5 rounded-md bg-tonal px-2 py-0.5 font-mono text-xs text-soft-foreground"
+                title={thread.mailbox}
+              >
+                <span
+                  aria-hidden
+                  className="size-1.75 shrink-0 rounded-[2px]"
+                  style={{ background: thread.mailbox_color }}
+                />
+                <span className="truncate">{thread.mailbox}</span>
+              </span>
+            </nav>
             {thread.labels?.map((label) => (
               <Badge key={label.id} tone="accent">
                 {label.name}
@@ -244,47 +255,42 @@ function Conversation({
             ))}
             <span className="flex-1" />
             {inTrash ? (
-              <Button
-                size="sm"
-                variant="outline"
-                icon="restore_from_trash"
-                onClick={() => actions.restore([thread.id])}
-              >
-                Put back
-              </Button>
+              <Tooltip label="Put back">
+                <IconButton
+                  icon="restore_from_trash"
+                  label="Put back"
+                  size="sm"
+                  onClick={() => actions.restore([thread.id])}
+                />
+              </Tooltip>
             ) : archived ? (
-              <Button
-                size="sm"
-                variant="outline"
-                icon="unarchive"
-                onClick={() => actions.move([thread.id], "inbox", "archive")}
-              >
-                Inbox
-              </Button>
+              <Tooltip label="Move to Inbox">
+                <IconButton
+                  icon="unarchive"
+                  label="Move to Inbox"
+                  size="sm"
+                  onClick={() => actions.move([thread.id], "inbox", "archive")}
+                />
+              </Tooltip>
             ) : (
-              <Button
-                size="sm"
-                variant="outline"
-                icon="archive"
-                onClick={() => actions.move([thread.id], "archive", from)}
-              >
-                Archive
-              </Button>
+              <Tooltip label="Archive">
+                <IconButton
+                  icon="archive"
+                  label="Archive"
+                  size="sm"
+                  onClick={() => actions.move([thread.id], "archive", from)}
+                />
+              </Tooltip>
             )}
             <LabelMenu
               threadIds={[thread.id]}
               applied={thread.labels?.map((l) => l.id)}
-              trigger={
-                <Button size="sm" variant="outline" icon="label">
-                  Label
-                </Button>
-              }
+              trigger={<IconButton icon="label" label="Label" size="sm" />}
             />
             <Tooltip label={thread.is_starred ? "Unstar" : "Star"}>
               <IconButton
                 icon="star"
                 size="sm"
-                variant="outline"
                 filled={thread.is_starred}
                 className={cn(thread.is_starred && "text-accent")}
                 label={thread.is_starred ? "Unstar" : "Star"}
@@ -293,9 +299,7 @@ function Conversation({
             </Tooltip>
             <DropdownMenu>
               <DropdownMenuTrigger
-                render={
-                  <IconButton icon="more_horiz" label="More actions" size="sm" variant="outline" />
-                }
+                render={<IconButton icon="more_horiz" label="More actions" size="sm" />}
               />
               <DropdownMenuContent>
                 <DropdownMenuItem
@@ -327,7 +331,7 @@ function Conversation({
             </DropdownMenu>
           </div>
 
-          <h1 className="mt-4 text-[26px] leading-[1.15] font-semibold tracking-[-0.025em] break-words sm:text-[32px]">
+          <h1 className="mt-5 text-[26px] leading-[1.15] font-semibold tracking-[-0.025em] break-words sm:text-[32px]">
             {thread.subject || "(no subject)"}
           </h1>
 
