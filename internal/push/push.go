@@ -5,6 +5,7 @@ package push
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -47,6 +48,17 @@ type Subscription struct {
 // that token (403 BadJwtToken) and no notice reaches an iPhone or a Mac.
 func vapidSubscriber(subject string) string {
 	return strings.TrimPrefix(strings.TrimSpace(subject), "mailto:")
+}
+
+// withoutURL drops the request URL from an HTTP client error. A
+// *url.Error prints the full push endpoint, which holds the browser's
+// secret token, so only the cause is kept.
+func withoutURL(err error) error {
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		return ue.Err
+	}
+	return err
 }
 
 // Sender delivers one message and returns the push service's status.
@@ -152,7 +164,7 @@ func (s *Service) Notify(ctx context.Context, p Payload) (delivered int) {
 			if u, perr := url.Parse(sub.Endpoint); perr == nil {
 				host = u.Host
 			}
-			slog.Warn("push send failed", "service", host, "status", status, "err", err)
+			slog.Warn("push send failed", "service", host, "status", status, "err", withoutURL(err))
 			var failures int
 			if err = s.DB.QueryRow(ctx, `UPDATE push_subscription SET failures = failures + 1 WHERE id = $1 RETURNING failures`, sub.ID).Scan(&failures); err == nil && failures >= giveUpAfter {
 				_, err = s.DB.Exec(ctx, `DELETE FROM push_subscription WHERE id = $1`, sub.ID)
