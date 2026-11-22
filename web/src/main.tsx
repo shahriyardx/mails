@@ -1,12 +1,14 @@
 import "./styles/app.css";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { MotionConfig } from "motion/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router/dom";
+import { AppUpdate, OfflineNote } from "@/components/app/offline";
 import { Toaster, TooltipProvider } from "@/components/kit";
 import { installSpringVars } from "@/components/kit/motion";
-import { queryClient } from "@/lib/api";
+import { keys, queryClient } from "@/lib/api";
+import { persistOptions } from "@/lib/offline";
 import { installScrollbars } from "@/lib/scrollbars";
 import { watchSystemTheme } from "@/lib/theme";
 import { router } from "./router";
@@ -15,20 +17,25 @@ installSpringVars();
 installScrollbars();
 watchSystemTheme();
 
-// Web push needs a service worker; the Notifications settings page subscribes.
-if ("serviceWorker" in navigator && import.meta.env.PROD) {
-  void navigator.serviceWorker.register("/sw.js").catch(() => {});
+// Saved mail is back: run actions that waited offline, then check the
+// session (the saved sign-in state is never trusted for long).
+function restored() {
+  void queryClient
+    .resumePausedMutations()
+    .then(() => queryClient.invalidateQueries({ queryKey: keys.auth }));
 }
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider client={queryClient} {...persistOptions(restored)}>
       <MotionConfig reducedMotion="user">
         <TooltipProvider>
           <RouterProvider router={router} />
           <Toaster />
+          <OfflineNote />
+          <AppUpdate />
         </TooltipProvider>
       </MotionConfig>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   </StrictMode>,
 );

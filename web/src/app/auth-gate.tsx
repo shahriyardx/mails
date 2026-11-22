@@ -36,7 +36,8 @@ export function AuthGate() {
   useLiveUpdates(Boolean(owner));
 
   if (status.isPending) return <Splash />;
-  if (status.isError) {
+  // A failed re-check with a saved owner (server down, flaky network) keeps the saved mail.
+  if (status.isError && !status.data) {
     return (
       <div className="grid h-dvh place-items-center">
         <EmptyState

@@ -6,6 +6,26 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Install Mails as an app (PWA) on desktop and phone, with the folded-diamond
+  icon. The app opens with no connection.
+- Offline reading: lists and conversations you opened, plus the newest 50
+  Inbox conversations, are saved on the device (IndexedDB). Sender pictures
+  and opened attachments are saved too.
+- Archive, Trash, Star, Read, Labels and Snooze work offline. They wait on
+  the device, also across a reload, and run when the connection is back.
+- An "Offline · showing saved mail" note, and a "New version · Reload"
+  message instead of silent updates.
+- Docs: Guide → Install and offline use.
+
+### Changed
+
+- Sign-out, or a 401 from the server, deletes the mail saved on the device.
+- The server sends `sw.js` and `manifest.webmanifest` with `no-cache`.
+- Sending, search and settings fail at once offline with a clear error;
+  nothing is sent later without you.
+
 ## [0.2.0] - 2026-11-21
 
 Upgrading: migration 0014 runs `CREATE EXTENSION pg_trgm`. Hosted Postgres

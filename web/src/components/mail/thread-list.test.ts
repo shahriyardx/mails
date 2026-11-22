@@ -17,6 +17,7 @@ const actions = vi.hoisted(() => ({
 
 vi.mock("@/lib/api", () => ({
   errorMessage: String,
+  useSaveForOffline: () => {},
   useThreads: () => ({
     data: { pages: [{ data: state.threads }] },
     isPending: false,

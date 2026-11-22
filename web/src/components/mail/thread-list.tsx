@@ -13,7 +13,7 @@ import {
   Tooltip,
 } from "@/components/kit";
 import { spatial } from "@/components/kit/motion";
-import { errorMessage, useThreads } from "@/lib/api";
+import { errorMessage, useSaveForOffline, useThreads } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { useIsTouch } from "@/lib/hooks";
 import { dayGroup, displayName, formatStamp, swipeOutcome } from "@/lib/mail";
@@ -78,6 +78,8 @@ export function ThreadList({
   const [focusId, setFocusId] = useState<string | null>(null);
 
   const threads = useMemo(() => query.data?.pages.flatMap((page) => page.data) ?? [], [query.data]);
+  // The Inbox is saved for offline reading in the background.
+  useSaveForOffline(threads, filter.folder === "inbox" && !filter.q);
   const filterKey = JSON.stringify(filter);
   // biome-ignore lint/correctness/useExhaustiveDependencies: a new view starts with nothing picked
   useEffect(() => setSelected(new Set()), [filterKey]);
@@ -276,7 +278,15 @@ export function ThreadList({
         onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 2)}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-1 pb-24 md:pb-6"
       >
+        {query.isPending && query.fetchStatus === "paused" && (
+          <EmptyState
+            icon="cloud_off"
+            title="You are offline"
+            body="This list is not saved on this device. It loads when you are back online."
+          />
+        )}
         {query.isPending &&
+          query.fetchStatus !== "paused" &&
           Array.from({ length: 8 }, (_, i) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
             <li key={i} className="mx-2.5 flex gap-3 px-3 py-3">
@@ -287,7 +297,7 @@ export function ThreadList({
               </div>
             </li>
           ))}
-        {query.isError && (
+        {query.isError && threads.length === 0 && (
           <EmptyState
             icon="error"
             title="Could not load conversations"

@@ -109,6 +109,20 @@ export function ThreadView({
   const query = useThread(threadId);
   const thread = query.data;
 
+  if (query.isPending && query.fetchStatus === "paused") {
+    return (
+      <EmptyState
+        icon="cloud_off"
+        title="You are offline"
+        body="This conversation is not saved on this device. It opens when you are back online."
+        action={
+          <Button render={<Link to={backHref} />} nativeButton={false}>
+            Back to the list
+          </Button>
+        }
+      />
+    );
+  }
   if (query.isPending) {
     return (
       <div className="mx-auto w-full max-w-165 space-y-5 px-8 pt-9.5">
@@ -117,7 +131,7 @@ export function ThreadView({
       </div>
     );
   }
-  if (query.isError || !thread) {
+  if (!thread) {
     return (
       <EmptyState
         icon="error"

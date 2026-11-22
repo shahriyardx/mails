@@ -147,6 +147,9 @@ Dashboard: Vite, React 19, TypeScript, Tailwind 4, `@base-ui/react`,
 `class-variance-authority`, `tailwind-merge`, `clsx`, Material Symbols
 Rounded (self-hosted font), Sora + Inter + JetBrains Mono (self-hosted). Docs rendering:
 `react-markdown` + `remark-gfm`.
+Offline/PWA: `vite-plugin-pwa` (injectManifest, worker in `web/src/sw.ts`) with
+Workbox, and `@tanstack/react-query-persist-client` + `idb-keyval` for saved
+mail (`web/src/lib/offline.ts`).
 
 ## Running
 

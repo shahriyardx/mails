@@ -15,6 +15,7 @@
       { "path": "guide/metrics", "title": "Metrics" },
       { "path": "guide/notifications", "title": "Desktop notifications" },
       { "path": "guide/shortcuts", "title": "Keyboard shortcuts" },
+      { "path": "guide/offline", "title": "Install and offline use" },
       { "path": "guide/api-keys", "title": "API keys" },
       { "path": "guide/extension", "title": "Browser extension" }
     ]

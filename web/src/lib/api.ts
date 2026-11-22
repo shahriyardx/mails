@@ -7,6 +7,7 @@
 import {
   type InfiniteData,
   MutationCache,
+  onlineManager,
   QueryCache,
   QueryClient,
   type QueryKey,
@@ -16,6 +17,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useEffect } from "react";
+import { forgetMail, OFFLINE_MAX_AGE, QUEUED, wipeOffline } from "./offline";
 import type {
   ApiKey,
   ApiKeyInput,
@@ -161,9 +163,13 @@ export const keys = {
   setup: ["setup"] as const,
 };
 
-/** A 401 anywhere means the session ended: re-check auth so the gate shows sign-in. */
+/**
+ * A 401 anywhere means the session ended: forget the mail saved on this
+ * device and re-check auth so the gate shows sign-in.
+ */
 function onError(error: unknown) {
   if (error instanceof ApiError && error.status === 401) {
+    void forgetMail(queryClient);
     void queryClient.invalidateQueries({ queryKey: keys.auth });
   }
 }
@@ -177,9 +183,83 @@ export const queryClient = new QueryClient({
       retry: (count, error) =>
         count < 2 && !(error instanceof ApiError && error.status >= 400 && error.status < 500),
       refetchOnWindowFocus: false,
+      // Kept as long as the offline copy (src/lib/offline.ts), or saved mail
+      // nobody is looking at would drop out of it after five minutes.
+      gcTime: OFFLINE_MAX_AGE,
     },
+    // Offline, a change fails at once with a clear error. Only the thread
+    // actions below wait for the connection.
+    mutations: { networkMode: "always" },
   },
 });
+
+// TanStack starts out "online" and only learns from later online/offline
+// events: a page opened with no connection would try, fail and show errors.
+if (typeof navigator !== "undefined" && typeof navigator.onLine === "boolean") {
+  onlineManager.setOnline(navigator.onLine);
+}
+
+/** Mail actions that may wait offline: archive, trash, star, read, labels, snooze. */
+const queued = {
+  change: [QUEUED, "change-threads"] as const,
+  remove: [QUEUED, "delete-threads"] as const,
+  restore: [QUEUED, "restore-threads"] as const,
+};
+
+const changeThreads = ({ ids, change }: { ids: string[]; change: ThreadChange }) =>
+  api<{ ids: string[] }>("/api/app/threads", { method: "PATCH", body: { ids, ...change } });
+const deleteThreads = ({ ids, permanent = false }: { ids: string[]; permanent?: boolean }) =>
+  api("/api/app/threads/delete", { method: "POST", body: { ids, permanent } });
+const restoreThreads = (ids: string[]) =>
+  api("/api/app/threads/restore", { method: "POST", body: { ids } });
+
+// Defaults let a paused action saved before a reload run once back online.
+queryClient.setMutationDefaults(queued.change, {
+  mutationFn: changeThreads,
+  networkMode: "online",
+});
+queryClient.setMutationDefaults(queued.remove, {
+  mutationFn: deleteThreads,
+  networkMode: "online",
+});
+queryClient.setMutationDefaults(queued.restore, {
+  mutationFn: restoreThreads,
+  networkMode: "online",
+});
+
+const OFFLINE_THREADS = 50;
+
+/**
+ * Saves the first 50 conversations of a list for offline reading, one at a
+ * time after a short wait, skipping ones already fresh in the cache.
+ */
+export function useSaveForOffline(threads: Thread[], enabled: boolean) {
+  const client = useQueryClient();
+  const ids = enabled
+    ? threads
+        .slice(0, OFFLINE_THREADS)
+        .map((t) => t.id)
+        .join(",")
+    : "";
+  useEffect(() => {
+    if (!ids) return;
+    let stopped = false;
+    const timer = setTimeout(async () => {
+      for (const id of ids.split(",")) {
+        if (stopped || !onlineManager.isOnline()) return;
+        await client.prefetchQuery({
+          queryKey: keys.thread(id),
+          queryFn: ({ signal }) => api<Thread>(`/api/app/threads/${id}`, { signal }),
+          staleTime: 10 * 60_000,
+        });
+      }
+    }, 3000);
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [client, ids]);
+}
 
 // ---- Auth -----------------------------------------------------------------
 
@@ -195,8 +275,9 @@ export function useSignOut() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: () => api<void>("/api/auth/sign-out", { method: "POST" }),
-    onSuccess: () => {
+    onSuccess: async () => {
       client.clear();
+      await wipeOffline();
       window.location.assign("/sign-in");
     },
   });
@@ -273,8 +354,9 @@ function refreshThreads(client: QueryClient, ids: string[]) {
 export function useChangeThreads() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ ids, change }: { ids: string[]; change: ThreadChange }) =>
-      api<{ ids: string[] }>("/api/app/threads", { method: "PATCH", body: { ids, ...change } }),
+    mutationKey: queued.change,
+    mutationFn: changeThreads,
+    networkMode: "online",
     onMutate: async ({ ids, change }) => {
       await client.cancelQueries({ queryKey: keys.threads() });
       return changeLists(client, ids, change);
@@ -319,8 +401,9 @@ export function changeLists(client: QueryClient, ids: string[], change: ThreadCh
 export function useDeleteThreads() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ ids, permanent = false }: { ids: string[]; permanent?: boolean }) =>
-      api("/api/app/threads/delete", { method: "POST", body: { ids, permanent } }),
+    mutationKey: queued.remove,
+    mutationFn: deleteThreads,
+    networkMode: "online",
     onMutate: async ({ ids }) => {
       await client.cancelQueries({ queryKey: keys.threads() });
       const set = new Set(ids);
@@ -335,8 +418,9 @@ export function useDeleteThreads() {
 export function useRestoreThreads() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (ids: string[]) =>
-      api("/api/app/threads/restore", { method: "POST", body: { ids } }),
+    mutationKey: queued.restore,
+    mutationFn: restoreThreads,
+    networkMode: "online",
     onSettled: (_data, _error, ids) => refreshThreads(client, ids),
   });
 }
