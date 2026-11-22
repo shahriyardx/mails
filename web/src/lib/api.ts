@@ -17,7 +17,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { forgetMail, OFFLINE_MAX_AGE, QUEUED, wipeOffline } from "./offline";
+import { forgetMail, OFFLINE_MAX_AGE, QUEUED, trimSaved, wipeOffline } from "./offline";
 import type {
   ApiKey,
   ApiKeyInput,
@@ -213,18 +213,22 @@ const deleteThreads = ({ ids, permanent = false }: { ids: string[]; permanent?: 
 const restoreThreads = (ids: string[]) =>
   api("/api/app/threads/restore", { method: "POST", body: { ids } });
 
-// Defaults let a paused action saved before a reload run once back online.
+// Defaults let a paused action saved before a reload run once back online
+// (the hooks below override them while the page that made it is open).
 queryClient.setMutationDefaults(queued.change, {
   mutationFn: changeThreads,
   networkMode: "online",
+  onSettled: (_data, _error, { ids }) => refreshThreads(queryClient, ids),
 });
 queryClient.setMutationDefaults(queued.remove, {
   mutationFn: deleteThreads,
   networkMode: "online",
+  onSettled: (_data, _error, { ids }) => refreshThreads(queryClient, ids),
 });
 queryClient.setMutationDefaults(queued.restore, {
   mutationFn: restoreThreads,
   networkMode: "online",
+  onSettled: (_data, _error, ids) => refreshThreads(queryClient, ids),
 });
 
 const OFFLINE_THREADS = 50;
@@ -244,19 +248,30 @@ export function useSaveForOffline(threads: Thread[], enabled: boolean) {
   useEffect(() => {
     if (!ids) return;
     let stopped = false;
-    const timer = setTimeout(async () => {
+    let running = false;
+    const run = async () => {
+      if (running) return;
+      running = true;
       for (const id of ids.split(",")) {
-        if (stopped || !onlineManager.isOnline()) return;
+        if (stopped || !onlineManager.isOnline()) break;
         await client.prefetchQuery({
           queryKey: keys.thread(id),
           queryFn: ({ signal }) => api<Thread>(`/api/app/threads/${id}`, { signal }),
           staleTime: 10 * 60_000,
         });
       }
-    }, 3000);
+      running = false;
+      if (!stopped) trimSaved(client);
+    };
+    const timer = setTimeout(run, 3000);
+    // Opened offline: save them once the connection is back.
+    const unsubscribe = onlineManager.subscribe((online) => {
+      if (online) void run();
+    });
     return () => {
       stopped = true;
       clearTimeout(timer);
+      unsubscribe();
     };
   }, [client, ids]);
 }

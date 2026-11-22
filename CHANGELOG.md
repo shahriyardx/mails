@@ -18,6 +18,8 @@ All notable changes are listed here. The format follows
 - An "Offline · showing saved mail" note, and a "New version · Reload"
   message instead of silent updates.
 - Docs: Guide → Install and offline use.
+- iPhone and iPad: Settings → Notifications says to add Mails to the Home
+  Screen first, instead of "This browser cannot show push notifications".
 
 ### Changed
 

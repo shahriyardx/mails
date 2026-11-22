@@ -28,6 +28,9 @@ const KEPT = new Set([
   "image-trust",
 ]);
 
+/** At most this many conversations stay in memory and on the device. */
+export const SAVED_THREADS = 200;
+
 /** Mutation keys (first part) that wait for the network and survive a reload. */
 export const QUEUED = "queued";
 
@@ -35,6 +38,10 @@ export function keepQuery(query: Pick<Query, "queryKey" | "state">) {
   if (query.state.status !== "success") return false;
   const [root, arg] = query.queryKey;
   if (!KEPT.has(String(root))) return false;
+  // Signed out: nothing to keep, and a saved "no owner" would send the next
+  // start to the sign-in page before the real answer comes back.
+  if (root === "auth" && !(query.state.data as { owner?: unknown } | undefined)?.owner)
+    return false;
   // Search results are one-off: keep folder and label lists only.
   if (root === "threads" && arg && typeof arg === "object" && "q" in arg && arg.q) return false;
   return true;
@@ -69,6 +76,19 @@ export function persistOptions(
     },
     onSuccess: onRestored,
   };
+}
+
+/**
+ * Drops the oldest saved conversations past SAVED_THREADS (ones no screen
+ * shows), so a long session does not grow the cache and its saves forever.
+ */
+export function trimSaved(client: QueryClient) {
+  const threads = client
+    .getQueryCache()
+    .findAll({ queryKey: ["thread"] })
+    .filter((q) => q.getObserversCount() === 0)
+    .sort((a, b) => b.state.dataUpdatedAt - a.state.dataUpdatedAt);
+  for (const query of threads.slice(SAVED_THREADS)) client.getQueryCache().remove(query);
 }
 
 /** Deletes every saved copy of mail on this device (IndexedDB and caches). */

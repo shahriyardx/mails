@@ -1,7 +1,7 @@
 // Browser side of web push: the service worker (src/sw.ts, registered in
 // components/app/offline.tsx) plus PushManager. The server half is /api/app/push.
 
-export type PushSupport = "ready" | "insecure" | "unsupported";
+export type PushSupport = "ready" | "insecure" | "home-screen" | "unsupported";
 
 export function pushSupport(): PushSupport {
   if (typeof window === "undefined") return "unsupported";
@@ -11,9 +11,26 @@ export function pushSupport(): PushSupport {
     !("PushManager" in window) ||
     !("Notification" in window)
   ) {
-    return "unsupported";
+    // iPhone and iPad give web push only to apps added to the Home Screen.
+    return isAppleMobile(navigator) && !isInstalled() ? "home-screen" : "unsupported";
   }
   return "ready";
+}
+
+/** iPhone or iPad (iPadOS says Macintosh, but has touch). */
+export function isAppleMobile(nav: Pick<Navigator, "userAgent" | "maxTouchPoints">) {
+  return (
+    /iPhone|iPad|iPod/.test(nav.userAgent) ||
+    (/Macintosh/.test(nav.userAgent) && nav.maxTouchPoints > 1)
+  );
+}
+
+/** Opened as the installed app, not in a browser tab. */
+function isInstalled() {
+  return (
+    window.matchMedia?.("(display-mode: standalone)").matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true
+  );
 }
 
 /** A VAPID key (base64url) as PushManager wants it. */
@@ -69,6 +86,9 @@ export async function subscribeBrowser(publicKey: string) {
   const support = pushSupport();
   if (support === "insecure") throw new Error("Notifications need https.");
   if (support === "unsupported") throw new Error("This browser cannot show notifications.");
+  if (support === "home-screen") {
+    throw new Error("Add Mails to the Home Screen first, then turn this on in the app.");
+  }
   const permission = await Notification.requestPermission();
   if (permission !== "granted") {
     throw new Error(

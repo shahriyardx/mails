@@ -113,6 +113,11 @@ export default function Notifications() {
           </Notice>
         ) : support === "insecure" ? (
           <Notice tone="warning">Notifications need https. Open Mails over https.</Notice>
+        ) : support === "home-screen" ? (
+          <Notice tone="warning">
+            On iPhone and iPad, notifications work only in the installed app. In Safari, tap Share,
+            then Add to Home Screen. Open Mails from the Home Screen and turn this on there.
+          </Notice>
         ) : support === "unsupported" ? (
           <Notice tone="warning">This browser cannot show push notifications.</Notice>
         ) : permission === "denied" ? (

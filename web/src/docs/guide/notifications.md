@@ -71,6 +71,7 @@ into a column of the same subject line.
 | --- | --- |
 | **https** | Web Push needs a secure connection. On plain http the page says so and the switch is off. `localhost` counts as secure. |
 | **A modern browser** | Chrome, Edge, Firefox and Safari 16.4+. |
+| **iPhone and iPad** | iOS 16.4+, and only in the installed app: in Safari tap Share → **Add to Home Screen**, open Mails from the Home Screen, then turn notifications on there. In a Safari tab the page says to install first. |
 | **Outbound network** | The server has to reach the browsers' push services (Google, Mozilla, Apple). A locked-down egress firewall will block it. |
 
 ## What it is not
