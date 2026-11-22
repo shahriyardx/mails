@@ -24,6 +24,7 @@ const ICONS = [
   "close",
   "close_fullscreen",
   "cloud",
+  "cloud_off",
   "code",
   "content_copy",
   "contrast",

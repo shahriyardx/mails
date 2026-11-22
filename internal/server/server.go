@@ -150,8 +150,16 @@ func spa(web fs.FS) http.Handler {
 		path := strings.TrimPrefix(r.URL.Path, "/")
 		if path != "" {
 			if _, err := fs.Stat(web, path); err == nil {
-				if strings.HasPrefix(path, "assets/") {
+				switch {
+				case strings.HasPrefix(path, "assets/"):
 					w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+				case path == "sw.js" || path == "manifest.webmanifest":
+					// The service worker and app manifest decide what the
+					// installed app runs: always check for a new one.
+					w.Header().Set("Cache-Control", "no-cache")
+				}
+				if strings.HasSuffix(path, ".webmanifest") {
+					w.Header().Set("Content-Type", "application/manifest+json")
 				}
 				files.ServeHTTP(w, r)
 				return

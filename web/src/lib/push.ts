@@ -1,5 +1,5 @@
-// Browser side of web push: the service worker (public/sw.js, registered in
-// main.tsx) plus PushManager. The server half is /api/app/push.
+// Browser side of web push: the service worker (src/sw.ts, registered in
+// components/app/offline.tsx) plus PushManager. The server half is /api/app/push.
 
 export type PushSupport = "ready" | "insecure" | "unsupported";
 
