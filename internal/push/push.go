@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	webpush "github.com/SherClockHolmes/webpush-go"
@@ -40,6 +41,14 @@ type Subscription struct {
 	Auth     string `json:"auth"`
 }
 
+// vapidSubscriber turns VAPID_SUBJECT into what webpush-go expects. The
+// library adds "mailto:" to anything that is not an https URL, so
+// "mailto:me@x.com" would become "mailto:mailto:me@x.com". Apple rejects
+// that token (403 BadJwtToken) and no notice reaches an iPhone or a Mac.
+func vapidSubscriber(subject string) string {
+	return strings.TrimPrefix(strings.TrimSpace(subject), "mailto:")
+}
+
 // Sender delivers one message and returns the push service's status.
 type Sender func(ctx context.Context, sub Subscription, payload []byte) (int, error)
 
@@ -56,6 +65,7 @@ type Service struct {
 // client refuses private and loopback addresses (see safehttp).
 func WebPush(publicKey, privateKey, subject string) Sender {
 	client := safehttp.Client(15*time.Second, false)
+	subject = vapidSubscriber(subject)
 	return func(ctx context.Context, sub Subscription, payload []byte) (int, error) {
 		res, err := webpush.SendNotificationWithContext(ctx, payload,
 			&webpush.Subscription{Endpoint: sub.Endpoint, Keys: webpush.Keys{P256dh: sub.P256dh, Auth: sub.Auth}},
@@ -137,6 +147,12 @@ func (s *Service) Notify(ctx context.Context, p Payload) (delivered int) {
 		case status == 404 || status == 410:
 			_, err = s.DB.Exec(ctx, `DELETE FROM push_subscription WHERE id = $1`, sub.ID)
 		case err != nil || status >= 400:
+			// Only the push service host: the full endpoint is a secret capability URL.
+			host := ""
+			if u, perr := url.Parse(sub.Endpoint); perr == nil {
+				host = u.Host
+			}
+			slog.Warn("push send failed", "service", host, "status", status, "err", err)
 			var failures int
 			if err = s.DB.QueryRow(ctx, `UPDATE push_subscription SET failures = failures + 1 WHERE id = $1 RETURNING failures`, sub.ID).Scan(&failures); err == nil && failures >= giveUpAfter {
 				_, err = s.DB.Exec(ctx, `DELETE FROM push_subscription WHERE id = $1`, sub.ID)

@@ -6,6 +6,14 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Web push to iPhone, iPad and Safari on Mac: a `VAPID_SUBJECT` that starts
+  with `mailto:` was sent as `mailto:mailto:…`, and Apple rejected every
+  notice. Failed sends are now logged with the push service and status.
+- The iPhone notice says any browser can add Mails to the Home Screen, not
+  only Safari.
+
 ## [0.3.0] - 2026-11-22
 
 Upgrading: after the deploy, open Mails once and click **Reload** when it
