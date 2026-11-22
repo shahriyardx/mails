@@ -6,6 +6,11 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-22
+
+Upgrading: no config or migrations. Your `VAPID_SUBJECT` can stay as it is.
+After the deploy, press **Send a test** in Settings → Notifications.
+
 ### Fixed
 
 - Web push to iPhone, iPad and Safari on Mac: a `VAPID_SUBJECT` that starts
@@ -211,7 +216,8 @@ First release of Mails, the Go rewrite.
   subdomains, live updates that stopped after an error, and more. Every fix
   has a test.
 
-[Unreleased]: https://github.com/shahriyardx/mails/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/shahriyardx/mails/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/shahriyardx/mails/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/shahriyardx/mails/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/shahriyardx/mails/compare/v0.1.8...v0.2.0
 [0.1.8]: https://github.com/shahriyardx/mails/compare/v0.1.7...v0.1.8
