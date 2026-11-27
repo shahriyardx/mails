@@ -303,126 +303,134 @@ function Conversation({
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-3 pb-24 sm:px-8 md:pb-10 lg:pt-9.5">
         <div className="mx-auto w-full max-w-165">
-          {/* Where you are on the left (folder, mailbox, labels), actions on the right. */}
-          <div className="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-2 border-b border-border pb-3">
-            <Tooltip label="Back to the list">
-              <IconButton
-                icon="arrow_back"
-                label="Back to the list"
-                size="sm"
-                className="-ml-2"
-                render={<Link to={backHref} />}
-                nativeButton={false}
-              />
-            </Tooltip>
-            <nav
-              aria-label="Location"
-              className="flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground"
-            >
-              <Link
-                to={backHref}
-                className="rounded font-medium text-soft-foreground outline-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+          {/* Where you are on the left (folder, mailbox), actions on the right,
+              always one row: the mailbox name truncates, the actions never wrap. */}
+          <div className="border-b border-border pb-3">
+            <div className="flex min-h-8 items-center gap-2">
+              <Tooltip label="Back to the list">
+                <IconButton
+                  icon="arrow_back"
+                  label="Back to the list"
+                  size="sm"
+                  className="-ml-2"
+                  render={<Link to={backHref} />}
+                  nativeButton={false}
+                />
+              </Tooltip>
+              <nav
+                aria-label="Location"
+                className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px] text-muted-foreground"
               >
-                {FOLDER_META[folder as keyof typeof FOLDER_META]?.label ?? folder}
-              </Link>
-              <Icon name="chevron_right" size={16} />
-              <span
-                className="inline-flex min-w-0 items-center gap-1.5 rounded-md bg-tonal px-2 py-0.5 font-mono text-xs text-soft-foreground"
-                title={thread.mailbox}
-              >
+                <Link
+                  to={backHref}
+                  className="shrink-0 rounded font-medium text-soft-foreground outline-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+                >
+                  {FOLDER_META[folder as keyof typeof FOLDER_META]?.label ?? folder}
+                </Link>
+                <Icon name="chevron_right" size={16} />
                 <span
-                  aria-hidden
-                  className="size-1.75 shrink-0 rounded-[2px]"
-                  style={{ background: thread.mailbox_color }}
-                />
-                <span className="truncate">{thread.mailbox}</span>
-              </span>
-            </nav>
-            {thread.labels?.map((label) => (
-              <Badge key={label.id} tone="accent">
-                {label.name}
-              </Badge>
-            ))}
-            <span className="flex-1" />
-            {inTrash ? (
-              <Tooltip label="Put back">
-                <IconButton
-                  icon="restore_from_trash"
-                  label="Put back"
-                  size="sm"
-                  onClick={() => {
-                    actions.restore([thread.id]);
-                    nav.leave();
-                  }}
-                />
-              </Tooltip>
-            ) : archived ? (
-              <Tooltip label="Move to Inbox">
-                <IconButton
-                  icon="unarchive"
-                  label="Move to Inbox"
-                  size="sm"
-                  onClick={() => {
-                    actions.move([thread.id], "inbox", "archive");
-                    nav.leave();
-                  }}
-                />
-              </Tooltip>
-            ) : (
-              <Tooltip label="Archive">
-                <IconButton icon="archive" label="Archive" size="sm" onClick={archive} />
-              </Tooltip>
-            )}
-            {!inTrash && (
-              <SnoozeMenu
-                snoozed={Boolean(thread.snoozed_until)}
-                onSnooze={snooze}
-                trigger={<IconButton icon="snooze" label="Snooze" size="sm" />}
-              />
-            )}
-            <LabelMenu
-              threadIds={[thread.id]}
-              applied={thread.labels?.map((l) => l.id)}
-              trigger={<IconButton icon="label" label="Label" size="sm" />}
-            />
-            <Tooltip label={thread.is_starred ? "Unstar" : "Star"}>
-              <IconButton
-                icon="star"
-                size="sm"
-                filled={thread.is_starred}
-                className={cn(thread.is_starred && "text-accent")}
-                label={thread.is_starred ? "Unstar" : "Star"}
-                onClick={star}
-              />
-            </Tooltip>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={<IconButton icon="more_horiz" label="More actions" size="sm" />}
-              />
-              <DropdownMenuContent>
-                <DropdownMenuItem
-                  icon="mark_email_unread"
-                  onClick={() => actions.setRead([thread.id], false)}
+                  className="inline-flex min-w-0 items-center gap-1.5 rounded-md bg-tonal px-2 py-0.5 font-mono text-xs text-soft-foreground"
+                  title={thread.mailbox}
                 >
-                  Mark unread
-                </DropdownMenuItem>
-                {(["inbox", "archive", "spam"] as const)
-                  .filter((f) => !thread.folders.includes(f))
-                  .map((f) => (
-                    <DropdownMenuItem key={f} icon={FOLDER_ICON[f]} onClick={() => move(f)}>
-                      {f === "spam" ? "Report spam" : `Move to ${f}`}
+                  <span
+                    aria-hidden
+                    className="size-1.75 shrink-0 rounded-[2px]"
+                    style={{ background: thread.mailbox_color }}
+                  />
+                  <span className="truncate">{thread.mailbox}</span>
+                </span>
+              </nav>
+              <div className="-mr-1.5 flex shrink-0 items-center">
+                {inTrash ? (
+                  <Tooltip label="Put back">
+                    <IconButton
+                      icon="restore_from_trash"
+                      label="Put back"
+                      size="sm"
+                      onClick={() => {
+                        actions.restore([thread.id]);
+                        nav.leave();
+                      }}
+                    />
+                  </Tooltip>
+                ) : archived ? (
+                  <Tooltip label="Move to Inbox">
+                    <IconButton
+                      icon="unarchive"
+                      label="Move to Inbox"
+                      size="sm"
+                      onClick={() => {
+                        actions.move([thread.id], "inbox", "archive");
+                        nav.leave();
+                      }}
+                    />
+                  </Tooltip>
+                ) : (
+                  <Tooltip label="Archive">
+                    <IconButton icon="archive" label="Archive" size="sm" onClick={archive} />
+                  </Tooltip>
+                )}
+                {!inTrash && (
+                  <SnoozeMenu
+                    snoozed={Boolean(thread.snoozed_until)}
+                    onSnooze={snooze}
+                    trigger={<IconButton icon="snooze" label="Snooze" size="sm" />}
+                  />
+                )}
+                <LabelMenu
+                  threadIds={[thread.id]}
+                  applied={thread.labels?.map((l) => l.id)}
+                  trigger={<IconButton icon="label" label="Label" size="sm" />}
+                />
+                <Tooltip label={thread.is_starred ? "Unstar" : "Star"}>
+                  <IconButton
+                    icon="star"
+                    size="sm"
+                    filled={thread.is_starred}
+                    className={cn(thread.is_starred && "text-accent")}
+                    label={thread.is_starred ? "Unstar" : "Star"}
+                    onClick={star}
+                  />
+                </Tooltip>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={<IconButton icon="more_horiz" label="More actions" size="sm" />}
+                  />
+                  <DropdownMenuContent>
+                    <DropdownMenuItem
+                      icon="mark_email_unread"
+                      onClick={() => actions.setRead([thread.id], false)}
+                    >
+                      Mark unread
                     </DropdownMenuItem>
-                  ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  icon={inTrash ? "delete_forever" : "delete"}
-                  destructive
-                  onClick={trash}
-                >
-                  {inTrash ? "Delete forever" : "Delete"}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                    {(["inbox", "archive", "spam"] as const)
+                      .filter((f) => !thread.folders.includes(f))
+                      .map((f) => (
+                        <DropdownMenuItem key={f} icon={FOLDER_ICON[f]} onClick={() => move(f)}>
+                          {f === "spam" ? "Report spam" : `Move to ${f}`}
+                        </DropdownMenuItem>
+                      ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      icon={inTrash ? "delete_forever" : "delete"}
+                      destructive
+                      onClick={trash}
+                    >
+                      {inTrash ? "Delete forever" : "Delete"}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+            {thread.labels?.length ? (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {thread.labels.map((label) => (
+                  <Badge key={label.id} tone="accent">
+                    {label.name}
+                  </Badge>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <h1 className="mt-5 text-[26px] leading-[1.15] font-semibold tracking-[-0.025em] break-words sm:text-[32px]">

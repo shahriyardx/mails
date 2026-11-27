@@ -146,9 +146,10 @@ export function Component() {
               ? "hidden"
               : "flex flex-1"
             : cn(
-                // A fixed column on wide screens; it fills the width only
-                // below lg, where the list and a conversation take turns.
-                "lg:flex lg:w-[25rem] lg:flex-none lg:border-r lg:border-border xl:w-[28.25rem]",
+                // A fixed column from xl up; below xl the list and a
+                // conversation take turns, so a conversation never gets a
+                // column too narrow to read (1024px left it ~400px).
+                "xl:flex xl:w-[25rem] xl:flex-none xl:border-r xl:border-border 2xl:w-[28.25rem]",
                 threadId ? "hidden" : "flex flex-1",
               ),
         )}
@@ -169,7 +170,7 @@ export function Component() {
         aria-label="Conversation"
         className={cn(
           "min-w-0 flex-1 flex-col overflow-hidden",
-          stacked ? (threadId ? "flex" : "hidden") : threadId ? "flex" : "hidden lg:flex",
+          stacked ? (threadId ? "flex" : "hidden") : threadId ? "flex" : "hidden xl:flex",
         )}
       >
         {threadId ? (
