@@ -6,6 +6,18 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-11-27
+
+Upgrading: nothing to do. Click **Reload** when Mails offers the new version.
+
+### Fixed
+
+- On screens narrower than 1280px, an open conversation takes the full width
+  next to the sidebar instead of a narrow third column. The back arrow returns
+  to the list.
+- The toolbar above a conversation stays on one row on phones and narrow
+  windows. Long mailbox names are shortened; labels show on their own row.
+
 ## [0.3.2] - 2026-11-27
 
 Upgrading: no migrations. To fix a domain whose DKIM record was deleted, set
@@ -227,7 +239,8 @@ First release of Mails, the Go rewrite.
   subdomains, live updates that stopped after an error, and more. Every fix
   has a test.
 
-[Unreleased]: https://github.com/shahriyardx/mails/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/shahriyardx/mails/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/shahriyardx/mails/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/shahriyardx/mails/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/shahriyardx/mails/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/shahriyardx/mails/compare/v0.2.0...v0.3.0
