@@ -80,13 +80,18 @@ export function domainSummary(d: Domain): { ready: boolean; danger: boolean; tex
   return { ready: false, danger: d.status === "failed", text: parts.join(" · ") };
 }
 
-/** SES's three DKIM CNAMEs can be swapped for one TXT record with our key. */
-export function canUseOwnDkim(d: Domain) {
-  return (
-    !d.inherited_from &&
-    d.dkim_origin !== "EXTERNAL" &&
-    d.records.filter((r) => r.kind === "CNAME" && r.purpose.startsWith("DKIM")).length > 1
-  );
+/**
+ * What "our own DKIM key" can do for a domain:
+ * - "swap": SES's three DKIM CNAMEs become one TXT record with our key.
+ * - "replace": the key was set up elsewhere and we never saw it, so a lost
+ *   or deleted record can only be fixed with a new key.
+ * Subdomains that sign with their parent's key get neither.
+ */
+export function ownDkimAction(d: Domain): "swap" | "replace" | null {
+  if (d.inherited_from) return null;
+  const dkim = d.records.filter((r) => r.purpose.startsWith("DKIM"));
+  if (d.dkim_origin === "EXTERNAL") return dkim.some((r) => r.informational) ? "replace" : null;
+  return dkim.filter((r) => r.kind === "CNAME").length > 1 ? "swap" : null;
 }
 
 // ---- Mailboxes ------------------------------------------------------------

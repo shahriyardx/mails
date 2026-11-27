@@ -6,6 +6,11 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Generate new DKIM key** on an imported domain whose key was set up
+  elsewhere. Use it when that DKIM record was lost or deleted.
+
 ## [0.3.1] - 2026-11-22
 
 Upgrading: no config or migrations. Your `VAPID_SUBJECT` can stay as it is.

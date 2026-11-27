@@ -31,11 +31,11 @@ import {
 import { cn } from "@/lib/cn";
 import { formatDateTime } from "@/lib/mail";
 import {
-  canUseOwnDkim,
   type DomainCheck,
   domainChecks,
   domainSummary,
   nestDomains,
+  ownDkimAction,
   relativeName,
 } from "@/lib/settings";
 import type { DnsRecord, Domain } from "@/lib/types";
@@ -318,6 +318,7 @@ function DomainDetails({ domain }: { domain: Domain }) {
   const ownDkim = useOwnDkim();
   const checks = domainChecks(domain);
   const summary = domainSummary(domain);
+  const dkimAction = ownDkimAction(domain);
 
   return (
     <div className="space-y-4">
@@ -329,7 +330,7 @@ function DomainDetails({ domain }: { domain: Domain }) {
             Add these at your DNS host. Names are relative to {domain.name}.
           </p>
         </div>
-        {canUseOwnDkim(domain) && (
+        {dkimAction && (
           <Button
             size="sm"
             variant="ghost"
@@ -337,11 +338,13 @@ function DomainDetails({ domain }: { domain: Domain }) {
             onClick={() =>
               toastResult(
                 ownDkim.mutateAsync(domain.id),
-                "DKIM now uses one TXT record. Publish it, then re-check.",
+                dkimAction === "replace"
+                  ? "New DKIM key made. Publish its TXT record, then re-check."
+                  : "DKIM now uses one TXT record. Publish it, then re-check.",
               )
             }
           >
-            Use one TXT record for DKIM
+            {dkimAction === "replace" ? "Generate new DKIM key" : "Use one TXT record for DKIM"}
           </Button>
         )}
         <Button

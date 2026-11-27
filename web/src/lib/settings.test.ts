@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { describeBrowser, urlBase64ToUint8Array } from "./push";
 import {
-  canUseOwnDkim,
   describeFilter,
   domainChecks,
   domainSummary,
   emptyFilterForm,
   formFromFilter,
   nestDomains,
+  ownDkimAction,
   receivingNote,
   relativeName,
   validateFilter,
@@ -89,7 +89,7 @@ describe("domain status", () => {
     expect(domainSummary(domain({ sending_enabled: false })).text).toBe("Sending paused in SES");
   });
 
-  it("offers one TXT record only for SES's CNAMEs", () => {
+  it("offers our own DKIM key for SES's CNAMEs or an unknown external key", () => {
     const cname = {
       kind: "CNAME" as const,
       name: "a",
@@ -98,9 +98,27 @@ describe("domain status", () => {
       required: true,
     };
     const three = [cname, cname, cname];
-    expect(canUseOwnDkim(domain({ records: three }))).toBe(true);
-    expect(canUseOwnDkim(domain({ records: three, dkim_origin: "EXTERNAL" }))).toBe(false);
-    expect(canUseOwnDkim(domain({ records: [] }))).toBe(false);
+    const unknownKey = {
+      kind: "TXT" as const,
+      name: "usesend._domainkey",
+      value: "already published by whoever set this domain up",
+      purpose: "DKIM signing",
+      required: true,
+      informational: true,
+    };
+    const ourKey = { ...unknownKey, value: "p=MIIB", informational: false };
+    expect(ownDkimAction(domain({ records: three }))).toBe("swap");
+    expect(ownDkimAction(domain({ records: three, dkim_origin: "EXTERNAL" }))).toBeNull();
+    expect(ownDkimAction(domain({ records: [unknownKey], dkim_origin: "EXTERNAL" }))).toBe(
+      "replace",
+    );
+    expect(ownDkimAction(domain({ records: [ourKey], dkim_origin: "EXTERNAL" }))).toBeNull();
+    expect(
+      ownDkimAction(
+        domain({ records: [unknownKey], dkim_origin: "EXTERNAL", inherited_from: "x.com" }),
+      ),
+    ).toBeNull();
+    expect(ownDkimAction(domain({ records: [] }))).toBeNull();
   });
 });
 

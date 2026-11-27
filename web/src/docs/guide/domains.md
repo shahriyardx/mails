@@ -34,6 +34,11 @@ three CNAMEs, and a key set up elsewhere is shown as already published,
 because Mails cannot know it. Switching it to a key Mails generates gives it
 the single TXT record instead.
 
+If that key's record is lost or deleted, DKIM fails for every message from the
+domain, and Mails cannot show the old key. Click **Generate new DKIM key** on
+the domain. SES signs with the new key at once, so publish the TXT record it
+shows straight away, then click **Check again**.
+
 The mail-from subdomain is `mail.yourdomain.com` unless you set
 `SES_MAIL_FROM_PREFIX`.
 
